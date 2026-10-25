@@ -1,0 +1,2061 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<title>Émargement Harmonie</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icone-192.png">
+<link rel="apple-touch-icon" href="assets/icone-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
+<style>
+/* Design system Harmonie Électricité : fond noir, or seul accent, Jost, tracés de circuit.
+   Mise en page : liste des logements à gauche, fiche à droite (une seule colonne sur téléphone). */
+:root {
+  color-scheme: dark;
+  --he-black: #0A0A0A; --he-gold: #C9A86A; --he-gold-light: #DFC28C; --he-gold-dark: #A8843F; --he-white: #F4F1EA;
+  --ink-800: #111111; --ink-700: #181818; --ink-600: #222222; --ink-500: #2C2C2C;
+  --grey-300: #A8A49A; --grey-400: #857F74; --grey-500: #635D52;
+  --paper: #E8E5DE; --text: #C8C4BA;
+  --border-hairline: rgba(201,168,106,0.12); --border-subtle: rgba(201,168,106,0.20); --border-strong: rgba(201,168,106,0.40);
+  --surface-card: rgba(17,17,17,0.9); --surface-raised: rgba(24,24,24,0.95);
+  --grad-gold: linear-gradient(135deg, #C9A86A 0%, #DFC28C 50%, #C9A86A 100%);
+  --grad-ink: linear-gradient(160deg, #111111 0%, #0A0A0A 60%, #0d0c09 100%);
+  --glow-gold-sm: 0 0 12px rgba(201,168,106,0.25), 0 0 4px rgba(201,168,106,0.15);
+  --glow-node: 0 0 8px rgba(201,168,106,0.60);
+  --shadow-elevated: 0 8px 40px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* États : désaturés et chauds, comme le veut le design system */
+  --ok: #9DB07F; --attention: #D9A35B; --erreur: #C8705F;
+  --font: 'Jost', system-ui, 'Segoe UI', sans-serif;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 14px; --fs-lead: 15px; --fs-lg: 17px; --fs-xl: 20px; --fs-2xl: 26px;
+  --ls-wide: 0.10em; --ls-wider: 0.16em; --ls-widest: 0.22em;
+  --r-sm: 4px; --r-md: 8px; --r-pill: 999px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-family: var(--font); font-size: var(--fs-base); color: var(--text);
+  background: var(--he-black); background-image: var(--grad-ink); background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 1.5px solid var(--he-gold); outline-offset: 2px; }
+[hidden] { display: none !important; }
+svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* ---------- En-tête ---------- */
+.entete {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(10,10,10,0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-hairline);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+}
+.entete-haut { display: flex; align-items: center; gap: 12px; }
+.monogramme { width: 34px; height: 34px; flex: none; }
+.entete-titre { min-width: 0; flex: 1; }
+.entete-titre .sourcil { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sourcil { font-size: var(--fs-xs); letter-spacing: var(--ls-widest); text-transform: uppercase; color: var(--he-gold); font-weight: 500; }
+.entete h1 { margin: 2px 0 0; font-weight: 300; font-size: var(--fs-xl); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn-chantier { flex: none; }
+
+/* Le tracé de progression : un nœud par logement, qui s'allume à la signature. */
+.trace { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+.trace-ligne { flex: 1; min-width: 0; position: relative; height: 14px; display: flex; align-items: center; justify-content: space-between; }
+.trace-ligne::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--ink-500); }
+.trace-ligne .allume { position: absolute; left: 0; top: 50%; height: 1px; background: var(--he-gold); box-shadow: var(--glow-node); transition: width 900ms var(--ease); }
+.noeud { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-500); border: 1px solid var(--grey-500); transition: 400ms var(--ease); padding: 0; }
+.noeud.signe { background: var(--he-gold); border-color: var(--he-gold-light); box-shadow: var(--glow-node); }
+.noeud.absent { background: var(--he-black); border-color: var(--attention); }
+.noeud.actif { transform: scale(1.6); border-color: var(--he-white); }
+.trace-compte { font-size: var(--fs-sm); letter-spacing: var(--ls-wide); text-transform: uppercase; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.trace-compte b { color: var(--he-white); font-weight: 500; font-size: var(--fs-lead); }
+
+/* ---------- Boutons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); background: transparent; color: var(--he-white);
+  font-size: var(--fs-sm); font-weight: 500; letter-spacing: var(--ls-wide); text-transform: uppercase;
+  transition: 150ms var(--ease); text-decoration: none; white-space: nowrap;
+}
+.btn:hover { border-color: var(--he-gold); color: var(--he-gold-light); box-shadow: var(--glow-gold-sm); }
+.btn:active { transform: scale(0.98); }
+.btn-or { background: var(--grad-gold); border-color: transparent; color: var(--he-black); font-weight: 600; }
+.btn-or:hover { color: var(--he-black); filter: brightness(1.06); }
+.btn-or:active { background: var(--he-gold-dark); }
+.btn-discret { border-color: transparent; color: var(--grey-300); }
+.btn-carre { width: 44px; padding: 0; }
+.btn:disabled { opacity: .45; pointer-events: none; }
+
+/* ---------- Structure ---------- */
+.app { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+@media (min-width: 1000px) {
+  .app { grid-template-columns: 400px minmax(0, 1fr); gap: 0; }
+  .vue-liste { border-right: 1px solid var(--border-hairline); height: calc(100vh - var(--h-entete, 110px)); overflow: auto; position: sticky; top: var(--h-entete, 110px); }
+  .retour { display: none !important; }
+}
+@media (max-width: 999.98px) {
+  body[data-vue="fiche"] .vue-liste { display: none; }
+  body[data-vue="liste"] .vue-fiche { display: none; }
+}
+.vue-liste, .vue-fiche { padding-block: 16px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); min-width: 0; }
+
+/* ---------- Liste ---------- */
+.filtres { display: flex; gap: 6px; flex-wrap: wrap; }
+.puce {
+  border: 1px solid var(--border-subtle); background: transparent; border-radius: var(--r-pill);
+  padding: 6px 12px; font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-300);
+}
+.puce[aria-pressed="true"] { background: var(--grad-gold); color: var(--he-black); border-color: transparent; font-weight: 600; }
+.puce .n { opacity: .7; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.recherche { margin-top: 10px; position: relative; }
+.recherche svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--grey-400); }
+.recherche input[type=search] { padding-left: 38px; }
+
+.logements { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.carte-log {
+  display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 12px; border: 1px solid var(--border-hairline); background: var(--surface-card); border-radius: var(--r-md);
+  cursor: pointer; transition: 150ms var(--ease); text-align: left; width: 100%; color: inherit;
+}
+.carte-log:hover { border-color: var(--border-strong); }
+.carte-log.courant { border-color: var(--he-gold); box-shadow: var(--glow-gold-sm); }
+.heure { font-variant-numeric: tabular-nums; font-size: var(--fs-lead); color: var(--he-white); font-weight: 500; text-align: center; line-height: 1.1; }
+.heure small { display: block; font-size: 10px; color: var(--grey-400); letter-spacing: var(--ls-wide); text-transform: uppercase; font-weight: 400; margin-top: 2px; }
+.log-info { min-width: 0; }
+.log-lieu { font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-gold); }
+.log-nom { color: var(--he-white); font-size: var(--fs-lead); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.log-detail { font-size: var(--fs-sm); color: var(--grey-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.etat { font-size: 10px; letter-spacing: var(--ls-wide); text-transform: uppercase; padding: 4px 9px; border-radius: var(--r-pill); border: 1px solid var(--grey-500); color: var(--grey-300); white-space: nowrap; }
+.etat.signe { border-color: transparent; background: var(--grad-gold); color: var(--he-black); font-weight: 600; }
+.etat.absent { border-color: var(--attention); color: var(--attention); }
+.etat.prevenu { border-color: var(--border-strong); color: var(--he-gold-light); }
+.vide { padding: 28px 12px; text-align: center; color: var(--grey-400); }
+
+/* ---------- Fiche ---------- */
+.fiche-tete { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.fiche-tete .titre { flex: 1; min-width: 200px; }
+.fiche-tete h2 { margin: 4px 0 0; font-weight: 300; font-size: var(--fs-2xl); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white); text-wrap: balance; }
+.bandeau { margin-top: 14px; padding: 10px 12px; border-radius: var(--r-md); border: 1px solid var(--border-strong); background: rgba(201,168,106,0.06); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: var(--fs-base); }
+.bandeau .txt { flex: 1; min-width: 180px; }
+.bandeau.absent { border-color: rgba(217,163,91,.5); background: rgba(217,163,91,.06); }
+
+.sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+@media (min-width: 720px) { .sections { grid-template-columns: repeat(2, minmax(0, 1fr)); } .large { grid-column: 1 / -1; } }
+.bloc { border: 1px solid var(--border-hairline); background: var(--surface-card); border-radius: var(--r-md); padding: 16px; min-width: 0; }
+.bloc h3 { margin: 0 0 12px; font-size: var(--fs-xs); font-weight: 500; letter-spacing: var(--ls-widest); text-transform: uppercase; color: var(--he-gold); display: flex; align-items: center; gap: 8px; }
+.bloc h3::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border-strong), transparent); }
+.bloc h3 .aside { color: var(--grey-400); letter-spacing: var(--ls-wide); order: 2; }
+
+.champ { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.champ + .champ, .ligne + .champ, .champ + .ligne, .ligne + .ligne { margin-top: 12px; }
+.ligne { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px; }
+.ligne > .champ { margin-top: 0; }
+label, .etiq { font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-300); }
+input[type=text], input[type=tel], input[type=email], input[type=date], input[type=time], input[type=search], select, textarea {
+  width: 100%; min-height: 44px; padding: 10px 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle); background: var(--ink-800); color: var(--he-white); font-size: 16px;
+  transition: 150ms var(--ease);
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--he-gold); box-shadow: var(--glow-gold-sm); }
+input:disabled, select:disabled, textarea:disabled { opacity: .6; }
+textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+input::placeholder, textarea::placeholder { color: var(--grey-500); }
+.avec-action { display: flex; gap: 8px; }
+.avec-action input { flex: 1; min-width: 0; }
+.aide { font-size: var(--fs-sm); color: var(--grey-400); margin: 6px 0 0; line-height: 1.45; }
+.aide.attention { color: var(--attention); }
+
+/* Étiquette de platine : aperçu en direct du nom affiché */
+.etiquette-platine {
+  margin-top: 10px; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r-sm); background: #0d0d0c; border: 1px solid var(--ink-500);
+}
+.etiquette-platine .bouton-appel { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--grey-500); flex: none; display: grid; place-items: center; }
+.etiquette-platine .bouton-appel::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--he-gold); box-shadow: var(--glow-node); }
+.etiquette-platine .nom-lcd { flex: 1; min-width: 0; font-weight: 500; letter-spacing: var(--ls-wider); text-transform: uppercase; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.etiquette-platine .nom-lcd.vide { color: var(--grey-500); }
+.etiquette-platine .compte { font-size: 10px; color: var(--grey-400); font-variant-numeric: tabular-nums; }
+
+/* Interrupteur oui / non */
+.segment { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; width: 100%; }
+.segment button { min-height: 44px; border: 0; background: transparent; color: var(--grey-300); letter-spacing: var(--ls-wide); text-transform: uppercase; font-size: var(--fs-sm); }
+.segment button[aria-pressed="true"] { background: var(--grad-gold); color: var(--he-black); font-weight: 600; }
+
+/* Compteur de badges */
+.compteur { display: inline-flex; align-items: center; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; }
+.compteur button { width: 48px; height: 48px; border: 0; background: var(--ink-700); color: var(--he-white); display: grid; place-items: center; }
+.compteur button:active { background: var(--he-gold-dark); }
+.compteur output { width: 56px; text-align: center; font-size: var(--fs-xl); color: var(--he-white); font-variant-numeric: tabular-nums; font-weight: 500; }
+.compteur.non-indique output { color: var(--grey-500); }
+.tete-badges { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.liste-badges { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.badge-ligne { display: grid; grid-template-columns: 28px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.badge-num { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border-strong); color: var(--he-gold); display: grid; place-items: center; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.badge-ligne input { font-variant-numeric: tabular-nums; letter-spacing: 0.06em; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+.badge-ligne input.doublon { border-color: var(--erreur); }
+.badge-sous { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: var(--fs-sm); color: var(--grey-400); }
+.badge-sous:empty { display: none; }
+.badge-sous .erreur { color: var(--erreur); }
+.badge-sous img { height: 36px; border-radius: 3px; border: 1px solid var(--ink-500); }
+.candidat { border: 1px solid var(--he-gold); background: transparent; color: var(--he-gold-light); border-radius: var(--r-pill); padding: 5px 11px; font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); }
+.candidat:hover { background: rgba(201,168,106,.12); }
+.lecture { display: inline-flex; align-items: center; gap: 8px; }
+.lecture::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--he-gold); box-shadow: var(--glow-node); animation: pulse 900ms var(--ease) infinite alternate; }
+@keyframes pulse { from { opacity: .25; } to { opacity: 1; } }
+
+/* Signatures : un bout de papier posé sur le fond noir */
+.signatures { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+@media (min-width: 720px) { .signatures { grid-template-columns: 1fr 1fr; } }
+.signature { min-width: 0; }
+.papier { position: relative; margin-top: 6px; background: var(--he-white); border-radius: var(--r-sm); height: 170px; touch-action: none; overflow: hidden; }
+.papier canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.papier .ligne-sig { position: absolute; left: 16px; right: 16px; bottom: 34px; border-bottom: 1px dashed #b9b3a6; pointer-events: none; }
+.papier .croix { position: absolute; left: 16px; bottom: 38px; color: #9a9386; font-size: 18px; pointer-events: none; }
+.papier .mention { position: absolute; left: 16px; bottom: 10px; font-size: 10px; letter-spacing: var(--ls-wide); text-transform: uppercase; color: #8a8374; pointer-events: none; }
+.papier.verrou canvas { pointer-events: none; }
+.sig-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.sig-actions .btn { min-height: 36px; padding: 0 10px; font-size: var(--fs-xs); }
+
+/* Barre d'actions de la fiche */
+.barre {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 15;
+  background: rgba(10,10,10,0.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-hairline);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.barre-int { max-width: 1280px; margin: 0 auto; display: flex; gap: 10px; justify-content: flex-end; }
+.barre .btn { min-height: 50px; padding: 0 12px; }
+.barre .btn-or { flex: 1; max-width: 420px; white-space: normal; line-height: 1.25; }
+@media (min-width: 1000px) { .barre { left: 400px; } }
+body[data-vue="liste"] .barre-fiche { display: none; }
+@media (min-width: 1000px) { body[data-vue="liste"] .barre-fiche { display: block; } }
+
+/* ---------- Dialogues ---------- */
+dialog {
+  border: 1px solid var(--border-strong); background: var(--ink-800); color: var(--text);
+  border-radius: var(--r-md); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  box-shadow: var(--shadow-elevated);
+}
+dialog::backdrop { background: rgba(10,10,10,0.75); backdrop-filter: blur(6px); }
+.dlg { padding: 20px; overflow: auto; max-height: calc(100vh - 50px); }
+.dlg h3 { margin: 4px 0 6px; font-weight: 300; font-size: var(--fs-xl); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white); }
+.dlg p { margin: 8px 0; line-height: 1.5; }
+.dlg-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }
+.recap { margin: 14px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border-hairline); }
+.recap li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-hairline); font-size: var(--fs-base); }
+.recap li span:last-child { color: var(--he-white); text-align: right; font-variant-numeric: tabular-nums; }
+.tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
+.tuile { border: 1px solid var(--border-hairline); border-radius: var(--r-sm); padding: 10px; }
+.tuile b { display: block; font-size: var(--fs-2xl); font-weight: 300; color: var(--he-white); font-variant-numeric: tabular-nums; }
+.tuile span { font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-400); }
+.separateur { height: 1px; background: var(--border-hairline); margin: 18px 0; }
+.code { font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); color: var(--grey-300); background: var(--ink-700); padding: 8px 10px; border-radius: var(--r-sm); overflow-x: auto; white-space: pre; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0; z-index: 50;
+  background: var(--ink-700); border: 1px solid var(--border-strong); color: var(--he-white); padding: 10px 16px; border-radius: var(--r-pill);
+  font-size: var(--fs-base); transition: 250ms var(--ease); pointer-events: none; max-width: calc(100vw - 32px); text-align: center;
+}
+.toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Scanner de badges (caméra en direct) ---------- */
+dialog.scan { width: 100vw; height: 100dvh; max-width: none; max-height: none; border: 0; border-radius: 0; background: #000; display: flex; flex-direction: column; padding: 0; }
+dialog.scan:not([open]) { display: none; }
+.scan-video { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.scan-video video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Le cadre de visée : tout est assombri sauf la bande où placer le numéro */
+.scan-cadre { position: absolute; left: 8%; right: 8%; top: 38%; height: 18%; border-radius: var(--r-sm); box-shadow: 0 0 0 100vmax rgba(10,10,10,0.62); }
+.scan-cadre i { position: absolute; width: 22px; height: 22px; border-color: var(--he-gold); border-style: solid; border-width: 0; }
+.scan-cadre i:nth-child(1) { left: -2px; top: -2px; border-left-width: 2px; border-top-width: 2px; }
+.scan-cadre i:nth-child(2) { right: -2px; top: -2px; border-right-width: 2px; border-top-width: 2px; }
+.scan-cadre i:nth-child(3) { left: -2px; bottom: -2px; border-left-width: 2px; border-bottom-width: 2px; }
+.scan-cadre i:nth-child(4) { right: -2px; bottom: -2px; border-right-width: 2px; border-bottom-width: 2px; }
+.scan-ligne { position: absolute; left: 6px; right: 6px; height: 1px; background: var(--he-gold); box-shadow: var(--glow-node); top: 50%; animation: balayage 1.6s var(--ease) infinite alternate; }
+@keyframes balayage { from { top: 12%; } to { top: 88%; } }
+.scan-cadre.trouve { box-shadow: 0 0 0 100vmax rgba(10,10,10,0.8), var(--glow-gold-sm); }
+.scan-cadre.trouve .scan-ligne { display: none; }
+.scan-indic { position: absolute; left: 0; right: 0; top: calc(38% - 34px); text-align: center; font-size: var(--fs-sm); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--paper); }
+.scan-bas { background: var(--ink-800); border-top: 1px solid var(--border-strong); padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.scan-lu { margin-top: 6px; min-height: 26px; color: var(--grey-300); font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.06em; }
+.scan-lu.lecture { font-family: var(--font); letter-spacing: 0; }
+#scanValeur { font-family: ui-monospace, Consolas, monospace; font-size: 24px; letter-spacing: 0.08em; text-align: center; margin-top: 8px; }
+.scan-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.scan-actions .btn-or { flex: 1; }
+.btn.allume { background: var(--grad-gold); color: var(--he-black); }
+
+/* ---------- Photos avant / après ---------- */
+.photos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.photo-tuile { position: relative; aspect-ratio: 4 / 3; max-width: 100%; border-radius: var(--r-sm); overflow: hidden; border: 1px dashed var(--border-strong); background: var(--ink-800); }
+.photo-tuile > button.prendre { position: absolute; inset: 0; width: 100%; border: 0; background: transparent; color: var(--grey-300); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; }
+.photo-tuile.pleine > button.prendre { color: transparent; }
+.photo-tuile.pleine > button.prendre svg { visibility: hidden; }
+.photo-tuile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.photo-tuile.pleine { border-style: solid; border-color: var(--border-subtle); }
+.photo-tuile .photo-etiq { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: var(--r-pill); background: rgba(10,10,10,.75); color: var(--he-gold-light); font-size: 10px; letter-spacing: var(--ls-wide); text-transform: uppercase; pointer-events: none; }
+.photo-tuile .retirer { position: absolute; right: 6px; top: 6px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: rgba(10,10,10,.75); color: var(--he-white); display: grid; place-items: center; }
+
+/* ---------- Synchronisation, chantiers, signature à distance ---------- */
+.sync { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--grey-500); margin-right: 8px; vertical-align: middle; }
+.sync.ok { background: var(--ok); }
+.sync.attente { background: var(--he-gold); box-shadow: var(--glow-node); }
+.sync.erreur { background: var(--attention); }
+.liste-chantiers { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow: auto; }
+.liste-chantiers button { width: 100%; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px;
+  border: 1px solid var(--border-hairline); background: var(--surface-card); border-radius: var(--r-md); color: inherit; }
+.liste-chantiers button:hover { border-color: var(--border-strong); }
+.liste-chantiers button.courant { border-color: var(--he-gold); }
+.liste-chantiers b { display: block; color: var(--he-white); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.liste-chantiers span:not(.etat) { font-size: var(--fs-sm); color: var(--grey-400); }
+.lien-signature { white-space: normal; word-break: break-all; margin-top: 12px; }
+
+/* ---------- Rappels SMS ---------- */
+.liste-sms { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--border-hairline); }
+.liste-sms li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-hairline); }
+.liste-sms li.suivant { background: linear-gradient(90deg, rgba(201,168,106,.08), transparent); }
+.liste-sms .qui { min-width: 0; }
+.liste-sms .qui b { display: block; color: var(--he-white); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.liste-sms .qui span { font-size: var(--fs-sm); color: var(--grey-400); }
+.liste-sms .fait { font-size: var(--fs-sm); color: var(--ok); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body data-vue="liste">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-sms" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></symbol>
+  <symbol id="i-flash" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
+</svg>
+
+<header class="entete" id="entete">
+  <div class="entete-haut">
+    <img class="monogramme" id="monogramme" alt="Harmonie Électricité">
+    <div class="entete-titre">
+      <div class="sourcil" id="enteteRef">Feuille d’émargement</div>
+      <h1 id="enteteResidence"></h1>
+    </div>
+    <button type="button" class="btn btn-carre btn-chantier" id="ouvrirChantiers" title="Changer de chantier" aria-label="Chantiers"><svg class="ic"><use href="#i-list"/></svg></button>
+    <button type="button" class="btn btn-carre btn-chantier" id="ouvrirChantier" title="Chantier, bon de livraison, import" aria-label="Chantier"><svg class="ic"><use href="#i-settings"/></svg></button>
+  </div>
+  <div class="trace" aria-label="Avancement">
+    <div class="trace-ligne" id="trace"></div>
+    <div class="trace-compte"><span class="sync" id="etatSync" title="Enregistré sur cet appareil"></span><b id="compteSignes">0</b> / <span id="compteTotal">0</span> signés</div>
+  </div>
+</header>
+
+<div class="app">
+  <section class="vue-liste" aria-label="Logements">
+    <div class="filtres" role="group" aria-label="Filtrer">
+      <button type="button" class="puce" data-filtre="tous" aria-pressed="true">Tous<span class="n"></span></button>
+      <button type="button" class="puce" data-filtre="afaire" aria-pressed="false">À faire<span class="n"></span></button>
+      <button type="button" class="puce" data-filtre="signe" aria-pressed="false">Signés<span class="n"></span></button>
+      <button type="button" class="puce" data-filtre="absent" aria-pressed="false">Absents<span class="n"></span></button>
+    </div>
+    <div class="recherche">
+      <svg class="ic"><use href="#i-search"/></svg>
+      <input type="search" id="recherche" placeholder="Nom, porte, n° de badge…" autocomplete="off">
+    </div>
+    <button type="button" class="btn" id="ouvrirRappels" style="width:100%;margin-top:10px"><svg class="ic"><use href="#i-sms"/></svg>Rappels SMS<span id="compteRappels" style="opacity:.7"></span></button>
+    <ul class="logements" id="logements"></ul>
+    <div style="margin-top:12px"><button type="button" class="btn" id="ajouterLogement" style="width:100%"><svg class="ic"><use href="#i-plus"/></svg>Ajouter un logement</button></div>
+  </section>
+
+  <section class="vue-fiche" id="fiche" aria-label="Fiche logement"></section>
+</div>
+
+<div class="barre barre-fiche" id="barreFiche">
+  <div class="barre-int" id="barreActions"></div>
+</div>
+
+<input type="file" id="photoBadge" accept="image/*" capture="environment" hidden>
+<input type="file" id="photoChantier" accept="image/*" capture="environment" hidden>
+
+<!-- Scanner de badges : caméra en direct, lecture continue du numéro dans le cadre -->
+<dialog id="dlgScan" class="scan" aria-label="Scanner un badge">
+  <div class="scan-video">
+    <video id="scanVideo" playsinline muted autoplay></video>
+    <div class="scan-indic" id="scanIndic">Numéro du badge dans le cadre</div>
+    <div class="scan-cadre" id="scanCadre"><i></i><i></i><i></i><i></i><div class="scan-ligne"></div></div>
+  </div>
+  <div class="scan-bas">
+    <div class="sourcil" id="scanTitre">Badge 1</div>
+    <div class="scan-lu lecture" id="scanLu">Ouverture de la caméra…</div>
+    <input type="text" id="scanValeur" hidden autocomplete="off" spellcheck="false" aria-label="Numéro lu">
+    <div class="scan-actions">
+      <button type="button" class="btn btn-carre" id="scanTorche" hidden aria-label="Lampe"><svg class="ic"><use href="#i-flash"/></svg></button>
+      <button type="button" class="btn" id="scanFermer">Fermer</button>
+      <button type="button" class="btn" id="scanRelire" hidden>Relire</button>
+      <button type="button" class="btn" id="scanPlus" hidden>+ Autre badge</button>
+      <button type="button" class="btn btn-or" id="scanOk" hidden>Valider</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Rappels SMS : envoyés depuis le téléphone, un par un -->
+<dialog id="dlgRappels">
+  <div class="dlg">
+    <div class="sourcil">Rappels SMS</div>
+    <h3>Prévenir les occupants</h3>
+    <p class="aide">Chaque bouton ouvre la messagerie de votre téléphone avec le message prêt. Appuyez sur Envoyer, revenez ici : le suivant est surligné. Les SMS partent de votre forfait, sans abonnement.</p>
+    <div class="champ" style="margin-top:12px"><label for="modeleSms">Message</label><textarea id="modeleSms" rows="4"></textarea>
+      <p class="aide">Remplis pour chaque occupant : {jour} {heure} {porte} {residence} {objet} {nom}</p></div>
+    <ul class="liste-sms" id="listeSms"></ul>
+    <div class="dlg-actions"><button type="button" class="btn btn-discret" id="smsDefaut">Message par défaut</button><button type="button" class="btn btn-or" id="fermerRappels">Fermer</button></div>
+  </div>
+</dialog>
+
+<!-- Chantier : infos, donneur d'ordre, signature technicien, bon de livraison, import -->
+<dialog id="dlgChantier">
+  <form class="dlg" method="dialog" id="formChantier">
+    <div class="sourcil">Chantier</div>
+    <h3>Résidence et bon de livraison</h3>
+    <div class="champ"><label for="c-residence">Résidence / copropriété</label><input type="text" id="c-residence"></div>
+    <div class="champ"><label for="c-adresse">Adresse du chantier</label><input type="text" id="c-adresse"></div>
+    <div class="ligne">
+      <div class="champ"><label for="c-reference">Référence (OS)</label><input type="text" id="c-reference" placeholder="Réf. 2178399"></div>
+      <div class="champ"><label for="c-technicien">Technicien</label><input type="text" id="c-technicien"></div>
+    </div>
+    <div class="ligne">
+      <div class="champ"><label for="c-donneur">Donneur d’ordre (syndic)</label><input type="text" id="c-donneur"></div>
+      <div class="champ"><label for="c-donneurEmail">E-mail du donneur d’ordre</label><input type="email" id="c-donneurEmail" inputmode="email"></div>
+    </div>
+    <div class="champ"><label for="c-objet">Objet de l’intervention (repris dans les SMS et avis)</label><input type="text" id="c-objet" placeholder="le remplacement de votre combiné d’interphone"></div>
+
+    <div class="separateur"></div>
+    <div class="etiq">Signature du technicien (réutilisée sur chaque bon)</div>
+    <div class="papier" id="papierTech"><canvas id="sigTechChantier"></canvas><div class="ligne-sig"></div><span class="croix">×</span><span class="mention">Signature du technicien</span></div>
+    <div class="sig-actions"><span class="aide" style="margin:0">Mémorisée sur cet appareil.</span><button type="button" class="btn btn-discret" id="effacerSigTech">Effacer</button></div>
+
+    <div class="separateur"></div>
+    <div class="etiq">Fin de chantier</div>
+    <div class="tuiles" id="tuilesChantier"></div>
+    <div class="dlg-actions" style="justify-content:flex-start">
+      <button type="button" class="btn btn-or" id="bonLivraison"><svg class="ic"><use href="#i-file"/></svg>Bon de livraison</button>
+      <button type="button" class="btn" id="exportBadges">Badges (CSV)</button>
+    </div>
+    <p class="aide">Le bon de livraison reprend tous les logements : nom affiché, matériel, plaque, numéros de badges, état et signature de chaque client.</p>
+
+    <div class="separateur"></div>
+    <div class="etiq">Importer la liste des logements</div>
+    <p class="aide">Copiez les lignes depuis Excel (une ligne par logement), dans cet ordre :</p>
+    <div class="code">Bâtiment  Étage  Porte  Nom affiché  Occupant  Téléphone  E-mail  Heure RDV  Nb badges  Modèle</div>
+    <textarea id="importTexte" placeholder="A	2	21	MARTIN	Mme Martin Claire	06 12 34 56 78	c.martin@exemple.fr	09:00	2	Fermax – VEO 4,3&quot;" style="margin-top:8px"></textarea>
+    <div class="dlg-actions" style="justify-content:space-between">
+      <button type="button" class="btn btn-discret" id="nouveauChantier">Changer de chantier</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn" id="importer">Importer</button>
+        <button type="submit" class="btn btn-or">Fermer</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Chantiers : liste (Supabase + appareil) et création depuis les clients de l'app -->
+<dialog id="dlgChantiers">
+  <div class="dlg">
+    <div class="sourcil">Émargement</div>
+    <h3>Chantiers</h3>
+    <div class="bandeau absent" id="alerteTable" hidden><span class="txt">La table « emargements » n’existe pas encore dans Supabase : les chantiers restent sur cet appareil. Exécutez une fois le fichier sql/emargements.sql dans Supabase, menu SQL Editor.</span></div>
+    <ul class="liste-chantiers" id="listeChantiers"></ul>
+    <div class="separateur"></div>
+    <div class="etiq">Nouveau chantier</div>
+    <div class="champ" style="margin-top:8px"><label for="nc-client">Client ou syndic</label><input type="text" id="nc-client" list="nc-clients" placeholder="Rechercher dans vos clients…" autocomplete="off"><datalist id="nc-clients"></datalist></div>
+    <div class="champ" id="nc-blocResidence" hidden><label for="nc-residence">Résidence</label><select id="nc-residence"></select></div>
+    <div class="dlg-actions" style="justify-content:space-between">
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-discret" id="chantierExemple">Exemple</button></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="fermerChantiers">Fermer</button><button type="button" class="btn btn-or" id="creerChantier">Créer le chantier</button></div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Signature à distance : lien envoyé au client -->
+<dialog id="dlgDistance">
+  <div class="dlg">
+    <div class="sourcil">Signature à distance</div>
+    <h3 id="distTitre"></h3>
+    <p>Le client ouvre ce lien sur son téléphone, relit le bon et signe. Sa signature revient ici toute seule et le bon signé est prêt à lui être envoyé.</p>
+    <p class="aide">Le lien reprend le matériel et les badges tels qu’ils sont saisis maintenant.</p>
+    <div class="code lien-signature" id="distLien"></div>
+    <div class="dlg-actions" style="justify-content:flex-start">
+      <a class="btn btn-or" id="distSms" href="#"><svg class="ic"><use href="#i-sms"/></svg>Par SMS</a>
+      <button type="button" class="btn" id="distMail"><svg class="ic"><use href="#i-mail"/></svg>Par e-mail</button>
+      <button type="button" class="btn" id="distCopier"><svg class="ic"><use href="#i-copy"/></svg>Copier</button>
+    </div>
+    <div class="dlg-actions" style="justify-content:space-between"><button type="button" class="btn btn-discret" id="distAnnuler">Annuler la demande</button><button type="button" class="btn" id="distFermer">Fermer</button></div>
+  </div>
+</dialog>
+
+<!-- Confirmation générique -->
+<dialog id="dlgQuestion">
+  <div class="dlg">
+    <h3 id="qTitre"></h3>
+    <p id="qTexte"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-discret" id="qNon">Annuler</button>
+      <button type="button" class="btn btn-or" id="qOui">Confirmer</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Document prêt -->
+<dialog id="dlgDocument">
+  <div class="dlg">
+    <div class="sourcil" id="docSourcil">Bon d’intervention</div>
+    <h3 id="docTitre">Document prêt</h3>
+    <ul class="recap" id="docRecap"></ul>
+    <div class="champ" style="margin-top:14px"><label for="docDest">Envoyer à</label><input type="email" id="docDest" inputmode="email" placeholder="adresse e-mail"></div>
+    <p class="aide" id="docAide"></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-discret" id="docFermer">Fermer</button>
+      <button type="button" class="btn" id="docApercu">Aperçu</button>
+      <button type="button" class="btn btn-or" id="docEnvoyer"><svg class="ic"><use href="#i-mail"/></svg>Envoyer</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="logos.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   Feuille d'émargement numérique — Harmonie Électricité
+   Un chantier = une résidence ; un logement = une ligne de la feuille papier.
+   Tout est enregistré sur l'appareil (localStorage) au fil de la saisie.
+   ============================================================ */
+
+// App autonome. Données : Supabase (table emargements, propre à cette app). Envoi : service Gmail Harmonie.
+const SUPA_URL = 'https://bqzebkobyfktemnwfwbt.supabase.co';
+const SUPA_KEY = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
+const SB = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY };
+const TABLE = 'emargements';
+const ENVOI_GMAIL_URL = 'https://send-email-harmonie.harmonie-electricite.workers.dev';
+
+// Jeton Google de l'app (localStorage, sinon Supabase), comme dans bon.html.
+async function getGoogleRefreshToken() {
+  try { const local = localStorage.getItem('gcal_refresh_token'); if (local) return local; } catch {}
+  try {
+    const r = await fetch(SUPA_URL + '/rest/v1/notes?id=eq.he_gcal_refresh&select=payload', { headers: SB });
+    const rt = r.ok && (await r.json())[0]?.payload?.refresh_token;
+    if (rt) { try { localStorage.setItem('gcal_refresh_token', rt); } catch {} return rt; }
+  } catch {}
+  return null;
+}
+
+const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+
+// Modèles proposés (à compléter selon vos marchés). « moniteur » sert aux totaux du bon de livraison.
+const MODELES = [
+  { groupe: 'Combinés audio', moniteur: false, items: ['Intratone – Combiné audio', 'Fermax – Loft Basic', 'Fermax – Loft Extra', 'Golmar – T-740', 'Bticino – Classe 100 A16E', 'Urmet – Atlantico'] },
+  { groupe: 'Moniteurs vidéo', moniteur: true, items: ['Intratone – Moniteur vidéo 7"', 'Fermax – VEO 4,3"', 'Fermax – VEO-XS', 'Golmar – Tekna Plus', 'Bticino – Classe 100 V16E', 'Bticino – Classe 300 X13E'] },
+];
+const estMoniteur = m => /moniteur|veo|tekna|v16e|x13e|vid[ée]o/i.test(m || '');
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const aujourdhui = () => new Date().toLocaleDateString('sv-SE');
+const dateFr = iso => iso ? new Date(iso + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+const dateCourte = iso => iso ? iso.split('-').reverse().join('/') : '';
+const horodatage = ts => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const telLien = t => (t || '').replace(/[^\d+]/g, '');
+
+/* ---------- Stockage : sur l'appareil tout de suite, puis en ligne (Supabase) ---------- */
+const CLE_COURANT = 'he.emargement.courant', CLE_SIG = 'he.emargement.sigTech';
+const cleChantier = id => 'he.emargement.ch.' + id;
+const stock = {
+  lire(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  ecrire(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
+};
+let etat = null;
+try { etat = JSON.parse(stock.lire(cleChantier(stock.lire(CLE_COURANT)))); } catch {}
+if (!etat || !Array.isArray(etat.logements)) etat = chantierVide();
+let sigTech = stock.lire(CLE_SIG) || '';
+let sauvegardeEnAttente = null, envoiEnAttente = null;
+function sauver() {
+  etat.modifieLe = Date.now();
+  clearTimeout(sauvegardeEnAttente);
+  sauvegardeEnAttente = setTimeout(() => {
+    if (!stock.ecrire(cleChantier(etat.id), JSON.stringify(etat))) toast('Enregistrement impossible sur cet appareil (mémoire pleine ?)');
+    stock.ecrire(CLE_COURANT, etat.id);
+  }, 250);
+  clearTimeout(envoiEnAttente);
+  if (!etat.exemple) { etatSync('attente', 'Modifications à envoyer'); envoiEnAttente = setTimeout(envoyerChantier, 2500); }
+}
+
+function nouveauLogement(champs = {}) {
+  return {
+    id: uid(), batiment: '', etage: '', porte: '', nomAffiche: '', occupant: '', tel: '', email: '',
+    rdvDate: etat ? etat.date : aujourdhui(), rdvHeure: '', modele: '', plaque: false,
+    badgesPrevu: null, badges: [], observations: '', statut: 'afaire', prevenuLe: null,
+    signataire: '', sigClient: '', signeLe: null, absentLe: null, numeroBon: '', ...champs,
+  };
+}
+
+// Données d'exemple, pour voir l'outil rempli au premier lancement.
+function exemple() {
+  const d = aujourdhui();
+  const L = (batiment, etage, porte, nomAffiche, occupant, tel, email, rdvHeure, badgesPrevu, modele, plaque, extra = {}) => ({
+    id: uid(), batiment, etage, porte, nomAffiche, occupant, tel, email, rdvDate: d, rdvHeure, modele, plaque,
+    badgesPrevu, badges: badgesPrevu ? Array(badgesPrevu).fill('') : [], observations: '', statut: 'afaire',
+    prevenuLe: null, signataire: '', sigClient: '', signeLe: null, absentLe: null, numeroBon: '', ...extra,
+  });
+  return {
+    exemple: true,
+    residence: 'Le Clos des Vignes (exemple)', adresse: '14 avenue de Lyon, 73000 Chambéry', reference: 'Réf. 2178399',
+    donneur: 'Cabinet syndic (exemple)', donneurEmail: 'gestion@exemple.fr', technicien: 'LARUICCI Mathieu', date: d,
+    logements: [
+      L('A', 'RDC', '01', 'DURAND', 'M. Durand Pierre', '06 00 00 00 01', 'p.durand@exemple.fr', '08:30', 2, 'Fermax – VEO 4,3"', true),
+      L('A', '1', '11', 'MARTIN C.', 'Mme Martin Claire', '06 00 00 00 02', 'c.martin@exemple.fr', '09:00', 3, 'Fermax – VEO 4,3"', false, { prevenuLe: Date.now() - 3600e3 }),
+      L('A', '1', '12', 'BENALI / ROUX', 'M. Benali Karim', '06 00 00 00 03', '', '09:30', null, 'Fermax – Loft Basic', false),
+      L('A', '2', '21', 'LEFÈVRE', 'Mme Lefèvre Anne', '06 00 00 00 04', 'a.lefevre@exemple.fr', '10:00', 1, 'Fermax – VEO 4,3"', true, { statut: 'absent', absentLe: Date.now() - 1800e3 }),
+      L('B', 'RDC', '02', 'GARCIA', 'M. Garcia Luis', '06 00 00 00 05', 'l.garcia@exemple.fr', '10:30', 2, 'Fermax – Loft Basic', false),
+      L('B', '1', '13', 'PETIT', 'Mme Petit Sophie', '06 00 00 00 06', '', '11:00', 2, 'Fermax – VEO 4,3"', false),
+      L('B', '2', '22', 'MOREL', 'M. Morel Julien', '06 00 00 00 07', 'j.morel@exemple.fr', '11:30', 4, 'Fermax – VEO 4,3"', true),
+      L('B', '3', '31', 'FAURE', 'Mme Faure Hélène', '06 00 00 00 08', 'h.faure@exemple.fr', '14:00', null, '', false),
+    ],
+  };
+}
+
+/* ---------- Petits outils d'interface ---------- */
+let minuterieToast;
+function toast(txt) {
+  const t = $('toast'); t.textContent = txt; t.classList.add('visible');
+  clearTimeout(minuterieToast); minuterieToast = setTimeout(() => t.classList.remove('visible'), 3200);
+}
+function demander(titre, texte, oui = 'Confirmer') {
+  return new Promise(ok => {
+    const d = $('dlgQuestion');
+    $('qTitre').textContent = titre; $('qTexte').textContent = texte; $('qOui').textContent = oui;
+    const fin = v => { d.close(); ok(v); };
+    $('qOui').onclick = () => fin(true); $('qNon').onclick = () => fin(false);
+    d.onclose = () => ok(false);
+    d.showModal();
+  });
+}
+async function copier(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('Copié : ' + txt); }
+  catch { toast(txt); }
+}
+function chargerScript(src) {
+  return new Promise((ok, ko) => {
+    if (document.querySelector(`script[src="${src}"]`)) return ok();
+    const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('Chargement impossible (connexion ?)'));
+    document.head.append(s);
+  });
+}
+const lieu = l => [l.batiment && 'Bât. ' + l.batiment, l.etage && (/^\d+$/.test(l.etage) ? (l.etage === '1' ? '1er' : l.etage + 'e') : l.etage), l.porte && 'Porte ' + l.porte].filter(Boolean).join(' · ');
+
+/* ---------- Pad de signature ---------- */
+// Trait lissé, à l'échelle de l'écran ; l'image exportée garde un fond transparent pour le PDF.
+function creerPad(canvas, { valeur = '', onChange = () => {} } = {}) {
+  const ctx = canvas.getContext('2d');
+  let traits = false, dernier = null, actuel = valeur;
+  function taille() {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return false;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1E1C16';
+    if (actuel) dessinerImage(actuel);
+    return true;
+  }
+  function dessinerImage(src) {
+    const img = new Image();
+    img.onload = () => { const r = canvas.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height); ctx.drawImage(img, 0, 0, r.width, r.height); };
+    img.src = src;
+  }
+  const pos = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pressure || 0.5 }; };
+  canvas.addEventListener('pointerdown', e => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); dernier = pos(e); traits = true; });
+  canvas.addEventListener('pointermove', e => {
+    if (!traits) return;
+    const p = pos(e);
+    ctx.lineWidth = 1.6 + (e.pointerType === 'pen' ? p.p * 2 : 0.8);
+    ctx.beginPath(); ctx.moveTo(dernier.x, dernier.y);
+    ctx.quadraticCurveTo(dernier.x, dernier.y, (dernier.x + p.x) / 2, (dernier.y + p.y) / 2);
+    ctx.lineTo(p.x, p.y); ctx.stroke(); dernier = p;
+  });
+  // Export réduit (600 px de large au plus) : net sur le PDF et léger dans Supabase.
+  const exporter = () => {
+    const k = Math.min(1, 600 / canvas.width), c = document.createElement('canvas');
+    c.width = Math.round(canvas.width * k); c.height = Math.round(canvas.height * k);
+    c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+  };
+  const fin = () => { if (!traits) return; traits = false; actuel = exporter(); onChange(actuel); };
+  canvas.addEventListener('pointerup', fin); canvas.addEventListener('pointercancel', fin);
+  const ro = new ResizeObserver(() => taille()); ro.observe(canvas);
+  return {
+    effacer() { const r = canvas.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height); actuel = ''; onChange(''); },
+    poser(src) { actuel = src; if (src) dessinerImage(src); else { const r = canvas.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height); } },
+    valeur: () => actuel,
+    detruire: () => ro.disconnect(),
+  };
+}
+
+/* ---------- En-tête et tracé ---------- */
+$('monogramme').src = LOGO_MONOGRAMME;
+let courantId = null, filtre = 'tous';
+const courant = () => etat.logements.find(l => l.id === courantId);
+
+function rendreEntete() {
+  $('enteteResidence').textContent = etat.residence || 'Nouveau chantier';
+  $('enteteRef').textContent = ['Feuille d’émargement', etat.reference, dateCourte(etat.date)].filter(Boolean).join(' • ');
+  const tri = trier(etat.logements);
+  const signes = tri.filter(l => l.statut === 'signe').length;
+  $('compteSignes').textContent = signes; $('compteTotal').textContent = tri.length;
+  const trace = $('trace'); trace.innerHTML = '<span class="allume"></span>';
+  tri.forEach(l => {
+    const n = document.createElement('button'); n.type = 'button';
+    n.className = 'noeud ' + (l.statut !== 'afaire' ? l.statut : '') + (l.id === courantId ? ' actif' : '');
+    n.title = `${lieu(l)} — ${l.nomAffiche || l.occupant || 'sans nom'}`; n.setAttribute('aria-label', n.title);
+    n.onclick = () => ouvrirFiche(l.id);
+    trace.append(n);
+  });
+  // La ligne s'allume jusqu'au dernier logement signé dans l'ordre de la tournée.
+  const dernierSigne = tri.map(l => l.statut).lastIndexOf('signe');
+  trace.querySelector('.allume').style.width = tri.length > 1 && dernierSigne > 0 ? (dernierSigne / (tri.length - 1) * 100) + '%' : '0';
+  document.documentElement.style.setProperty('--h-entete', $('entete').offsetHeight + 'px');
+}
+
+/* ---------- Liste ---------- */
+const trier = ls => [...ls].sort((a, b) => ((a.rdvDate || '') + (a.rdvHeure || '99')).localeCompare((b.rdvDate || '') + (b.rdvHeure || '99'))
+  || (a.batiment + a.porte).localeCompare(b.batiment + b.porte, 'fr', { numeric: true }));
+const normaliser = s => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+
+function rendreListe() {
+  const q = normaliser($('recherche').value.trim());
+  const compte = { tous: etat.logements.length, afaire: 0, signe: 0, absent: 0 };
+  etat.logements.forEach(l => compte[l.statut]++);
+  document.querySelectorAll('.puce').forEach(p => {
+    p.setAttribute('aria-pressed', String(p.dataset.filtre === filtre));
+    p.querySelector('.n').textContent = compte[p.dataset.filtre];
+  });
+  const ul = $('logements'); ul.innerHTML = '';
+  const liste = trier(etat.logements).filter(l => (filtre === 'tous' || l.statut === filtre)
+    && (!q || normaliser([l.nomAffiche, l.occupant, l.porte, l.batiment, l.tel, l.email, ...l.badges].join(' ')).includes(q)));
+  if (!liste.length) ul.innerHTML = `<li class="vide">${etat.logements.length ? 'Aucun logement ne correspond.' : 'Aucun logement. Importez la liste depuis le menu Chantier ou ajoutez-en un.'}</li>`;
+  for (const l of liste) {
+    const li = document.createElement('li');
+    const prevenu = l.prevenuLe || l.rappelLe;
+    const etatTxt = l.statut === 'signe' ? 'Signé' : l.statut === 'absent' ? 'Absent' : prevenu ? 'Prévenu' : 'À faire';
+    const etatCls = l.statut === 'afaire' ? (prevenu ? 'prevenu' : '') : l.statut;
+    const nb = l.badges.length;
+    const detail = [l.occupant, l.modele && l.modele.replace(/^[^–]+–\s*/, ''), nb ? `${nb} badge${nb > 1 ? 's' : ''}` : (l.badgesPrevu === null ? 'badges ?' : ''), l.plaque && 'plaque'].filter(Boolean).join(' • ');
+    li.innerHTML = `<button type="button" class="carte-log ${l.id === courantId ? 'courant' : ''}">
+      <div class="heure">${esc(l.rdvHeure || '--:--')}<small>${l.rdvDate && l.rdvDate !== etat.date ? esc(dateCourte(l.rdvDate).slice(0, 5)) : 'RDV'}</small></div>
+      <div class="log-info"><div class="log-lieu">${esc(lieu(l) || 'Logement')}</div><div class="log-nom">${esc(l.nomAffiche || l.occupant || 'Sans nom')}</div><div class="log-detail">${esc(detail)}</div></div>
+      <span class="etat ${etatCls}">${etatTxt}</span></button>`;
+    li.firstElementChild.onclick = () => ouvrirFiche(l.id);
+    ul.append(li);
+  }
+}
+document.querySelectorAll('.puce').forEach(p => p.onclick = () => { filtre = p.dataset.filtre; rendreListe(); });
+$('recherche').addEventListener('input', rendreListe);
+$('ajouterLogement').onclick = () => {
+  const l = nouveauLogement(); etat.logements.push(l); sauver(); ouvrirFiche(l.id);
+  setTimeout(() => document.querySelector('[data-champ="batiment"]')?.focus(), 50);
+};
+
+/* ---------- Fiche logement ---------- */
+let padClient = null, padTechFiche = null;
+
+function ouvrirFiche(id) {
+  courantId = id;
+  document.body.dataset.vue = 'fiche';
+  rendreFiche(); rendreListe(); rendreEntete();
+  if (window.innerWidth < 1000) window.scrollTo({ top: 0 });
+}
+function retourListe() { document.body.dataset.vue = 'liste'; rendreListe(); }
+
+function optionsModeles(valeur) {
+  const connus = MODELES.flatMap(g => g.items);
+  let html = '<option value="">— Choisir le modèle —</option>';
+  for (const g of MODELES) html += `<optgroup label="${esc(g.groupe)}">` + g.items.map(m => `<option ${m === valeur ? 'selected' : ''}>${esc(m)}</option>`).join('') + '</optgroup>';
+  if (valeur && !connus.includes(valeur)) html += `<option selected>${esc(valeur)}</option>`;
+  return html + '<option value="__autre">Autre modèle…</option>';
+}
+
+function rendreFiche() {
+  padClient?.detruire(); padTechFiche?.detruire(); padClient = padTechFiche = null;
+  const l = courant(), f = $('fiche');
+  if (!l) {
+    f.innerHTML = `<div class="vide" style="padding-top:80px"><div class="sourcil">Tournée</div><p>Choisissez un logement dans la liste pour ouvrir sa fiche.</p></div>`;
+    $('barreActions').innerHTML = '';
+    return;
+  }
+  const verrou = l.statut === 'signe', dis = verrou ? 'disabled' : '';
+  const ecart = l.badgesPrevu !== null && l.badges.length !== l.badgesPrevu;
+  f.innerHTML = `
+  <div class="fiche-tete">
+    <button type="button" class="btn btn-carre retour" id="retour" aria-label="Retour à la liste"><svg class="ic"><use href="#i-back"/></svg></button>
+    <div class="titre"><div class="sourcil">${esc(lieu(l) || 'Logement')}</div><h2>${esc(l.nomAffiche || l.occupant || 'Nouveau logement')}</h2></div>
+  </div>
+  ${verrou ? `<div class="bandeau"><span class="txt">Bon signé le ${esc(horodatage(l.signeLe))} par ${esc(l.signataire)} · ${esc(l.numeroBon)}</span>
+      <button type="button" class="btn" id="renvoyer">Renvoyer le bon</button><button type="button" class="btn btn-discret" id="deverrouiller">Modifier</button></div>` : ''}
+  ${l.distance && !verrou ? `<div class="bandeau"><span class="txt">Signature à distance : lien ${l.distance.envoyeLe ? 'envoyé le ' + esc(horodatage(l.distance.envoyeLe)) : 'créé le ' + esc(horodatage(l.distance.creeLe))}, en attente du client.</span>
+      <button type="button" class="btn" id="distVerifier">Vérifier</button><button type="button" class="btn btn-discret" id="distRouvrir">Lien</button></div>` : ''}
+  ${l.statut === 'absent' ? `<div class="bandeau absent"><span class="txt">Client absent lors du passage du ${esc(horodatage(l.absentLe))}.
+      ${l.avisLe ? `Avis de passage envoyé le ${esc(horodatage(l.avisLe))}.` : 'Laissez-lui un avis de passage.'}</span>
+      <a class="btn" id="avisSms" href="#"><svg class="ic"><use href="#i-sms"/></svg>Avis par SMS</a>
+      <button type="button" class="btn" id="avisMail"><svg class="ic"><use href="#i-mail"/></svg>Avis par e-mail</button>
+      <button type="button" class="btn btn-discret" id="repasser">Repasser</button></div>` : ''}
+
+  <div class="sections">
+    <section class="bloc">
+      <h3>Logement</h3>
+      <div class="ligne">
+        <div class="champ"><label for="f-bat">Bâtiment</label><input type="text" id="f-bat" data-champ="batiment" value="${esc(l.batiment)}" ${dis}></div>
+        <div class="champ"><label for="f-etage">Étage</label><input type="text" id="f-etage" data-champ="etage" value="${esc(l.etage)}" ${dis}></div>
+        <div class="champ"><label for="f-porte">Porte</label><input type="text" id="f-porte" data-champ="porte" value="${esc(l.porte)}" ${dis}></div>
+      </div>
+      <div class="champ"><label for="f-nom">Nom affiché sur la platine</label><input type="text" id="f-nom" data-champ="nomAffiche" value="${esc(l.nomAffiche)}" maxlength="24" autocapitalize="characters" ${dis}></div>
+      <div class="etiquette-platine" aria-hidden="true"><span class="bouton-appel"></span><span class="nom-lcd" id="apercuNom"></span><span class="compte" id="compteNom"></span></div>
+      <div class="champ"><label for="f-occupant">Occupant</label><input type="text" id="f-occupant" data-champ="occupant" value="${esc(l.occupant)}" ${dis}></div>
+    </section>
+
+    <section class="bloc">
+      <h3>Contact et rendez-vous</h3>
+      <div class="champ"><label for="f-tel">Téléphone</label>
+        <div class="avec-action"><input type="tel" id="f-tel" data-champ="tel" value="${esc(l.tel)}" inputmode="tel" ${dis}>
+        <a class="btn btn-carre" id="smsRappel" href="#" aria-label="Envoyer le rappel par SMS"><svg class="ic"><use href="#i-sms"/></svg></a>
+        <a class="btn btn-or btn-carre" id="appeler" href="tel:${esc(telLien(l.tel))}" aria-label="Appeler"><svg class="ic"><use href="#i-phone"/></svg></a></div>
+        <p class="aide" id="infoPrevenu">${[l.prevenuLe && 'Appelé le ' + esc(horodatage(l.prevenuLe)) + '.', l.rappelLe && 'SMS de rappel le ' + esc(horodatage(l.rappelLe)) + '.'].filter(Boolean).join(' ') || 'Pas encore prévenu.'}
+          ${!verrou ? `<button type="button" class="btn btn-discret" id="basculerPrevenu" style="min-height:28px;padding:0 6px">${l.prevenuLe ? 'Annuler' : 'Marquer prévenu'}</button>` : ''}</p>
+      </div>
+      <div class="champ"><label for="f-email">E-mail (pour le bon signé)</label>
+        <div class="avec-action"><input type="email" id="f-email" data-champ="email" value="${esc(l.email)}" inputmode="email" placeholder="à demander au client" ${dis}>
+        <button type="button" class="btn btn-carre" id="copierEmail" aria-label="Copier l’e-mail"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+      </div>
+      <div class="ligne">
+        <div class="champ"><label for="f-rdvDate">Date du RDV</label><input type="date" id="f-rdvDate" data-champ="rdvDate" value="${esc(l.rdvDate)}" ${dis}></div>
+        <div class="champ"><label for="f-rdvHeure">Heure</label><input type="time" id="f-rdvHeure" data-champ="rdvHeure" value="${esc(l.rdvHeure)}" step="300" ${dis}></div>
+      </div>
+    </section>
+
+    <section class="bloc">
+      <h3>Matériel posé</h3>
+      <div class="champ"><label for="f-modele">Combiné ou moniteur</label><select id="f-modele" ${dis}>${optionsModeles(l.modele)}</select></div>
+      <div class="champ" id="blocAutre" hidden><label for="f-autre">Modèle posé</label><input type="text" id="f-autre" placeholder="Marque – référence"></div>
+      <div class="champ"><span class="etiq" id="lblPlaque">Plaque posée</span>
+        <div class="segment" role="group" aria-labelledby="lblPlaque">
+          <button type="button" data-plaque="1" aria-pressed="${l.plaque}" ${dis}>Oui</button>
+          <button type="button" data-plaque="0" aria-pressed="${!l.plaque}" ${dis}>Non</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="bloc">
+      <h3>Badges<span class="aside">${l.badgesPrevu === null ? 'non indiqué sur la feuille' : l.badgesPrevu + ' prévu' + (l.badgesPrevu > 1 ? 's' : '') + ' sur la feuille'}</span></h3>
+      <div class="tete-badges">
+        <div class="compteur ${l.badgesPrevu === null && !l.badges.length ? 'non-indique' : ''}">
+          <button type="button" id="badgeMoins" aria-label="Un badge de moins" ${dis}><svg class="ic"><use href="#i-minus"/></svg></button>
+          <output id="nbBadges">${l.badgesPrevu === null && !l.badges.length ? '?' : l.badges.length}</output>
+          <button type="button" id="badgePlus" aria-label="Un badge de plus" ${dis}><svg class="ic"><use href="#i-plus"/></svg></button>
+        </div>
+        <button type="button" class="btn" id="scannerTous" ${dis}><svg class="ic"><use href="#i-scan"/></svg>Scanner</button>
+      </div>
+      <p class="aide ${ecart ? 'attention' : ''}" id="aideBadges">${ecart ? `Différent de la feuille (${l.badgesPrevu}).` : 'Scannez les badges à la suite, ou saisissez les numéros.'}</p>
+      <ul class="liste-badges" id="listeBadges"></ul>
+    </section>
+
+    <section class="bloc">
+      <h3>Photos</h3>
+      <div class="photos">
+        ${['avant', 'apres'].map(k => `<div class="photo-tuile" id="tuile-${k}">
+          <button type="button" class="prendre" data-photo="${k}" ${dis}><svg class="ic"><use href="#i-camera"/></svg>${k === 'avant' ? 'Avant' : 'Après'}</button>
+        </div>`).join('')}
+      </div>
+      <p class="aide">Touchez pour photographier. Les photos sont jointes au bon d’intervention.</p>
+    </section>
+
+    <section class="bloc">
+      <h3>Observations</h3>
+      <textarea id="f-obs" data-champ="observations" placeholder="Remarques sur l’intervention, réserves du client…" ${dis}>${esc(l.observations)}</textarea>
+    </section>
+
+    <section class="bloc large">
+      <h3>Signatures</h3>
+      <div class="signatures">
+        <div class="signature">
+          <div class="etiq">Technicien · ${esc(etat.technicien || '')}</div>
+          <div class="papier ${verrou ? 'verrou' : ''}"><canvas id="sigTechFiche"></canvas><div class="ligne-sig"></div><span class="croix">×</span><span class="mention">Signature du technicien</span></div>
+          ${verrou ? '' : `<div class="sig-actions"><span class="aide" style="margin:0">${sigTech ? 'Signature enregistrée reprise.' : 'Signez une fois : elle sera mémorisée.'}</span><button type="button" class="btn btn-discret" id="effacerTechFiche">Effacer</button></div>`}
+        </div>
+        <div class="signature">
+          <div class="etiq">Client · lu et approuvé</div>
+          <div class="papier ${verrou ? 'verrou' : ''}"><canvas id="sigClient"></canvas><div class="ligne-sig"></div><span class="croix">×</span><span class="mention">Signature du client</span></div>
+          ${verrou ? '' : `<div class="sig-actions"><input type="text" id="f-signataire" data-champ="signataire" value="${esc(l.signataire)}" placeholder="Nom du signataire : ${esc(l.occupant || '')}" style="flex:1;min-width:160px"><button type="button" class="btn" id="signerDistance"><svg class="ic"><use href="#i-link"/></svg>À distance</button><button type="button" class="btn btn-discret" id="effacerClient">Effacer</button></div>`}
+        </div>
+      </div>
+    </section>
+  </div>`;
+
+  $('retour').onclick = retourListe;
+  // Liaison générique des champs texte
+  f.querySelectorAll('[data-champ]').forEach(el => el.addEventListener('input', () => {
+    l[el.dataset.champ] = el.value; sauver();
+    if (['nomAffiche', 'occupant', 'batiment', 'etage', 'porte'].includes(el.dataset.champ)) {
+      f.querySelector('.fiche-tete .sourcil').textContent = lieu(l) || 'Logement';
+      f.querySelector('.fiche-tete h2').textContent = l.nomAffiche || l.occupant || 'Nouveau logement';
+    }
+    if (el.dataset.champ === 'nomAffiche') majApercuNom();
+    if (el.dataset.champ === 'tel') $('appeler').href = 'tel:' + telLien(l.tel);
+    rendreListe(); rendreEntete();
+  }));
+  majApercuNom();
+
+  $('appeler').addEventListener('click', e => {
+    if (!telLien(l.tel)) { e.preventDefault(); return toast('Aucun numéro de téléphone.'); }
+    copier(l.tel);
+    if (!l.prevenuLe && !verrou) { l.prevenuLe = Date.now(); sauver(); setTimeout(() => { rendreFiche(); rendreListe(); }, 400); }
+  });
+  $('basculerPrevenu')?.addEventListener('click', () => { l.prevenuLe = l.prevenuLe ? null : Date.now(); sauver(); rendreFiche(); rendreListe(); });
+  $('copierEmail').onclick = () => l.email ? copier(l.email) : toast('Aucune adresse e-mail.');
+  brancherSms($('smsRappel'), l, () => remplirModele(modeleRappel(), l), () => { l.rappelLe = Date.now(); });
+
+  $('f-modele').addEventListener('change', e => {
+    if (e.target.value === '__autre') { $('blocAutre').hidden = false; $('f-autre').focus(); return; }
+    $('blocAutre').hidden = true; l.modele = e.target.value; sauver(); rendreListe();
+  });
+  $('f-autre').addEventListener('change', e => {
+    const v = e.target.value.trim(); if (!v) return;
+    l.modele = v; sauver(); $('f-modele').innerHTML = optionsModeles(v); $('blocAutre').hidden = true; rendreListe();
+  });
+  f.querySelectorAll('[data-plaque]').forEach(b => b.onclick = () => {
+    l.plaque = b.dataset.plaque === '1'; sauver();
+    f.querySelectorAll('[data-plaque]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); rendreListe();
+  });
+
+  $('badgeMoins').onclick = () => changerNbBadges(-1);
+  $('badgePlus').onclick = () => changerNbBadges(1);
+  rendreBadges();
+  $('scannerTous').onclick = () => {
+    if (!l.badges.length) changerNbBadges(1);
+    const vide = l.badges.findIndex(b => !b.trim());
+    ouvrirScanner(vide === -1 ? 0 : vide);
+  };
+  rendrePhotos(l);
+
+  padTechFiche = creerPad($('sigTechFiche'), { valeur: verrou ? l.sigTech || sigTech : sigTech, onChange: v => { sigTech = v; stock.ecrire(CLE_SIG, v); } });
+  padClient = creerPad($('sigClient'), { valeur: l.sigClient, onChange: v => { l.sigClient = v; sauver(); } });
+  $('effacerTechFiche')?.addEventListener('click', () => padTechFiche.effacer());
+  $('effacerClient')?.addEventListener('click', () => padClient.effacer());
+  $('signerDistance')?.addEventListener('click', () => demanderSignatureDistance(l));
+  $('distVerifier')?.addEventListener('click', () => verifierSignaturesDistance(false));
+  $('distRouvrir')?.addEventListener('click', () => ouvrirDistance(l));
+
+  $('deverrouiller')?.addEventListener('click', async () => {
+    if (!await demander('Modifier ce bon ?', 'La signature du client sera effacée : il faudra la refaire et renvoyer un nouveau bon.', 'Modifier')) return;
+    Object.assign(l, { statut: 'afaire', sigClient: '', signeLe: null }); sauver(); rendreTout();
+  });
+  $('renvoyer')?.addEventListener('click', () => proposerBon(l));
+  $('repasser')?.addEventListener('click', () => { l.statut = 'afaire'; l.absentLe = null; sauver(); rendreTout(); });
+  if ($('avisSms')) brancherSms($('avisSms'), l, () => remplirModele(MODELE_AVIS, l), () => { l.avisLe = Date.now(); });
+  $('avisMail')?.addEventListener('click', () => proposerAvis(l));
+
+  // Barre d'actions
+  const barre = $('barreActions');
+  barre.innerHTML = verrou ? `<button type="button" class="btn btn-or" id="bVoir"><svg class="ic"><use href="#i-file"/></svg>Bon d’intervention</button>`
+    : `${l.statut !== 'absent' ? '<button type="button" class="btn" id="bAbsent">Client absent</button>' : ''}<button type="button" class="btn btn-or" id="bValider">Valider et générer le bon</button>`;
+  $('bVoir')?.addEventListener('click', () => proposerBon(l));
+  $('bAbsent')?.addEventListener('click', async () => {
+    if (!await demander('Client absent ?', `${lieu(l)} sera noté absent à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} et apparaîtra comme tel sur le bon de livraison.`, 'Noter absent')) return;
+    l.statut = 'absent'; l.absentLe = Date.now(); sauver(); rendreTout(); toast('Noté absent : envoyez-lui un avis de passage.');
+  });
+  $('bValider')?.addEventListener('click', () => valider(l));
+}
+
+function majApercuNom() {
+  const l = courant(), v = (l.nomAffiche || '').trim();
+  $('apercuNom').textContent = v || 'Nom à afficher';
+  $('apercuNom').classList.toggle('vide', !v);
+  $('compteNom').textContent = `${v.length}/24`;
+}
+
+/* ---------- Badges ---------- */
+function changerNbBadges(d) {
+  const l = courant();
+  const n = Math.max(0, Math.min(30, l.badges.length + d));
+  if (n > l.badges.length) l.badges.push(...Array(n - l.badges.length).fill(''));
+  else l.badges.length = n;
+  if (l.badgesPrevu === null && n === 0 && d < 0) l.badgesPrevu = 0;
+  sauver();
+  $('nbBadges').textContent = n;
+  document.querySelector('.compteur').classList.remove('non-indique');
+  const ecart = l.badgesPrevu !== null && n !== l.badgesPrevu;
+  $('aideBadges').className = 'aide' + (ecart ? ' attention' : '');
+  $('aideBadges').textContent = ecart ? `Différent de la feuille (${l.badgesPrevu}).` : 'Scannez les badges à la suite, ou saisissez les numéros.';
+  rendreBadges(); rendreListe();
+  if (d > 0) document.querySelector(`#listeBadges li:last-child input`)?.focus();
+}
+
+// Numéro déjà attribué ailleurs sur le chantier ?
+function proprietaireBadge(num, saufId, saufIndex) {
+  const n = num.trim().toUpperCase(); if (!n) return null;
+  for (const l of etat.logements) for (let i = 0; i < l.badges.length; i++) {
+    if (l.id === saufId && i === saufIndex) continue;
+    if (l.badges[i].trim().toUpperCase() === n) return l.id === saufId ? 'ce logement' : (lieu(l) || l.nomAffiche);
+  }
+  return null;
+}
+
+let badgePhotoIndex = null;
+function rendreBadges() {
+  const l = courant(), ul = $('listeBadges'), verrou = l.statut === 'signe';
+  ul.innerHTML = '';
+  l.badges.forEach((num, i) => {
+    const li = document.createElement('li'); li.className = 'badge-ligne';
+    li.innerHTML = `<span class="badge-num">${i + 1}</span>
+      <input type="text" id="badge-${i}" value="${esc(num)}" placeholder="N° du badge ${i + 1}" autocomplete="off" spellcheck="false" inputmode="text" aria-label="Numéro du badge ${i + 1}" ${verrou ? 'disabled' : ''}>
+      <button type="button" class="btn btn-carre" aria-label="Scanner le badge ${i + 1}" ${verrou ? 'disabled' : ''}><svg class="ic"><use href="#i-scan"/></svg></button>
+      <div class="badge-sous" id="badge-sous-${i}"></div>`;
+    const input = li.querySelector('input');
+    const verifier = () => {
+      const p = proprietaireBadge(input.value, l.id, i);
+      input.classList.toggle('doublon', !!p);
+      const sous = li.querySelector('.badge-sous');
+      sous.querySelector('.erreur')?.remove();
+      if (p) sous.insertAdjacentHTML('afterbegin', `<span class="erreur">Déjà attribué : ${esc(p)}</span>`);
+    };
+    input.addEventListener('input', () => { l.badges[i] = input.value.trim(); sauver(); verifier(); });
+    li.querySelector('button').onclick = () => ouvrirScanner(i);
+    ul.append(li); verifier();
+  });
+}
+
+$('photoBadge').addEventListener('change', async e => {
+  const fichier = e.target.files[0]; e.target.value = '';
+  if (!fichier || badgePhotoIndex === null) return;
+  const i = badgePhotoIndex, l = courant(), sous = $('badge-sous-' + i);
+  const url = URL.createObjectURL(fichier);
+  sous.innerHTML = `<img src="${url}" alt="Photo du badge"><span class="lecture">Lecture du numéro…</span>`;
+  try {
+    const candidats = await lireNumeroBadge(fichier);
+    if (!candidats.length) { sous.innerHTML = `<img src="${url}" alt=""><span>Numéro illisible : rapprochez-vous, évitez les reflets, ou saisissez-le.</span>`; return; }
+    if (candidats.length === 1) {
+      poserBadge(l, i, candidats[0]);
+      sous.innerHTML = `<img src="${url}" alt=""><span>Lu : <b style="color:var(--he-white)">${esc(candidats[0])}</b> — vérifiez qu’il correspond au badge.</span>`;
+    } else {
+      sous.innerHTML = `<img src="${url}" alt=""><span>Touchez le bon numéro :</span>`;
+      candidats.slice(0, 4).forEach(c => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'candidat'; b.textContent = c;
+        b.onclick = () => { poserBadge(l, i, c); sous.innerHTML = `<img src="${url}" alt=""><span>Retenu : <b style="color:var(--he-white)">${esc(c)}</b></span>`; };
+        sous.append(b);
+      });
+    }
+  } catch (err) {
+    sous.innerHTML = `<span class="erreur">${esc(err.message)}</span>`;
+  }
+});
+function poserBadge(l, i, valeur) {
+  l.badges[i] = valeur; sauver();
+  const input = $('badge-' + i); if (input) { input.value = valeur; input.dispatchEvent(new Event('input')); }
+  rendreListe();
+}
+
+// Lecture du numéro : code-barres / QR d'abord (instantané si le badge en porte un), sinon reconnaissance de texte.
+let lecteurTexte = null;
+async function lireNumeroBadge(fichier) {
+  const bitmap = await createImageBitmap(fichier);
+  if ('BarcodeDetector' in window) {
+    try {
+      const codes = await new BarcodeDetector().detect(bitmap);
+      const vals = codes.map(c => c.rawValue.trim()).filter(Boolean);
+      if (vals.length) return [...new Set(vals)];
+    } catch {}
+  }
+  await chargerScript(TESSERACT_URL);
+  if (!lecteurTexte) {
+    lecteurTexte = await Tesseract.createWorker('eng');
+    await lecteurTexte.setParameters({ tessedit_char_whitelist: '0123456789ABCDEFabcdef -' });
+  }
+  const image = pretraiter(bitmap);
+  const { data } = await lecteurTexte.recognize(image);
+  // Numéros de badge : suites de 5 caractères ou plus (décimal ou hexadécimal), espaces internes retirés.
+  const brut = data.text.toUpperCase().replace(/(?<=[0-9A-F]) (?=[0-9A-F])/g, '');
+  const vus = brut.match(/[0-9A-F]{5,}/g) || [];
+  return [...new Set(vus)].sort((a, b) => (/^\d+$/.test(b) - /^\d+$/.test(a)) || b.length - a.length);
+}
+// Agrandit, passe en niveaux de gris et renforce le contraste : l'OCR lit mieux les petits chiffres gravés.
+function pretraiter(bitmap) {
+  const echelle = Math.min(2.5, 1800 / Math.max(bitmap.width, bitmap.height)) || 1;
+  const c = document.createElement('canvas');
+  c.width = Math.round(bitmap.width * echelle); c.height = Math.round(bitmap.height * echelle);
+  const ctx = c.getContext('2d'); ctx.drawImage(bitmap, 0, 0, c.width, c.height);
+  const img = ctx.getImageData(0, 0, c.width, c.height), p = img.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+    const v = Math.max(0, Math.min(255, (g - 128) * 1.6 + 128));
+    p[i] = p[i + 1] = p[i + 2] = v;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+/* ---------- Validation ---------- */
+async function valider(l) {
+  const manque = [];
+  if (!padClient.valeur()) manque.push('la signature du client');
+  if (!padTechFiche.valeur()) manque.push('la signature du technicien');
+  if (manque.length) return toast('Il manque ' + manque.join(' et ') + '.');
+  const avert = [];
+  const vides = l.badges.filter(b => !b.trim()).length;
+  if (vides) avert.push(`${vides} numéro${vides > 1 ? 's' : ''} de badge non saisi${vides > 1 ? 's' : ''}`);
+  if (l.badgesPrevu !== null && l.badges.length !== l.badgesPrevu) avert.push(`${l.badges.length} badge(s) remis au lieu de ${l.badgesPrevu} prévu(s)`);
+  if (!l.modele) avert.push('aucun modèle de combiné ou moniteur');
+  if (l.badges.some((b, i) => proprietaireBadge(b, l.id, i))) avert.push('un numéro de badge est déjà attribué ailleurs');
+  if (!l.email) avert.push('pas d’adresse e-mail : le bon ne pourra pas être envoyé au client');
+  if (avert.length && !await demander('Valider quand même ?', 'À vérifier : ' + avert.join(' ; ') + '.', 'Valider')) return;
+  const rang = trier(etat.logements).indexOf(l) + 1;
+  Object.assign(l, {
+    statut: 'signe', signeLe: Date.now(), sigTech: padTechFiche.valeur(),
+    signataire: (l.signataire || l.occupant || '').trim(),
+    numeroBon: l.numeroBon || numeroterBon(l),
+  });
+  sauver(); rendreTout();
+  await proposerBon(l);
+}
+
+function allerAuSuivant() {
+  const suivant = trier(etat.logements).find(x => x.statut === 'afaire');
+  if (suivant) ouvrirFiche(suivant.id); else { courantId = null; retourListe(); rendreFiche(); toast('Tous les logements sont traités : pensez au bon de livraison.'); }
+}
+
+/* ---------- PDF ---------- */
+const OR = [201, 168, 106], NOIR = [10, 10, 10], GRIS = [99, 93, 82], ENCRE = [30, 28, 22];
+const ENTREPRISE = 'Harmonie Électricité • 225 chemin des Bochets, 73170 Yenne • 06 31 13 47 01 • contact@harmonie-electricite.com';
+
+function entetePdf(doc, titre, sousTitre) {
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...NOIR); doc.rect(0, 0, W, 30, 'F');
+  doc.addImage(LOGO_WORDMARK, 'PNG', 14, 7, 48, 48 * 418 / 1232, 'logo', 'FAST');
+  doc.setTextColor(...OR); doc.setFont('helvetica', 'normal'); doc.setFontSize(15);
+  // jsPDF ne compte pas l'espacement des lettres dans l'alignement à droite : on place le titre à la main.
+  const t = titre.toUpperCase(), largeur = doc.getTextWidth(t) + 0.8 * (t.length - 1);
+  doc.text(t, W - 14 - largeur, 14, { charSpace: 0.8 });
+  doc.setTextColor(232, 229, 222); doc.setFontSize(9);
+  doc.text(sousTitre, W - 14, 21, { align: 'right' });
+  // Tracé de circuit : ligne or terminée par des nœuds
+  doc.setDrawColor(...OR); doc.setLineWidth(0.35);
+  doc.line(14, 33, W - 40, 33); doc.line(W - 40, 33, W - 36, 29.5);
+  doc.setFillColor(...OR); doc.circle(14, 33, 0.9, 'F'); doc.circle(W - 36, 29.5, 0.9, 'F');
+  return 42;
+}
+function piedPdf(doc) {
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) {
+    doc.setPage(p);
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(...OR); doc.setLineWidth(0.2); doc.line(14, H - 13, W - 14, H - 13);
+    doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.setFont('helvetica', 'normal');
+    doc.text(ENTREPRISE, 14, H - 8);
+    doc.text(`Page ${p} / ${n}`, W - 14, H - 8, { align: 'right' });
+  }
+}
+function titreBloc(doc, x, y, txt, w) {
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...OR);
+  doc.text(txt.toUpperCase(), x, y, { charSpace: 0.6 });
+  doc.setDrawColor(...OR); doc.setLineWidth(0.2); doc.line(x, y + 1.6, x + w, y + 1.6);
+  return y + 7;
+}
+function paires(doc, x, y, lignes, w) {
+  doc.setFontSize(9.5);
+  for (const [k, v] of lignes) {
+    if (!v) continue;
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRIS); doc.text(k, x, y);
+    doc.setTextColor(...ENCRE); doc.setFont('helvetica', 'bold');
+    const t = doc.splitTextToSize(String(v), w - 32); doc.text(t, x + 32, y);
+    y += 5.2 * t.length;
+  }
+  return y;
+}
+
+async function pdfBon(l, brouillon = false) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
+  const W = 210, M = 14, col = (W - 2 * M - 8) / 2;
+  let y = entetePdf(doc, 'Bon d’intervention', `N° ${l.numeroBon} • ${dateCourte(etat.date)}`);
+
+  let y1 = titreBloc(doc, M, y, 'Chantier', col);
+  y1 = paires(doc, M, y1, [['Résidence', etat.residence], ['Adresse', etat.adresse], ['Référence', etat.reference], ['Donneur d’ordre', etat.donneur]], col);
+  let y2 = titreBloc(doc, M + col + 8, y, 'Client', col);
+  y2 = paires(doc, M + col + 8, y2, [['Occupant', l.occupant], ['Logement', lieu(l)], ['Téléphone', l.tel], ['E-mail', l.email]], col);
+  y = Math.max(y1, y2) + 4;
+
+  y = titreBloc(doc, M, y, 'Rendez-vous', W - 2 * M);
+  y = paires(doc, M, y, [['Prévu le', [dateFr(l.rdvDate), l.rdvHeure && 'à ' + l.rdvHeure.replace(':', 'h')].filter(Boolean).join(' ')], ['Réalisé le', brouillon ? 'à signer' : horodatage(l.signeLe)], ['Technicien', etat.technicien]], W - 2 * M) + 4;
+
+  // Nom affiché : rendu comme l'étiquette de la platine
+  y = titreBloc(doc, M, y, 'Nom affiché sur la platine', W - 2 * M);
+  doc.setFillColor(...NOIR); doc.roundedRect(M, y - 1, 90, 11, 1.2, 1.2, 'F');
+  doc.setFillColor(...OR); doc.circle(M + 6, y + 4.5, 1.4, 'F');
+  doc.setTextColor(232, 229, 222); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+  doc.text((l.nomAffiche || '—').toUpperCase(), M + 11, y + 6.2, { charSpace: 0.9 });
+  y += 18;
+
+  y = titreBloc(doc, M, y, 'Matériel posé', W - 2 * M);
+  const lignes = [[l.modele || 'Combiné / moniteur (modèle non précisé)', '1'], ['Plaque', l.plaque ? 'Oui' : 'Non'], [`Badge${l.badges.length > 1 ? 's' : ''} d’accès`, String(l.badges.length)]];
+  doc.setFontSize(9.5);
+  for (const [k, v] of lignes) {
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...ENCRE); doc.text(k, M, y);
+    doc.setFont('helvetica', 'bold'); doc.text(v, W - M, y, { align: 'right' });
+    doc.setDrawColor(225, 221, 212); doc.line(M, y + 2, W - M, y + 2); y += 7;
+  }
+  if (l.badges.length) {
+    y += 2; doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRIS); doc.setFontSize(8.5); doc.text('Numéros des badges remis', M, y); y += 5;
+    doc.setFont('courier', 'bold'); doc.setFontSize(10); doc.setTextColor(...ENCRE);
+    l.badges.forEach((b, i) => { const cx = M + (i % 3) * 62, cy = y + Math.floor(i / 3) * 6; doc.text(`${i + 1}.  ${b || '(non saisi)'}`, cx, cy); });
+    y += Math.ceil(l.badges.length / 3) * 6 + 2;
+  }
+  if (l.observations.trim()) {
+    y += 3; y = titreBloc(doc, M, y, 'Observations', W - 2 * M);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...ENCRE);
+    const t = doc.splitTextToSize(l.observations.trim(), W - 2 * M); doc.text(t, M, y); y += t.length * 4.8 + 2;
+  }
+
+  // Signatures
+  y = Math.max(y + 6, 205);
+  if (y > 240) { doc.addPage(); y = 20; }
+  y = titreBloc(doc, M, y, 'Signatures', W - 2 * M);
+  const cadre = (x, titre, nom, img) => {
+    doc.setDrawColor(210, 205, 195); doc.setLineWidth(0.25); doc.rect(x, y, col, 38);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS); doc.text(titre, x + 3, y + 5);
+    if (img) doc.addImage(img, 'PNG', x + 3, y + 7, col - 6, 24);
+    doc.setTextColor(...ENCRE); doc.setFontSize(8.5); doc.text(nom || '', x + 3, y + 35);
+  };
+  cadre(M, 'Le technicien', etat.technicien, l.sigTech);
+  cadre(M + col + 8, 'Le client — lu et approuvé', l.signataire, l.sigClient);
+  y += 44;
+  doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+  doc.text(brouillon ? 'Projet de bon d’intervention : à relire et signer en ligne avec le lien reçu par SMS ou e-mail.'
+    : `Document signé ${l.signeDistance ? 'à distance' : 'électroniquement'} le ${horodatage(l.signeLe)}. Le client reconnaît la pose du matériel et la remise des badges ci-dessus.`, M, y);
+  // Photos avant / après sur une page à part, en gardant leurs proportions.
+  const photos = [];
+  for (const [k, titre] of [['avant', 'Avant intervention'], ['apres', 'Après intervention']]) {
+    const blob = await photoBlob(l, k);
+    if (blob) photos.push([titre, await imagePourPdf(blob)]);
+  }
+  if (photos.length) {
+    doc.addPage(); y = 20;
+    y = titreBloc(doc, M, y, 'Photos de l’intervention', W - 2 * M);
+    for (const [titre, img] of photos) {
+      const maxW = W - 2 * M, maxH = 105, k = Math.min(maxW / img.w, maxH / img.h), w = img.w * k, h = img.h * k;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS); doc.text(titre, M, y + 1);
+      doc.addImage(img.url, 'JPEG', M + (maxW - w) / 2, y + 4, w, h);
+      y += h + 14;
+    }
+  }
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+function pdfLivraison() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4', orientation: 'landscape' });
+  const W = 297, H = 210, M = 14;
+  const tri = trier(etat.logements), t = totaux();
+  let y = entetePdf(doc, 'Bon de livraison', `${etat.reference || ''} • ${dateCourte(etat.date)}`);
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(13); doc.setTextColor(...ENCRE);
+  doc.text(etat.residence || '', M, y + 2);
+  doc.setFontSize(9); doc.setTextColor(...GRIS);
+  doc.text([etat.adresse, etat.donneur && 'Donneur d’ordre : ' + etat.donneur, etat.technicien && 'Technicien : ' + etat.technicien].filter(Boolean).join('   •   '), M, y + 8);
+  y += 15;
+  // Totaux
+  const tuiles = [['Logements', t.total], ['Signés', t.signes], ['Absents', t.absents], ['Combinés', t.combines], ['Moniteurs', t.moniteurs], ['Plaques', t.plaques], ['Badges remis', t.badges]];
+  const tw = (W - 2 * M - 6 * 4) / 7;
+  tuiles.forEach(([k, v], i) => {
+    const x = M + i * (tw + 4);
+    doc.setDrawColor(...OR); doc.setLineWidth(0.25); doc.rect(x, y, tw, 15);
+    doc.setFontSize(15); doc.setTextColor(...ENCRE); doc.setFont('helvetica', 'normal'); doc.text(String(v), x + 4, y + 8);
+    doc.setFontSize(7); doc.setTextColor(...GRIS); doc.text(k.toUpperCase(), x + 4, y + 12.5, { charSpace: 0.4 });
+  });
+  y += 22;
+
+  const colonnes = [['Logement', 34], ['Nom affiché', 33], ['Occupant', 35], ['Matériel', 41], ['Plaque', 17], ['Badges', 47], ['État', 30], ['Signature', 32]];
+  const enteteTableau = () => {
+    doc.setFillColor(...NOIR); doc.rect(M, y, W - 2 * M, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...OR);
+    let x = M + 2; colonnes.forEach(([k, w]) => { doc.text(k.toUpperCase(), x, y + 4.7, { charSpace: 0.3 }); x += w; });
+    y += 9;
+  };
+  enteteTableau();
+  for (const l of tri) {
+    const cel = [
+      lieu(l) || '—', (l.nomAffiche || '—').toUpperCase(), l.occupant || '—', l.modele || '—', l.plaque ? 'Oui' : 'Non',
+      l.badges.length ? l.badges.map((b, i) => `${i + 1}. ${b || '?'}`).join('\n') : '0',
+      l.statut === 'signe' ? (l.signeDistance ? 'Signé à distance\n' : 'Signé\n') + horodatage(l.signeLe) : l.statut === 'absent' ? 'Absent\n' + horodatage(l.absentLe) : 'Non traité',
+    ];
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    const textes = cel.map((c, i) => doc.splitTextToSize(c, colonnes[i][1] - 3));
+    const h = Math.max(12, ...textes.map(t => t.length * 3.6 + 3));
+    if (y + h > H - 18) { doc.addPage(); y = 16; enteteTableau(); }
+    let x = M + 2;
+    textes.forEach((t, i) => {
+      doc.setTextColor(...(i === 6 && l.statut === 'absent' ? [160, 110, 40] : ENCRE));
+      if (i === 5) doc.setFont('courier', 'normal'); else doc.setFont('helvetica', i === 1 ? 'bold' : 'normal');
+      doc.text(t, x, y + 3); x += colonnes[i][1];
+    });
+    if (l.sigClient) doc.addImage(l.sigClient, 'PNG', x, y - 1, 28, 11);
+    y += h; doc.setDrawColor(225, 221, 212); doc.setLineWidth(0.2); doc.line(M, y - 2, W - M, y - 2);
+  }
+
+  if (y > H - 60) { doc.addPage(); y = 20; }
+  y += 6;
+  const cw = (W - 2 * M - 10) / 2;
+  const cadre = (x, titre, nom, img) => {
+    doc.setDrawColor(210, 205, 195); doc.setLineWidth(0.25); doc.rect(x, y, cw, 34);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS); doc.text(titre, x + 3, y + 5);
+    if (img) doc.addImage(img, 'PNG', x + 3, y + 7, 70, 22);
+    doc.setTextColor(...ENCRE); doc.text(nom || '', x + 3, y + 31);
+  };
+  cadre(M, `Le technicien — établi le ${horodatage(Date.now())}`, etat.technicien, sigTech);
+  cadre(M + cw + 10, 'Réception par le donneur d’ordre', etat.donneur, '');
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+function totaux() {
+  const ls = etat.logements, faits = ls.filter(l => l.statut === 'signe');
+  return {
+    total: ls.length, signes: faits.length, absents: ls.filter(l => l.statut === 'absent').length,
+    moniteurs: faits.filter(l => estMoniteur(l.modele)).length, combines: faits.filter(l => l.modele && !estMoniteur(l.modele)).length,
+    plaques: faits.filter(l => l.plaque).length, badges: faits.reduce((t, l) => t + l.badges.length, 0),
+  };
+}
+
+/* ---------- Envoi ---------- */
+const nomFichier = s => s.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim() + '.pdf';
+let docCourant = null;
+
+async function proposerBon(l) {
+  const blob = await pdfBon(l);
+  ouvrirDocument({
+    blob, nom: nomFichier(`Bon d'intervention ${l.numeroBon} - ${etat.residence} - ${lieu(l)}`),
+    sourcil: 'Bon d’intervention • ' + l.numeroBon, titre: l.nomAffiche || l.occupant,
+    recap: [['Matériel', l.modele || '—'], ['Plaque', l.plaque ? 'Oui' : 'Non'], ['Badges', l.badges.length], ['Signé par', l.signataire || '—'], ['Le', horodatage(l.signeLe)]],
+    dest: l.email,
+    objet: `Bon d'intervention ${l.numeroBon} — ${etat.residence} — Harmonie Électricité`,
+    texte: `Madame, Monsieur,\n\nSuite à notre intervention du ${dateFr(etat.date)} au ${lieu(l)} de la résidence ${etat.residence}, veuillez trouver ci-joint votre bon d'intervention signé.\n\nMatériel posé : ${l.modele || 'combiné / moniteur'}${l.plaque ? ', plaque' : ''}.\nBadges remis : ${l.badges.length}${l.badges.length ? ' (' + l.badges.filter(Boolean).join(', ') + ')' : ''}.\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+    apres: () => allerAuSuivant(),
+  });
+}
+
+function ouvrirDocument(d) {
+  docCourant = d;
+  $('docSourcil').textContent = d.sourcil; $('docTitre').textContent = d.titre || 'Document prêt';
+  $('docRecap').innerHTML = d.recap.map(([k, v]) => `<li><span>${esc(k)}</span><span>${esc(v)}</span></li>`).join('');
+  $('docDest').value = d.dest || '';
+  $('docAide').textContent = ENVOI_GMAIL_URL ? 'Le PDF part directement depuis votre boîte Gmail.'
+    : 'Sur téléphone, choisissez votre messagerie : le PDF est joint et l’adresse est copiée, il suffit de la coller. Sur ordinateur, le PDF est téléchargé et le message s’ouvre prêt.';
+  $('dlgDocument').showModal();
+}
+$('docFermer').onclick = () => { $('dlgDocument').close(); docCourant?.apres?.(); };
+$('docApercu').onclick = () => window.open(URL.createObjectURL(docCourant.blob), '_blank');
+$('docEnvoyer').onclick = async () => {
+  const d = docCourant, dest = $('docDest').value.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dest)) { $('docDest').focus(); return toast('Indiquez une adresse e-mail valide.'); }
+  if (d.surDest) d.surDest(dest);
+  const fichier = new File([d.blob], d.nom, { type: 'application/pdf' });
+  if (ENVOI_GMAIL_URL) {
+    // Envoi par le service Gmail Harmonie ; sans jeton Google, passage par la messagerie de l'appareil.
+    toast('Envoi en cours…');
+    const refreshToken = await getGoogleRefreshToken();
+    const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.readAsDataURL(d.blob); });
+    const rep = refreshToken && await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken, to: dest, subject: d.objet, bodyText: d.texte, pdfBase64: b64, pdfFilename: d.nom }) }).catch(() => null);
+    const res = rep && await rep.json().catch(() => null);
+    if (res && res.success) { toast('Envoyé à ' + dest); d.envoye?.(); $('dlgDocument').close(); d.apres?.(); return; }
+    toast('Envoi Gmail impossible : passage par la messagerie de l’appareil.');
+  }
+  if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+    navigator.clipboard?.writeText(dest).catch(() => {});
+    try { await navigator.share({ files: [fichier], title: d.objet, text: d.texte }); d.envoye?.(); toast('Collez l’adresse ' + dest + ' comme destinataire.'); }
+    catch (e) { if (e.name !== 'AbortError') toast('Partage impossible : ' + e.message); return; }
+  } else {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(d.blob); a.download = d.nom; a.click();
+    location.href = `mailto:${encodeURIComponent(dest)}?subject=${encodeURIComponent(d.objet)}&body=${encodeURIComponent(d.texte + '\n\n(PDF joint : ' + d.nom + ')')}`;
+    d.envoye?.(); toast('PDF téléchargé : joignez-le au message qui s’ouvre.');
+  }
+};
+
+/* ---------- Chantier ---------- */
+let padTechChantier = null;
+const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet'];
+$('ouvrirChantier').onclick = () => {
+  champsChantier.forEach(k => { $('c-' + k).value = etat[k] || ''; });
+  const t = totaux();
+  $('tuilesChantier').innerHTML = [['Signés', `${t.signes}/${t.total}`], ['Absents', t.absents], ['Combinés', t.combines], ['Moniteurs', t.moniteurs], ['Plaques', t.plaques], ['Badges', t.badges]]
+    .map(([k, v]) => `<div class="tuile"><b>${v}</b><span>${k}</span></div>`).join('');
+  $('dlgChantier').showModal();
+  if (!padTechChantier) padTechChantier = creerPad($('sigTechChantier'), { valeur: sigTech, onChange: v => { sigTech = v; stock.ecrire(CLE_SIG, v); } });
+  else padTechChantier.poser(sigTech);
+};
+champsChantier.forEach(k => $('c-' + k).addEventListener('input', e => { etat[k] = e.target.value; etat.exemple = false; sauver(); rendreEntete(); }));
+$('dlgChantier').addEventListener('close', () => { rendreTout(); });
+$('effacerSigTech').onclick = () => padTechChantier.effacer();
+
+$('bonLivraison').onclick = async () => {
+  const t = totaux(), restants = t.total - t.signes - t.absents;
+  if (!sigTech) return toast('Signez d’abord dans le cadre « Signature du technicien ».');
+  if (restants && !await demander('Logements non traités', `${restants} logement(s) ne sont ni signés ni notés absents. Ils figureront « Non traité » sur le bon de livraison.`, 'Générer quand même')) return;
+  $('dlgChantier').close();
+  ouvrirDocument({
+    blob: pdfLivraison(), nom: nomFichier(`Bon de livraison - ${etat.residence} - ${dateCourte(etat.date).replace(/\//g, '-')}`),
+    sourcil: 'Bon de livraison', titre: etat.residence,
+    recap: [['Logements signés', `${t.signes} / ${t.total}`], ['Absents', t.absents], ['Combinés posés', t.combines], ['Moniteurs posés', t.moniteurs], ['Plaques', t.plaques], ['Badges remis', t.badges]],
+    dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
+    objet: `Bon de livraison — ${etat.residence}${etat.reference ? ' — ' + etat.reference : ''} — Harmonie Électricité`,
+    texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint le bon de livraison de l'intervention réalisée le ${dateFr(etat.date)} à la résidence ${etat.residence}${etat.reference ? ' (' + etat.reference + ')' : ''}.\n\n${t.signes} logement(s) sur ${t.total} équipé(s) et signé(s), ${t.absents} absent(s).\nMatériel posé : ${t.combines} combiné(s), ${t.moniteurs} moniteur(s), ${t.plaques} plaque(s).\nBadges remis : ${t.badges}.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+  });
+};
+
+$('exportBadges').onclick = () => {
+  const lignes = [['Batiment', 'Etage', 'Porte', 'Nom affiche', 'Occupant', 'Numero badge']];
+  trier(etat.logements).forEach(l => l.badges.filter(Boolean).forEach(b => lignes.push([l.batiment, l.etage, l.porte, l.nomAffiche, l.occupant, b])));
+  if (lignes.length === 1) return toast('Aucun numéro de badge saisi.');
+  const csv = '﻿' + lignes.map(r => r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = nomFichier(`Badges - ${etat.residence}`).replace(/\.pdf$/, '.csv'); a.click();
+  toast(`${lignes.length - 1} badge(s) exporté(s).`);
+};
+
+$('importer').onclick = () => {
+  const lignes = $('importTexte').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!lignes.length) return toast('Collez d’abord les lignes à importer.');
+  let n = 0;
+  for (const ligne of lignes) {
+    const c = ligne.split(/\t|;/).map(s => s.trim());
+    if (/^b[aâ]t/i.test(c[0]) && /porte/i.test(ligne)) continue; // ligne d'en-tête
+    const nb = c[8] === '' || c[8] === undefined ? null : parseInt(c[8], 10);
+    etat.logements.push(nouveauLogement({
+      batiment: c[0] || '', etage: c[1] || '', porte: c[2] || '', nomAffiche: (c[3] || '').toUpperCase(), occupant: c[4] || '',
+      tel: c[5] || '', email: c[6] || '', rdvHeure: (c[7] || '').replace('h', ':').replace(/^(\d):/, '0$1:'),
+      badgesPrevu: Number.isFinite(nb) ? nb : null, badges: Number.isFinite(nb) ? Array(nb).fill('') : [], modele: c[9] || '',
+    }));
+    n++;
+  }
+  $('importTexte').value = ''; sauver(); rendreTout(); toast(`${n} logement(s) importé(s).`);
+};
+
+$('nouveauChantier').onclick = () => { $('dlgChantier').close(); ouvrirChantiers(); };
+
+/* ---------- SMS : envoyés depuis le téléphone, sans abonnement ---------- */
+// Le lien sms: ouvre la messagerie du téléphone avec le numéro et le texte prêts : il reste à appuyer sur Envoyer.
+const estIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const lienSms = (tel, texte) => `sms:${telLien(tel)}${estIOS ? '&' : '?'}body=${encodeURIComponent(texte)}`;
+const OBJET_DEFAUT = 'le remplacement de votre combiné d’interphone';
+const MODELE_RAPPEL = 'Bonjour, Harmonie Électricité passera {jour} à {heure} ({porte}, résidence {residence}) pour {objet}. Merci de prévoir une présence. En cas d’empêchement : 06 31 13 47 01.';
+const MODELE_AVIS = 'Bonjour, Harmonie Électricité est passée {passage} ({porte}, résidence {residence}) pour {objet}, mais vous étiez absent(e). Merci de nous rappeler au 06 31 13 47 01 pour convenir d’un nouveau rendez-vous.';
+const modeleRappel = () => etat.smsRappel || MODELE_RAPPEL;
+const jourLong = d => d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+function jourRelatif(iso) {
+  if (!iso) return 'prochainement';
+  const ecart = Math.round((new Date(iso + 'T12:00') - new Date(aujourdhui() + 'T12:00')) / 864e5);
+  return ecart === 0 ? 'aujourd’hui' : ecart === 1 ? 'demain' : 'le ' + jourLong(new Date(iso + 'T12:00'));
+}
+const heureFr = d => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+function remplirModele(modele, l) {
+  const v = {
+    jour: jourRelatif(l.rdvDate), heure: l.rdvHeure ? l.rdvHeure.replace(':', 'h') : 'l’heure convenue',
+    porte: lieu(l) || 'votre logement', residence: etat.residence || '', objet: etat.objet || OBJET_DEFAUT, nom: l.occupant || '',
+    passage: l.absentLe ? `le ${jourLong(new Date(l.absentLe))} à ${heureFr(new Date(l.absentLe))}` : jourRelatif(l.rdvDate),
+  };
+  return modele.replace(/\{(\w+)\}/g, (m, k) => k in v ? v[k] : m);
+}
+function brancherSms(el, l, texte, apres) {
+  el.addEventListener('click', e => {
+    if (!telLien(l.tel)) { e.preventDefault(); return toast('Aucun numéro de téléphone.'); }
+    el.href = lienSms(l.tel, texte()); // lu par le navigateur juste après ce clic
+    apres(); sauver();
+    setTimeout(() => { rendreTout(); if ($('dlgRappels').open) rendreRappels(); }, 600);
+  });
+}
+
+function majCompteRappels() {
+  const cibles = etat.logements.filter(l => l.statut === 'afaire');
+  $('compteRappels').textContent = cibles.length ? ` · ${cibles.filter(l => l.rappelLe).length}/${cibles.length}` : '';
+}
+function rendreRappels() {
+  const ul = $('listeSms'); ul.innerHTML = '';
+  const cibles = trier(etat.logements).filter(l => l.statut === 'afaire');
+  const suivant = cibles.find(l => !l.rappelLe && telLien(l.tel));
+  if (!cibles.length) ul.innerHTML = '<li style="display:block" class="vide">Aucun logement à prévenir.</li>';
+  for (const l of cibles) {
+    const li = document.createElement('li'); if (l === suivant) li.className = 'suivant';
+    li.innerHTML = `<div class="heure">${esc(l.rdvHeure || '--:--')}</div>
+      <div class="qui"><b>${esc(l.nomAffiche || l.occupant || 'Sans nom')}</b><span>${esc(lieu(l))}${l.tel ? ' • ' + esc(l.tel) : ''}</span></div>
+      <div style="display:flex;gap:8px;align-items:center"></div>`;
+    const zone = li.lastElementChild;
+    if (!telLien(l.tel)) zone.innerHTML = '<span class="aide" style="margin:0">Pas de numéro</span>';
+    else {
+      if (l.rappelLe) zone.insertAdjacentHTML('beforeend', `<span class="fait">Envoyé ${esc(heureFr(new Date(l.rappelLe)))}</span>`);
+      const a = document.createElement('a'); a.href = '#'; a.className = 'btn' + (l === suivant ? ' btn-or' : '');
+      a.textContent = l.rappelLe ? 'Renvoyer' : 'Envoyer';
+      brancherSms(a, l, () => remplirModele(modeleRappel(), l), () => { l.rappelLe = Date.now(); });
+      zone.append(a);
+    }
+    ul.append(li);
+  }
+}
+$('ouvrirRappels').onclick = () => { $('modeleSms').value = modeleRappel(); rendreRappels(); $('dlgRappels').showModal(); };
+$('modeleSms').addEventListener('input', e => { etat.smsRappel = e.target.value; sauver(); });
+$('smsDefaut').onclick = () => { etat.smsRappel = ''; $('modeleSms').value = MODELE_RAPPEL; sauver(); };
+$('fermerRappels').onclick = () => $('dlgRappels').close();
+// De retour de la messagerie : on met la liste à jour pour surligner le suivant.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && $('dlgRappels').open) rendreRappels(); });
+
+/* ---------- Avis de passage ---------- */
+function pdfAvis(l) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
+  const W = 210, M = 20;
+  let y = entetePdf(doc, 'Avis de passage', [etat.residence, lieu(l)].filter(Boolean).join(' • ')) + 8;
+  const para = (t, taille = 12) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(taille); doc.setTextColor(...ENCRE);
+    const lignes = doc.splitTextToSize(t, W - 2 * M); doc.text(lignes, M, y); y += lignes.length * taille * 0.45 + 5;
+  };
+  para(l.occupant ? `Bonjour ${l.occupant},` : 'Madame, Monsieur,');
+  para(`Nous sommes passés ${remplirModele('{passage}', l)} au ${lieu(l) || 'logement'} de la résidence ${etat.residence}${etat.adresse ? ', ' + etat.adresse : ''}, pour ${etat.objet || OBJET_DEFAUT}.`);
+  para('Vous étiez absent(e) lors de notre passage.');
+  y += 4;
+  doc.setDrawColor(...OR); doc.setLineWidth(0.4); doc.rect(M, y, W - 2 * M, 42);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...OR);
+  doc.text('POUR CONVENIR D’UN NOUVEAU RENDEZ-VOUS', M + 8, y + 10, { charSpace: 0.5 });
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(...ENCRE); doc.setFontSize(24); doc.text('06 31 13 47 01', M + 8, y + 24);
+  doc.setFontSize(11); doc.text('contact@harmonie-electricite.com', M + 8, y + 34);
+  y += 54;
+  if (etat.reference) para(`Référence de l’intervention : ${etat.reference}`, 10);
+  para('Nous restons à votre disposition.', 11);
+  y += 2; doc.setFontSize(9); doc.setTextColor(...GRIS); doc.text(`Le technicien : ${etat.technicien || ''}`, M, y);
+  if (sigTech) doc.addImage(sigTech, 'PNG', M, y + 2, 60, 22);
+  piedPdf(doc);
+  return doc.output('blob');
+}
+function proposerAvis(l) {
+  ouvrirDocument({
+    blob: pdfAvis(l), nom: nomFichier(`Avis de passage - ${etat.residence} - ${lieu(l)}`),
+    sourcil: 'Avis de passage', titre: l.nomAffiche || l.occupant,
+    recap: [['Logement', lieu(l) || '—'], ['Passage', horodatage(l.absentLe)]],
+    dest: l.email, surDest: v => { l.email = v; sauver(); },
+    objet: `Avis de passage — ${etat.residence} — Harmonie Électricité`,
+    texte: remplirModele(MODELE_AVIS, l).replace(/^Bonjour, /, 'Madame, Monsieur,\n\n') + `\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité`,
+    envoye: () => { l.avisLe = Date.now(); sauver(); rendreTout(); },
+  });
+}
+
+/* ---------- Photos avant / après (gardées sur l'appareil, base IndexedDB) ---------- */
+const cleePhoto = (l, k) => l.id + ':' + k;
+let bdPhotos = null;
+const ouvrirBdPhotos = () => bdPhotos ||= new Promise((ok, ko) => {
+  const r = indexedDB.open('he-emargement', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('photos');
+  r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+});
+async function photoLire(cle) {
+  try { const db = await ouvrirBdPhotos(); return await new Promise(ok => { const r = db.transaction('photos').objectStore('photos').get(cle); r.onsuccess = () => ok(r.result || null); r.onerror = () => ok(null); }); }
+  catch { return null; }
+}
+async function photoEcrire(cle, blob) {
+  const db = await ouvrirBdPhotos();
+  await new Promise((ok, ko) => { const t = db.transaction('photos', 'readwrite'), st = t.objectStore('photos'); blob ? st.put(blob, cle) : st.delete(cle); t.oncomplete = ok; t.onerror = () => ko(t.error); });
+}
+async function compresserPhoto(fichier) {
+  const bmp = await createImageBitmap(fichier), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.75));
+}
+async function imagePourPdf(blob) {
+  const url = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
+  const bmp = await createImageBitmap(blob);
+  return { url, w: bmp.width, h: bmp.height };
+}
+let photoCible = null;
+async function rendrePhotos(l) {
+  const verrou = l.statut === 'signe';
+  for (const k of ['avant', 'apres']) {
+    const tuile = $('tuile-' + k); if (!tuile) return;
+    tuile.querySelector('.prendre').onclick = () => { photoCible = { id: l.id, k }; $('photoChantier').click(); };
+    const blob = await photoBlob(l, k);
+    if (courantId !== l.id || !document.body.contains(tuile)) return;
+    tuile.querySelectorAll('img, .photo-etiq, .retirer').forEach(e => e.remove());
+    tuile.classList.toggle('pleine', !!blob);
+    if (!blob) continue;
+    const img = document.createElement('img'); img.alt = k === 'avant' ? 'Photo avant' : 'Photo après'; img.src = URL.createObjectURL(blob);
+    tuile.prepend(img); // le bouton reste au-dessus : toucher la photo la reprend
+    tuile.insertAdjacentHTML('beforeend', `<span class="photo-etiq">${k === 'avant' ? 'Avant' : 'Après'}</span>`);
+    if (!verrou) {
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'retirer'; x.setAttribute('aria-label', 'Retirer la photo');
+      x.innerHTML = '<svg class="ic"><use href="#i-x"/></svg>';
+      x.onclick = async () => { await photoEcrire(cleePhoto(l, k), null); l.photos = { ...l.photos, [k]: null }; sauver(); rendrePhotos(l); };
+      tuile.append(x);
+    }
+  }
+}
+$('photoChantier').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  const l = photoCible && etat.logements.find(x => x.id === photoCible.id);
+  if (!f || !l) return;
+  try {
+    const k = photoCible.k, blob = await compresserPhoto(f);
+    await photoEcrire(cleePhoto(l, k), blob);
+    l.photos = { ...l.photos, [k]: 'local' }; sauver(); toast('Photo enregistrée.');
+    if (courantId === l.id) rendrePhotos(l);
+    envoyerPhoto(l, k, blob).then(url => { l.photos = { ...l.photos, [k]: url }; sauver(); }).catch(() => {});
+  } catch (err) { toast('Photo non enregistrée : ' + err.message); }
+});
+
+/* ---------- Scanner de badges : caméra en direct ---------- */
+// Lit en continu la bande du cadre : code-barres / QR si le badge en porte un, sinon le numéro imprimé (OCR).
+// Un numéro est proposé quand il est lu deux fois sur les trois dernières lectures, pour écarter les erreurs.
+const scan = { flux: null, actif: false, index: 0, lectures: [], torche: false, jeton: 0 };
+let lecteurScan = null;
+function preparerLecteurScan() {
+  return lecteurScan ||= chargerScript(TESSERACT_URL).then(async () => {
+    const w = await Tesseract.createWorker('eng');
+    await w.setParameters({ tessedit_char_whitelist: '0123456789ABCDEF', tessedit_pageseg_mode: '7' });
+    return w;
+  });
+}
+function etatScan(txt) { $('scanLu').textContent = txt; $('scanLu').className = 'scan-lu lecture'; }
+function scannerParPhoto(index, message) { toast(message); badgePhotoIndex = index; $('photoBadge').click(); }
+
+async function ouvrirScanner(index) {
+  const l = courant(); if (!l) return;
+  scan.index = index;
+  if (!navigator.mediaDevices?.getUserMedia) return scannerParPhoto(index, 'Caméra en direct indisponible ici : prenez le badge en photo.');
+  $('dlgScan').showModal(); etatScan('Ouverture de la caméra…');
+  ['scanOk', 'scanRelire', 'scanPlus', 'scanValeur'].forEach(id => $(id).hidden = true);
+  try {
+    scan.flux = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  } catch (err) {
+    $('dlgScan').close();
+    return scannerParPhoto(index, err.name === 'NotAllowedError' ? 'Accès à la caméra refusé : autorisez-le, ou prenez le badge en photo.' : 'Caméra indisponible : prenez le badge en photo.');
+  }
+  const v = $('scanVideo'); v.srcObject = scan.flux; await v.play().catch(() => {});
+  const piste = scan.flux.getVideoTracks()[0], cap = piste.getCapabilities?.() || {};
+  $('scanTorche').hidden = !cap.torch; scan.torche = false; $('scanTorche').classList.remove('allume');
+  if (cap.focusMode?.includes('continuous')) piste.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+  preparerLecteurScan().catch(err => { lecteurScan = null; etatScan('Lecture du texte indisponible (' + err.message + '). Saisissez le numéro.'); });
+  demarrerBadge();
+}
+
+function demarrerBadge() {
+  const l = courant(), jeton = ++scan.jeton;
+  scan.lectures = []; scan.actif = true;
+  $('scanTitre').textContent = `Badge ${scan.index + 1} / ${l.badges.length}`;
+  $('scanCadre').classList.remove('trouve'); $('scanIndic').textContent = 'Numéro du badge dans le cadre';
+  ['scanOk', 'scanRelire', 'scanPlus', 'scanValeur'].forEach(id => $(id).hidden = true);
+  etatScan(lecteurScan ? 'Visez le numéro imprimé sur le badge…' : 'Préparation de la lecture…');
+  boucleScan(jeton);
+}
+
+async function boucleScan(jeton) {
+  const v = $('scanVideo');
+  let detecteur = null;
+  try { if ('BarcodeDetector' in window) detecteur = new BarcodeDetector(); } catch {}
+  const enCours = () => scan.actif && jeton === scan.jeton;
+  while (enCours()) {
+    const t0 = performance.now();
+    try {
+      if (v.readyState >= 2 && v.videoWidth) {
+        const zone = capturerCadre(v);
+        if (detecteur) {
+          const val = (await detecteur.detect(zone).catch(() => [])).map(c => c.rawValue.trim()).find(Boolean);
+          if (val && enCours()) return proposerScan(val, jeton);
+        }
+        const lecteur = lecteurScan && await lecteurScan;
+        if (lecteur && enCours()) {
+          const { data } = await lecteur.recognize(pretraiterScan(zone));
+          if (!enCours()) return;
+          const cand = meilleurCandidat(data);
+          // Le badge qu'on vient de valider est souvent encore devant la caméra : on l'ignore.
+          if (cand && proprietaireBadge(cand, courant().id, scan.index) === 'ce logement') {
+            etatScan('Badge déjà scanné : présentez le suivant.');
+          } else if (cand) {
+            scan.lectures.push(cand);
+            $('scanLu').className = 'scan-lu'; $('scanLu').textContent = 'Lecture : ' + cand;
+            if (scan.lectures.slice(-3).filter(x => x === cand).length >= 2) return proposerScan(cand, jeton);
+          } else if (!scan.lectures.length) etatScan('Visez le numéro imprimé sur le badge…');
+        }
+      }
+    } catch (err) { console.warn('Lecture du badge', err); }
+    await new Promise(r => setTimeout(r, Math.max(60, 300 - (performance.now() - t0))));
+  }
+}
+
+// Découpe dans l'image de la caméra la zone visible sous le cadre (la vidéo est recadrée en « cover »).
+function capturerCadre(v) {
+  const boite = v.getBoundingClientRect(), cadre = $('scanCadre').getBoundingClientRect();
+  const k = Math.max(boite.width / v.videoWidth, boite.height / v.videoHeight);
+  const ox = (boite.width - v.videoWidth * k) / 2, oy = (boite.height - v.videoHeight * k) / 2;
+  const sx = (cadre.left - boite.left - ox) / k, sy = (cadre.top - boite.top - oy) / k, sw = cadre.width / k, sh = cadre.height / k;
+  const e = Math.min(1, 1000 / sw), c = document.createElement('canvas');
+  c.width = Math.round(sw * e); c.height = Math.round(sh * e);
+  c.getContext('2d', { willReadFrequently: true }).drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c;
+}
+// Noir et blanc (seuil d'Otsu), texte clair sur fond sombre inversé, puis effacement de tout ce qui touche
+// le bord du cadre (bord du badge, doigts, fond) : il ne reste que les caractères au milieu.
+function pretraiterScan(c) {
+  const W = c.width, H = c.height, n = W * H;
+  const ctx = c.getContext('2d', { willReadFrequently: true }), img = ctx.getImageData(0, 0, W, H), p = img.data;
+  const gris = new Uint8Array(n), histo = new Uint32Array(256);
+  for (let j = 0; j < n; j++) { const g = (0.299 * p[4 * j] + 0.587 * p[4 * j + 1] + 0.114 * p[4 * j + 2]) | 0; gris[j] = g; histo[g]++; }
+  let somme = 0; for (let t = 0; t < 256; t++) somme += t * histo[t];
+  let sB = 0, wB = 0, seuil = 128, mieux = -1;
+  for (let t = 0; t < 256; t++) {
+    wB += histo[t]; if (!wB) continue; const wF = n - wB; if (!wF) break;
+    sB += t * histo[t]; const ecart = wB * wF * (sB / wB - (somme - sB) / wF) ** 2;
+    if (ecart > mieux) { mieux = ecart; seuil = t; }
+  }
+  const encre = new Uint8Array(n); let fonces = 0;
+  for (let j = 0; j < n; j++) if (gris[j] <= seuil) { encre[j] = 1; fonces++; }
+  if (fonces > n / 2) for (let j = 0; j < n; j++) encre[j] ^= 1; // chiffres clairs sur badge foncé
+  const pile = [];
+  for (let x = 0; x < W; x++) pile.push(x, (H - 1) * W + x);
+  for (let y = 0; y < H; y++) pile.push(y * W, y * W + W - 1);
+  while (pile.length) {
+    const j = pile.pop(); if (!encre[j]) continue; encre[j] = 0;
+    const x = j % W;
+    if (x > 0) pile.push(j - 1); if (x < W - 1) pile.push(j + 1); if (j >= W) pile.push(j - W); if (j < n - W) pile.push(j + W);
+  }
+  for (let j = 0; j < n; j++) p[4 * j] = p[4 * j + 1] = p[4 * j + 2] = encre[j] ? 0 : 255;
+  ctx.putImageData(img, 0, 0);
+  // Marge blanche autour : sans elle, l'OCR perd souvent le premier ou le dernier caractère.
+  const marge = Math.round(c.height * 0.4), m = document.createElement('canvas');
+  m.width = c.width + 2 * marge; m.height = c.height + 2 * marge;
+  const mx = m.getContext('2d'); mx.fillStyle = '#fff'; mx.fillRect(0, 0, m.width, m.height); mx.drawImage(c, marge, marge);
+  return m;
+}
+function meilleurCandidat(data) {
+  const brut = (data.text || '').toUpperCase().replace(/(?<=[0-9A-F]) (?=[0-9A-F])/g, '');
+  return (brut.match(/[0-9A-F]{6,}/g) || []).sort((a, b) => b.length - a.length)[0] || null;
+}
+
+function proposerScan(valeur, jeton) {
+  if (jeton !== scan.jeton) return;
+  scan.actif = false; navigator.vibrate?.(60);
+  const l = courant(), p = proprietaireBadge(valeur, l.id, scan.index);
+  $('scanCadre').classList.add('trouve'); $('scanIndic').textContent = 'Numéro trouvé';
+  etatScan(p ? `Attention : ce numéro est déjà attribué (${p}).` : 'Vérifiez le numéro, corrigez-le si besoin :');
+  $('scanValeur').value = valeur;
+  ['scanOk', 'scanRelire', 'scanPlus', 'scanValeur'].forEach(id => $(id).hidden = false);
+  $('scanOk').textContent = l.badges.some((b, i) => i > scan.index && !b.trim()) ? 'Valider · badge suivant' : 'Valider';
+}
+function validerScan(ajouter) {
+  const l = courant(), v = $('scanValeur').value.trim().toUpperCase();
+  if (v) poserBadge(l, scan.index, v);
+  if (ajouter) { changerNbBadges(1); scan.index = l.badges.length - 1; return demarrerBadge(); }
+  const suivant = l.badges.findIndex((b, i) => i > scan.index && !b.trim());
+  if (suivant !== -1) { scan.index = suivant; demarrerBadge(); }
+  else { fermerScanner(); toast(`${l.badges.filter(Boolean).length} badge(s) enregistré(s).`); }
+}
+function fermerScanner() {
+  scan.actif = false; scan.jeton++;
+  scan.flux?.getTracks().forEach(t => t.stop()); scan.flux = null;
+  if ($('dlgScan').open) $('dlgScan').close();
+}
+$('scanOk').onclick = () => validerScan(false);
+$('scanPlus').onclick = () => validerScan(true);
+$('scanRelire').onclick = () => demarrerBadge();
+$('scanValeur').addEventListener('keydown', e => { if (e.key === 'Enter') validerScan(false); });
+$('scanFermer').onclick = fermerScanner;
+$('dlgScan').addEventListener('close', fermerScanner);
+$('scanTorche').onclick = async () => {
+  const piste = scan.flux?.getVideoTracks()[0]; if (!piste) return;
+  scan.torche = !scan.torche;
+  try { await piste.applyConstraints({ advanced: [{ torch: scan.torche }] }); $('scanTorche').classList.toggle('allume', scan.torche); }
+  catch { scan.torche = false; toast('Lampe indisponible.'); }
+};
+
+/* ---------- Chantiers : liste, création depuis vos clients, synchronisation Supabase ---------- */
+function chantierVide(champs = {}) {
+  return {
+    id: 'CH_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), residence: '', adresse: '', reference: '',
+    donneur: '', donneurEmail: '', technicien: (etat && etat.technicien) || 'LARUICCI Mathieu', date: aujourdhui(), logements: [], ...champs,
+  };
+}
+const resumeChantier = c => ({ total: c.logements.length, signes: c.logements.filter(l => l.statut === 'signe').length, absents: c.logements.filter(l => l.statut === 'absent').length });
+function numeroterBon(l) {
+  const rang = trier(etat.logements).indexOf(l) + 1;
+  return `BI-${(etat.date || aujourdhui()).replace(/-/g, '')}-${String(rang).padStart(2, '0')}`;
+}
+
+let tableManquante = false;
+function etatSync(genre, titre) { const e = $('etatSync'); e.className = 'sync ' + genre; e.title = titre; }
+async function envoyerChantier() {
+  if (!etat.id || etat.exemple || !etat.modifieLe) return; // un chantier jamais modifié reste local
+  await envoyerPhotosEnAttente();
+  etatSync('attente', 'Enregistrement en ligne…');
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, {
+      method: 'POST', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ id: etat.id, payload: { ...etat, resume: resumeChantier(etat) } }),
+    });
+    if (r.ok) { tableManquante = false; stock.ecrire(cleChantier(etat.id), JSON.stringify(etat)); return etatSync('ok', 'Enregistré en ligne'); }
+    const t = await r.text();
+    if (r.status === 404 || /PGRST205|42P01/.test(t)) {
+      if (!tableManquante) toast('Table « emargements » absente de Supabase : le chantier reste sur cet appareil.');
+      tableManquante = true;
+    }
+    etatSync('erreur', 'Non enregistré en ligne (erreur ' + r.status + ')');
+  } catch { etatSync('erreur', 'Hors ligne : enregistré sur cet appareil, envoi au retour du réseau'); }
+}
+window.addEventListener('online', envoyerChantier);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { clearTimeout(envoiEnAttente); envoyerChantier(); } });
+
+// Photos : envoyées dans le stockage Supabase (dossier bon-photos/emargement), gardées sur l'appareil en attendant.
+async function envoyerPhoto(l, k, blob) {
+  const chemin = `emargement/${etat.id}/${l.id}-${k}.jpg`;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { ...SB, 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob });
+  if (!r.ok) throw new Error('envoi refusé (' + r.status + ')');
+  return `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}?v=${Date.now()}`;
+}
+async function envoyerPhotosEnAttente() {
+  for (const l of etat.logements) for (const k of ['avant', 'apres']) {
+    if (l.photos?.[k] !== 'local') continue;
+    const b = await photoLire(cleePhoto(l, k)); if (!b) continue;
+    try { l.photos = { ...l.photos, [k]: await envoyerPhoto(l, k, b) }; } catch { return; }
+  }
+}
+async function photoBlob(l, k) {
+  const b = await photoLire(cleePhoto(l, k)); if (b) return b;
+  const url = l.photos?.[k];
+  if (url && url.startsWith('http')) { try { const r = await fetch(url); if (r.ok) return await r.blob(); } catch {} }
+  return null;
+}
+
+// Version en ligne d'un chantier ; la plus récente l'emporte sur celle de l'appareil.
+async function chargerChantier(id) {
+  let distant = null, local = null;
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: SB });
+    if (r.ok) distant = (await r.json())[0]?.payload || null;
+  } catch {}
+  try { local = JSON.parse(stock.lire(cleChantier(id))); } catch {}
+  const c = !distant || (local && (local.modifieLe || 0) > (distant.modifieLe || 0)) ? local : distant;
+  if (c) delete c.resume;
+  return c;
+}
+
+// Clients et résidences lus dans Supabase (lecture seule), gardés sur l'appareil pour travailler hors réseau.
+const CLE_CLIENTS = 'he.emargement.clients';
+async function chargerClients() {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/clients?select=id,payload&limit=1000`, { headers: SB });
+    if (r.ok) {
+      const c = (await r.json()).map(x => ({ id: x.id, name: x.payload.name, email: x.payload.email, address: x.payload.address,
+        addressChantier: x.payload.addressChantier, residences: x.payload.residences }));
+      stock.ecrire(CLE_CLIENTS, JSON.stringify(c));
+      return c;
+    }
+  } catch {}
+  try { return JSON.parse(stock.lire(CLE_CLIENTS)) || []; } catch { return []; }
+}
+let clientsChantier = [];
+const clientNomme = nom => clientsChantier.find(x => (x.name || '').trim().toLowerCase() === nom.trim().toLowerCase());
+
+async function ouvrirChantiers() {
+  if (!$('dlgChantiers').open) $('dlgChantiers').showModal();
+  $('alerteTable').hidden = true;
+  const ul = $('listeChantiers'); ul.innerHTML = '<li class="vide">Chargement…</li>';
+  const parId = new Map();
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i); if (!k || !k.startsWith('he.emargement.ch.')) continue;
+    try { const c = JSON.parse(localStorage.getItem(k)); if (c && c.id && !c.exemple) parId.set(c.id, { id: c.id, residence: c.residence, adresse: c.adresse, date: c.date, reference: c.reference, resume: resumeChantier(c) }); } catch {}
+  }
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=id,residence:payload->>residence,adresse:payload->>adresse,date:payload->>date,reference:payload->>reference,resume:payload->resume&id=like.CH_*&order=id.desc&limit=200`, { headers: SB });
+    if (r.ok) for (const c of await r.json()) parId.set(c.id, c);
+    else if (r.status === 404) $('alerteTable').hidden = false;
+  } catch {}
+  const liste = [...parId.values()].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id.localeCompare(a.id));
+  ul.innerHTML = liste.length ? '' : '<li class="vide">Aucun chantier pour l’instant : créez le premier ci-dessous.</li>';
+  for (const c of liste) {
+    const res = c.resume || {}, li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button'; if (c.id === etat.id) b.className = 'courant';
+    b.innerHTML = `<div style="min-width:0"><b>${esc(c.residence || 'Chantier sans nom')}</b><span>${esc([dateCourte(c.date), c.reference, c.adresse].filter(Boolean).join(' • '))}</span></div>
+      <span class="etat ${res.total && res.signes === res.total ? 'signe' : ''}">${res.signes || 0} / ${res.total || 0}</span>`;
+    b.onclick = () => basculerChantier(c.id);
+    li.append(b); ul.append(li);
+  }
+  clientsChantier = await chargerClients();
+  $('nc-clients').innerHTML = clientsChantier.filter(c => c.name).map(c => `<option value="${esc(c.name)}">`).join('');
+}
+
+async function basculerChantier(id) {
+  if (id === etat.id) return $('dlgChantiers').close();
+  clearTimeout(envoiEnAttente); await envoyerChantier();
+  const c = await chargerChantier(id);
+  if (!c) return toast('Chantier introuvable.');
+  etat = c; stock.ecrire(CLE_COURANT, id); stock.ecrire(cleChantier(id), JSON.stringify(etat));
+  courantId = trier(etat.logements).find(l => l.statut === 'afaire')?.id || null;
+  $('dlgChantiers').close(); rendreTout(); verifierSignaturesDistance(true);
+}
+
+$('nc-client').addEventListener('input', () => {
+  const c = clientNomme($('nc-client').value), res = (c && c.residences) || [];
+  $('nc-blocResidence').hidden = !res.length;
+  $('nc-residence').innerHTML = '<option value="">— Le client lui-même —</option>'
+    + res.map(r => `<option value="${esc(r.id)}">${esc(r.nom)}${r.adresse ? ' — ' + esc(r.adresse) : ''}</option>`).join('');
+});
+$('creerChantier').onclick = async () => {
+  const saisi = $('nc-client').value.trim();
+  if (!saisi) { $('nc-client').focus(); return toast('Indiquez le client ou la résidence.'); }
+  const c = clientNomme(saisi), r = c && (c.residences || []).find(x => x.id === $('nc-residence').value);
+  clearTimeout(envoiEnAttente); await envoyerChantier();
+  etat = chantierVide({
+    residence: r ? r.nom : saisi, adresse: r ? (r.adresse || '') : (c ? (c.addressChantier || c.address || '') : ''),
+    donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null, residenceId: r ? r.id : null,
+  });
+  courantId = null; sauver(); rendreTout();
+  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-blocResidence').hidden = true;
+  $('ouvrirChantier').click(); // compléter la référence et importer la liste des logements
+};
+$('fermerChantiers').onclick = () => $('dlgChantiers').close();
+$('chantierExemple').onclick = async () => {
+  clearTimeout(envoiEnAttente); await envoyerChantier();
+  etat = { ...exemple(), id: 'EXEMPLE' }; courantId = trier(etat.logements)[0].id;
+  sauver(); $('dlgChantiers').close(); rendreTout();
+};
+$('ouvrirChantiers').onclick = ouvrirChantiers;
+
+/* ---------- Signature à distance ---------- */
+// Le client reçoit un lien vers signer.html, relit le bon et signe sur son téléphone. La demande est une ligne
+// « SIG_<jeton> » de la table emargements ; le client y écrit sa signature, reprise ici automatiquement.
+const jetonAleatoire = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+const lienSignature = j => new URL('signer.html?t=' + j, location.href).href;
+
+async function demanderSignatureDistance(l) {
+  if (l.distance) return ouvrirDistance(l);
+  if (!sigTech) return toast('Signez d’abord dans le cadre du technicien.');
+  if (etat.exemple) return toast('Indisponible sur le chantier d’exemple.');
+  const jeton = jetonAleatoire();
+  const demande = {
+    type: 'signature', statut: 'attente', creeLe: Date.now(), chantierId: etat.id, logementId: l.id,
+    bon: {
+      residence: etat.residence, adresse: etat.adresse, reference: etat.reference, technicien: etat.technicien, objet: etat.objet || OBJET_DEFAUT,
+      lieu: lieu(l), nomAffiche: l.nomAffiche, occupant: l.occupant, rdvDate: l.rdvDate, modele: l.modele, plaque: l.plaque,
+      badges: l.badges.filter(Boolean), observations: l.observations,
+    },
+  };
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ id: 'SIG_' + jeton, payload: demande }) });
+    if (!r.ok) throw new Error(r.status === 404 ? 'table « emargements » absente de Supabase' : 'erreur ' + r.status);
+  } catch (e) { return toast('Lien impossible à créer : ' + e.message); }
+  l.distance = { jeton, creeLe: Date.now(), envoyeLe: null };
+  sauver(); rendreFiche(); rendreListe();
+  ouvrirDistance(l);
+}
+
+function ouvrirDistance(l) {
+  const lien = lienSignature(l.distance.jeton);
+  $('distTitre').textContent = l.nomAffiche || l.occupant || lieu(l);
+  $('distLien').textContent = lien;
+  const ancien = $('distSms'), sms = ancien.cloneNode(true); ancien.replaceWith(sms);
+  brancherSms(sms, l, () => `Bonjour, voici votre bon d’intervention Harmonie Électricité (${lieu(l)}, résidence ${etat.residence}) à relire et signer en ligne : ${lien}`,
+    () => { l.distance.envoyeLe = Date.now(); });
+  $('distMail').onclick = async () => {
+    $('dlgDistance').close();
+    const blob = await pdfBon({ ...l, numeroBon: 'à signer', sigTech: '', sigClient: '', signataire: '' }, true);
+    ouvrirDocument({
+      blob, nom: nomFichier(`Bon d'intervention à signer - ${etat.residence} - ${lieu(l)}`),
+      sourcil: 'Signature à distance', titre: l.nomAffiche || l.occupant,
+      recap: [['Logement', lieu(l) || '—'], ['Lien de signature', 'dans le message']],
+      dest: l.email, surDest: v => { l.email = v; sauver(); },
+      objet: `Bon d'intervention à signer — ${etat.residence} — Harmonie Électricité`,
+      texte: `Madame, Monsieur,\n\nVous trouverez ci-joint votre bon d'intervention (${lieu(l)}, résidence ${etat.residence}).\nMerci de le relire puis de le signer en ligne en ouvrant ce lien :\n${lien}\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+      envoye: () => { l.distance.envoyeLe = Date.now(); sauver(); rendreTout(); },
+    });
+  };
+  $('distCopier').onclick = () => copier(lien);
+  $('distFermer').onclick = () => $('dlgDistance').close();
+  $('distAnnuler').onclick = async () => {
+    $('dlgDistance').close();
+    if (!await demander('Annuler la demande ?', 'Le lien envoyé au client ne fonctionnera plus.', 'Annuler la demande')) return;
+    fetch(`${SUPA_URL}/rest/v1/${TABLE}?id=eq.SIG_${l.distance.jeton}`, { method: 'DELETE', headers: SB }).catch(() => {});
+    delete l.distance; sauver(); rendreTout();
+  };
+  $('dlgDistance').showModal();
+}
+
+let verificationEnCours = false;
+async function verifierSignaturesDistance(silencieux) {
+  const enAttente = etat.logements.filter(l => l.distance && l.statut !== 'signe');
+  if (!enAttente.length) { if (!silencieux) toast('Aucune signature en attente.'); return; }
+  if (verificationEnCours) return;
+  verificationEnCours = true;
+  try {
+    const ids = enAttente.map(l => 'SIG_' + l.distance.jeton).join(',');
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=id,payload&id=in.(${ids})`, { headers: SB });
+    if (!r.ok) throw new Error('erreur ' + r.status);
+    const recues = [];
+    for (const ligne of await r.json()) {
+      const p = ligne.payload, l = enAttente.find(x => 'SIG_' + x.distance.jeton === ligne.id);
+      if (!l || p.statut !== 'signe' || !p.signature) continue;
+      Object.assign(l, {
+        statut: 'signe', sigClient: p.signature, signataire: p.signataire || l.occupant, signeLe: p.signeLe, signeDistance: true,
+        sigTech: sigTech || l.sigTech || '', numeroBon: l.numeroBon || numeroterBon(l),
+      });
+      recues.push(l);
+    }
+    if (recues.length) {
+      sauver(); rendreTout();
+      toast(recues.length === 1 ? `${recues[0].signataire || 'Le client'} a signé à distance.` : `${recues.length} signatures à distance reçues.`);
+      const ouverte = recues.find(l => l.id === courantId);
+      if (ouverte && !$('dlgDocument').open) proposerBon(ouverte);
+    } else if (!silencieux) toast('Pas encore signé.');
+  } catch (e) { if (!silencieux) toast('Vérification impossible : ' + e.message); }
+  finally { verificationEnCours = false; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verifierSignaturesDistance(true); });
+
+/* ---------- Démarrage ---------- */
+function rendreTout() { rendreEntete(); rendreListe(); rendreFiche(); majCompteRappels(); }
+window.addEventListener('resize', () => document.documentElement.style.setProperty('--h-entete', $('entete').offsetHeight + 'px'));
+// Garder l'écran allumé pendant la tournée (si le navigateur l'accepte).
+async function garderEcran() { try { await navigator.wakeLock?.request('screen'); } catch {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') garderEcran(); });
+garderEcran();
+
+// Prochain logement à faire déjà ouvert à droite sur tablette ; sur téléphone on reste sur la liste.
+courantId = trier(etat.logements).find(l => l.statut === 'afaire')?.id || null;
+rendreTout();
+// App installable sur l'écran d'accueil, utilisable sans réseau.
+if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (!stock.lire(CLE_COURANT)) ouvrirChantiers();
+else if (!etat.exemple) chargerChantier(etat.id).then(c => {
+  // Reprend une version plus récente saisie sur un autre appareil.
+  if (c && (c.modifieLe || 0) > (etat.modifieLe || 0)) { etat = c; rendreTout(); }
+  verifierSignaturesDistance(true);
+});
+setInterval(() => { if (document.visibilityState === 'visible') verifierSignaturesDistance(true); }, 30000);
+</script>
+</body>
+</html>
