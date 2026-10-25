@@ -95,13 +95,14 @@ svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-wid
 .btn:disabled { opacity: .45; pointer-events: none; }
 
 /* ---------- Structure ---------- */
-.app { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
-@media (min-width: 1000px) {
-  .app { grid-template-columns: 400px minmax(0, 1fr); gap: 0; }
+.app { --l-liste: 400px; display: grid; grid-template-columns: minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+@media (min-width: 760px) and (max-width: 999.98px) { .app { --l-liste: 320px; } .barre { --l-liste: 320px; } }
+@media (min-width: 760px) {
+  .app { grid-template-columns: var(--l-liste) minmax(0, 1fr); gap: 0; }
   .vue-liste { border-right: 1px solid var(--border-hairline); height: calc(100vh - var(--h-entete, 110px)); overflow: auto; position: sticky; top: var(--h-entete, 110px); }
   .retour { display: none !important; }
 }
-@media (max-width: 999.98px) {
+@media (max-width: 759.98px) {
   body[data-vue="fiche"] .vue-liste { display: none; }
   body[data-vue="liste"] .vue-fiche { display: none; }
 }
@@ -148,7 +149,7 @@ svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-wid
 .bandeau.absent { border-color: rgba(217,163,91,.5); background: rgba(217,163,91,.06); }
 
 .sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 16px; }
-@media (min-width: 720px) { .sections { grid-template-columns: repeat(2, minmax(0, 1fr)); } .large { grid-column: 1 / -1; } }
+@media (min-width: 1100px), (max-width: 759.98px) and (min-width: 720px) { .sections { grid-template-columns: repeat(2, minmax(0, 1fr)); } .large { grid-column: 1 / -1; } }
 .bloc { border: 1px solid var(--border-hairline); background: var(--surface-card); border-radius: var(--r-md); padding: 16px; min-width: 0; }
 .bloc h3 { margin: 0 0 12px; font-size: var(--fs-xs); font-weight: 500; letter-spacing: var(--ls-widest); text-transform: uppercase; color: var(--he-gold); display: flex; align-items: center; gap: 8px; }
 .bloc h3::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border-strong), transparent); }
@@ -213,7 +214,7 @@ input::placeholder, textarea::placeholder { color: var(--grey-500); }
 
 /* Signatures : un bout de papier posé sur le fond noir */
 .signatures { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
-@media (min-width: 720px) { .signatures { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1100px), (max-width: 759.98px) and (min-width: 720px) { .signatures { grid-template-columns: 1fr 1fr; } }
 .signature { min-width: 0; }
 .papier { position: relative; margin-top: 6px; background: var(--he-white); border-radius: var(--r-sm); height: 170px; touch-action: none; overflow: hidden; }
 .papier canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
@@ -234,9 +235,14 @@ input::placeholder, textarea::placeholder { color: var(--grey-500); }
 .barre-int { max-width: 1280px; margin: 0 auto; display: flex; gap: 10px; justify-content: flex-end; }
 .barre .btn { min-height: 50px; padding: 0 12px; }
 .barre .btn-or { flex: 1; max-width: 420px; white-space: normal; line-height: 1.25; }
-@media (min-width: 1000px) { .barre { left: 400px; } }
+.barre { --l-liste: 400px; }
+@media (min-width: 760px) and (max-width: 999.98px) { .barre { --l-liste: 320px; } }
+@media (min-width: 760px) { .barre { left: var(--l-liste); } .seulement-telephone { display: none !important; } }
 body[data-vue="liste"] .barre-fiche { display: none; }
-@media (min-width: 1000px) { body[data-vue="liste"] .barre-fiche { display: block; } }
+@media (min-width: 760px) { body[data-vue="liste"] .barre-fiche { display: block; } }
+.fiche-fin { margin-top: 24px; display: flex; justify-content: center; }
+.btn-danger { color: var(--erreur); border-color: rgba(200,112,95,.45); }
+.btn-danger:hover { color: var(--erreur); border-color: var(--erreur); box-shadow: none; }
 
 /* ---------- Dialogues ---------- */
 dialog {
@@ -789,7 +795,7 @@ function ouvrirFiche(id) {
   courantId = id;
   document.body.dataset.vue = 'fiche';
   rendreFiche(); rendreListe(); rendreEntete();
-  if (window.innerWidth < 1000) window.scrollTo({ top: 0 });
+  if (window.innerWidth < 760) window.scrollTo({ top: 0 });
 }
 function retourListe() { document.body.dataset.vue = 'liste'; rendreListe(); }
 
@@ -817,7 +823,8 @@ function rendreFiche() {
     <div class="titre"><div class="sourcil">${esc(lieu(l) || 'Logement')}</div><h2>${esc(l.nomAffiche || l.occupant || 'Nouveau logement')}</h2></div>
   </div>
   ${verrou ? `<div class="bandeau"><span class="txt">Bon signé le ${esc(horodatage(l.signeLe))} par ${esc(l.signataire)} · ${esc(l.numeroBon)}</span>
-      <button type="button" class="btn" id="renvoyer">Renvoyer le bon</button><button type="button" class="btn btn-discret" id="deverrouiller">Modifier</button></div>` : ''}
+      <button type="button" class="btn" id="renvoyer">Renvoyer</button><button type="button" class="btn" id="deverrouiller">Modifier le bon</button><button type="button" class="btn btn-danger" id="supprimerBon">Supprimer le bon</button></div>` : ''}
+  ${!verrou && l.enModification ? `<div class="bandeau"><span class="txt">Bon ${esc(l.numeroBon)} en cours de modification : corrigez ce qu’il faut, puis « Valider le bon » pour refaire le PDF.</span></div>` : ''}
   ${l.distance && !verrou ? `<div class="bandeau"><span class="txt">Signature à distance : lien ${l.distance.envoyeLe ? 'envoyé le ' + esc(horodatage(l.distance.envoyeLe)) : 'créé le ' + esc(horodatage(l.distance.creeLe))}, en attente du client.</span>
       <button type="button" class="btn" id="distVerifier">Vérifier</button><button type="button" class="btn btn-discret" id="distRouvrir">Lien</button></div>` : ''}
   ${l.statut === 'absent' ? `<div class="bandeau absent"><span class="txt">Client absent lors du passage du ${esc(horodatage(l.absentLe))}.
@@ -914,7 +921,8 @@ function rendreFiche() {
         </div>
       </div>
     </section>
-  </div>`;
+  </div>
+  <div class="fiche-fin"><button type="button" class="btn btn-discret btn-danger" id="supprimerLogement">Supprimer ce logement</button></div>`;
 
   $('retour').onclick = retourListe;
   // Liaison générique des champs texte
@@ -971,8 +979,19 @@ function rendreFiche() {
   $('distRouvrir')?.addEventListener('click', () => ouvrirDistance(l));
 
   $('deverrouiller')?.addEventListener('click', async () => {
-    if (!await demander('Modifier ce bon ?', 'La signature du client sera effacée : il faudra la refaire et renvoyer un nouveau bon.', 'Modifier')) return;
-    Object.assign(l, { statut: 'afaire', sigClient: '', signeLe: null }); sauver(); rendreTout();
+    if (!await demander('Modifier le bon ?', `Tout redevient modifiable. Les signatures sont gardées (le client peut re-signer si besoin). Après vos corrections, touchez « Valider le bon » : le PDF ${l.numeroBon} est refait et vous pourrez le renvoyer.`, 'Modifier')) return;
+    Object.assign(l, { statut: 'afaire', enModification: true }); sauver(); rendreTout();
+  });
+  $('supprimerBon')?.addEventListener('click', async () => {
+    if (!await demander('Supprimer le bon ?', `Le bon ${l.numeroBon} est annulé : la signature du client est effacée et le logement repasse « À faire ». Les informations saisies (matériel, badges, photos) sont gardées.`, 'Supprimer le bon')) return;
+    Object.assign(l, { statut: 'afaire', sigClient: '', signataire: '', signeLe: null, signeDistance: false, numeroBon: '', enModification: false });
+    delete l.distance; sauver(); rendreTout(); toast('Bon supprimé.');
+  });
+  $('supprimerLogement').addEventListener('click', async () => {
+    if (!await demander('Supprimer ce logement ?', `${lieu(l) || 'Ce logement'}${l.nomAffiche ? ' (' + l.nomAffiche + ')' : ''} sera retiré du chantier, avec son bon et ses signatures. Cette suppression est définitive.`, 'Supprimer le logement')) return;
+    etat.logements = etat.logements.filter(x => x !== l);
+    ['avant', 'apres'].forEach(k => photoEcrire(cleePhoto(l, k), null).catch(() => {}));
+    courantId = null; sauver(); retourListe(); rendreTout(); toast('Logement supprimé.');
   });
   $('renvoyer')?.addEventListener('click', () => proposerBon(l));
   $('repasser')?.addEventListener('click', () => { l.statut = 'afaire'; l.absentLe = null; sauver(); rendreTout(); });
@@ -981,8 +1000,10 @@ function rendreFiche() {
 
   // Barre d'actions
   const barre = $('barreActions');
-  barre.innerHTML = verrou ? `<button type="button" class="btn btn-or" id="bVoir"><svg class="ic"><use href="#i-file"/></svg>Bon d’intervention</button>`
-    : `${l.statut !== 'absent' ? '<button type="button" class="btn" id="bAbsent">Client absent</button>' : ''}<button type="button" class="btn btn-or" id="bValider">Valider et générer le bon</button>`;
+  const liste = '<button type="button" class="btn seulement-telephone" id="bListe" style="margin-right:auto"><svg class="ic"><use href="#i-list"/></svg>Liste</button>';
+  barre.innerHTML = liste + (verrou ? `<button type="button" class="btn btn-or" id="bVoir"><svg class="ic"><use href="#i-file"/></svg>Voir le bon</button>`
+    : `${l.statut !== 'absent' ? '<button type="button" class="btn" id="bAbsent">Absent</button>' : ''}<button type="button" class="btn btn-or" id="bValider">Valider le bon</button>`);
+  $('bListe').addEventListener('click', retourListe);
   $('bVoir')?.addEventListener('click', () => proposerBon(l));
   $('bAbsent')?.addEventListener('click', async () => {
     if (!await demander('Client absent ?', `${lieu(l)} sera noté absent à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} et apparaîtra comme tel sur le bon de livraison.`, 'Noter absent')) return;
@@ -1134,7 +1155,7 @@ async function valider(l) {
   if (avert.length && !await demander('Valider quand même ?', 'À vérifier : ' + avert.join(' ; ') + '.', 'Valider')) return;
   const rang = trier(etat.logements).indexOf(l) + 1;
   Object.assign(l, {
-    statut: 'signe', signeLe: Date.now(), sigTech: padTechFiche.valeur(),
+    statut: 'signe', signeLe: Date.now(), sigTech: padTechFiche.valeur(), enModification: false,
     signataire: (l.signataire || l.occupant || '').trim(),
     numeroBon: l.numeroBon || numeroterBon(l),
   });
@@ -1142,9 +1163,10 @@ async function valider(l) {
   await proposerBon(l);
 }
 
-function allerAuSuivant() {
-  const suivant = trier(etat.logements).find(x => x.statut === 'afaire');
-  if (suivant) ouvrirFiche(suivant.id); else { courantId = null; retourListe(); rendreFiche(); toast('Tous les logements sont traités : pensez au bon de livraison.'); }
+// Après un bon : retour à la liste sur téléphone (la liste reste affichée à côté sur tablette et ordinateur).
+function apresBon() {
+  if (window.innerWidth < 760) retourListe();
+  if (etat.logements.length && etat.logements.every(x => x.statut !== 'afaire')) toast('Tous les logements sont traités : pensez au bon de livraison.');
 }
 
 /* ---------- PDF ---------- */
@@ -1363,7 +1385,7 @@ async function proposerBon(l) {
     dest: l.email,
     objet: `Bon d'intervention ${l.numeroBon} — ${etat.residence} — Harmonie Électricité`,
     texte: `Madame, Monsieur,\n\nSuite à notre intervention du ${dateFr(etat.date)} au ${lieu(l)} de la résidence ${etat.residence}, veuillez trouver ci-joint votre bon d'intervention signé.\n\nMatériel posé : ${l.modele || 'combiné / moniteur'}${l.plaque ? ', plaque' : ''}.\nBadges remis : ${l.badges.length}${l.badges.length ? ' (' + l.badges.filter(Boolean).join(', ') + ')' : ''}.\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
-    apres: () => allerAuSuivant(),
+    apres: apresBon,
   });
 }
 
