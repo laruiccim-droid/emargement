@@ -597,6 +597,7 @@ let sigTech = stock.lire(CLE_SIG) || '';
 let sauvegardeEnAttente = null, envoiEnAttente = null;
 function sauver() {
   etat.modifieLe = Date.now();
+  if (!etat.exemple) etat.aEnvoyer = true; // modifications pas encore en ligne
   clearTimeout(sauvegardeEnAttente);
   sauvegardeEnAttente = setTimeout(() => {
     if (!stock.ecrire(cleChantier(etat.id), JSON.stringify(etat))) toast('Enregistrement impossible sur cet appareil (mémoire pleine ?)');
@@ -1810,15 +1811,23 @@ function numeroterBon(l) {
 let tableManquante = false;
 function etatSync(genre, titre) { const e = $('etatSync'); e.className = 'sync ' + genre; e.title = titre; }
 async function envoyerChantier() {
-  if (!etat.id || etat.exemple || !etat.modifieLe) return; // un chantier jamais modifié reste local
+  // N'envoie que des modifications faites sur cet appareil : un chantier inchangé (ou supprimé ailleurs) n'est jamais renvoyé.
+  if (!etat.id || etat.exemple || !etat.aEnvoyer) return;
   await envoyerPhotosEnAttente();
   etatSync('attente', 'Enregistrement en ligne…');
+  const version = etat.modifieLe, envoye = etat;
   try {
+    const { aEnvoyer, ...payload } = etat;
     const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, {
       method: 'POST', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ id: etat.id, payload: { ...etat, resume: resumeChantier(etat) } }),
+      body: JSON.stringify({ id: etat.id, payload: { ...payload, resume: resumeChantier(etat) } }),
     });
-    if (r.ok) { tableManquante = false; stock.ecrire(cleChantier(etat.id), JSON.stringify(etat)); return etatSync('ok', 'Enregistré en ligne'); }
+    if (r.ok) {
+      tableManquante = false;
+      if (envoye.modifieLe === version) envoye.aEnvoyer = false; // rien n'a changé pendant l'envoi
+      stock.ecrire(cleChantier(envoye.id), JSON.stringify(envoye));
+      return etatSync(envoye.aEnvoyer ? 'attente' : 'ok', 'Enregistré en ligne');
+    }
     const t = await r.text();
     if (r.status === 404 || /PGRST205|42P01/.test(t)) {
       if (!tableManquante) toast('Table « emargements » absente de Supabase : le chantier reste sur cet appareil.');
@@ -1864,6 +1873,17 @@ async function chargerChantier(id) {
   return c;
 }
 
+// Chantier gardé sur l'appareil mais supprimé en ligne (et sans modification à envoyer) : on l'oublie.
+async function supprimeEnLigne(id) {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=id&id=eq.${encodeURIComponent(id)}`, { headers: SB });
+    return r.ok && (await r.json()).length === 0;
+  } catch { return false; } // hors ligne : on ne peut pas savoir, on garde
+}
+function oublierChantier(id) {
+  try { localStorage.removeItem(cleChantier(id)); if (stock.lire(CLE_COURANT) === id) localStorage.removeItem(CLE_COURANT); } catch {}
+}
+
 // Clients et résidences lus dans Supabase (lecture seule), gardés sur l'appareil pour travailler hors réseau.
 const CLE_CLIENTS = 'he.emargement.clients';
 async function chargerClients() {
@@ -1888,11 +1908,16 @@ async function ouvrirChantiers() {
   const parId = new Map();
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i); if (!k || !k.startsWith('he.emargement.ch.')) continue;
-    try { const c = JSON.parse(localStorage.getItem(k)); if (c && c.id && !c.exemple) parId.set(c.id, { id: c.id, residence: c.residence, adresse: c.adresse, date: c.date, reference: c.reference, resume: resumeChantier(c) }); } catch {}
+    try { const c = JSON.parse(localStorage.getItem(k)); if (c && c.id && !c.exemple) parId.set(c.id, { id: c.id, residence: c.residence, adresse: c.adresse, date: c.date, reference: c.reference, resume: resumeChantier(c), aEnvoyer: c.aEnvoyer, local: true }); } catch {}
   }
   try {
     const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=id,residence:payload->>residence,adresse:payload->>adresse,date:payload->>date,reference:payload->>reference,resume:payload->resume&id=like.CH_*&order=id.desc&limit=200`, { headers: SB });
-    if (r.ok) for (const c of await r.json()) parId.set(c.id, c);
+    if (r.ok) {
+      const enLigne = await r.json(), ids = new Set(enLigne.map(c => c.id));
+      // Copies locales d'un chantier supprimé en ligne, sans modification à envoyer : on les oublie.
+      for (const c of [...parId.values()]) if (c.local && !ids.has(c.id) && !c.aEnvoyer && c.id !== etat.id) { parId.delete(c.id); oublierChantier(c.id); }
+      for (const c of enLigne) parId.set(c.id, c);
+    }
     else if (r.status === 404) $('alerteTable').hidden = false;
   } catch {}
   const liste = [...parId.values()].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id.localeCompare(a.id));
@@ -2050,11 +2075,19 @@ rendreTout();
 // App installable sur l'écran d'accueil, utilisable sans réseau.
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
 if (!stock.lire(CLE_COURANT)) ouvrirChantiers();
-else if (!etat.exemple) chargerChantier(etat.id).then(c => {
+else if (!etat.exemple) (async () => {
+  if (!etat.aEnvoyer && await supprimeEnLigne(etat.id)) {
+    // Le chantier ouvert a été supprimé (depuis un autre appareil) : on l'oublie et on propose la liste.
+    oublierChantier(etat.id); etat = chantierVide(); courantId = null; rendreTout();
+    toast('Ce chantier a été supprimé : choisissez un chantier dans la liste.');
+    return ouvrirChantiers();
+  }
+  const c = await chargerChantier(etat.id);
   // Reprend une version plus récente saisie sur un autre appareil.
   if (c && (c.modifieLe || 0) > (etat.modifieLe || 0)) { etat = c; rendreTout(); }
+  if (!etat.logements.length) ouvrirChantiers(); // chantier vide : la liste aide à retrouver le bon
   verifierSignaturesDistance(true);
-});
+})();
 setInterval(() => { if (document.visibilityState === 'visible') verifierSignaturesDistance(true); }, 30000);
 </script>
 </body>
