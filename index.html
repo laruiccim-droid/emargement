@@ -467,12 +467,17 @@ dialog.scan:not([open]) { display: none; }
 
     <div class="separateur"></div>
     <div class="etiq">Interphone</div>
+    <div class="ligne" style="margin-top:8px">
+      <div class="champ"><label for="c-platineBoutons">Boutons sur la platine</label><input type="number" id="c-platineBoutons" min="1" max="99" inputmode="numeric"></div>
+      <div class="champ"><label for="c-platineColonnes">Colonnes</label><input type="number" id="c-platineColonnes" min="1" max="6" inputmode="numeric"></div>
+    </div>
     <div class="dlg-actions" style="justify-content:flex-start">
       <button type="button" class="btn" id="numeroterBoutons">Numéroter les boutons</button>
       <button type="button" class="btn btn-or" id="fichePlatine"><svg class="ic"><use href="#i-file"/></svg>Fiche interphone (PDF)</button>
       <button type="button" class="btn" id="fichePlatineWord"><svg class="ic"><use href="#i-file"/></svg>Fiche interphone (Word)</button>
+      <button type="button" class="btn" id="codificationWord"><svg class="ic"><use href="#i-file"/></svg>Codification (Word)</button>
     </div>
-    <p class="aide">Fiche à poser à côté de la platine : le numéro de chaque bouton et le nom correspondant. La version Word se modifie ensuite librement. Le numéro se corrige dans la fiche de chaque logement.</p>
+    <p class="aide">Boutons numérotés de 1 (en haut à gauche) jusqu’en bas à droite, du dernier étage au rez-de-chaussée ; codes de programmation de 0 (en bas à gauche) jusqu’en haut à droite. La fiche interphone se pose à côté de la platine ; la codification sert à programmer. Un numéro se corrige dans la fiche du logement.</p>
 
     <div class="separateur"></div>
     <div class="etiq">Importer la liste des logements</div>
@@ -783,7 +788,7 @@ function rendreListe() {
     const etatTxt = l.statut === 'signe' ? 'Signé' : l.statut === 'absent' ? 'Absent' : prevenu ? 'Prévenu' : 'À faire';
     const etatCls = l.statut === 'afaire' ? (prevenu ? 'prevenu' : '') : l.statut;
     const nb = l.badges.length;
-    const detail = [l.bouton && 'bouton ' + l.bouton, l.occupant, l.modele && l.modele.replace(/^[^–]+–\s*/, ''), nb ? `${nb} badge${nb > 1 ? 's' : ''}` : (l.badgesPrevu === null ? 'badges ?' : ''), l.plaque && 'plaque'].filter(Boolean).join(' • ');
+    const detail = [l.bouton && `bouton ${l.bouton} · code ${codeBouton(l.bouton)}`, l.occupant, l.modele && l.modele.replace(/^[^–]+–\s*/, ''), nb ? `${nb} badge${nb > 1 ? 's' : ''}` : (l.badgesPrevu === null ? 'badges ?' : ''), l.plaque && 'plaque'].filter(Boolean).join(' • ');
     li.innerHTML = `<button type="button" class="carte-log ${l.id === courantId ? 'courant' : ''}">
       <div class="heure">${esc(l.rdvHeure || '--:--')}<small>${l.rdvDate && l.rdvDate !== etat.date ? esc(dateCourte(l.rdvDate).slice(0, 5)) : 'RDV'}</small></div>
       <div class="log-info"><div class="log-lieu">${esc(lieu(l) || 'Logement')}</div><div class="log-nom">${esc(l.nomAffiche || l.occupant || 'Sans nom')}</div><div class="log-detail">${esc(detail)}</div></div>
@@ -852,7 +857,7 @@ function rendreFiche() {
         <div class="champ"><label for="f-etage">Étage</label><input type="text" id="f-etage" data-champ="etage" value="${esc(l.etage)}" ${dis}></div>
         <div class="champ"><label for="f-porte">Porte</label><input type="text" id="f-porte" data-champ="porte" value="${esc(l.porte)}" ${dis}></div>
       </div>
-      <div class="champ"><label for="f-bouton">N° du bouton sur la platine</label><input type="number" id="f-bouton" min="1" max="99" inputmode="numeric" value="${esc(l.bouton ?? '')}" placeholder="ex. 3" ${dis}><p class="aide" id="aideBouton" hidden></p></div>
+      <div class="champ"><label for="f-bouton">N° du bouton sur la platine</label><input type="number" id="f-bouton" min="1" max="99" inputmode="numeric" value="${esc(l.bouton ?? '')}" placeholder="ex. 3" ${dis}><p class="aide" id="infoCode"></p><p class="aide" id="aideBouton" hidden></p></div>
       <div class="champ"><label for="f-nom">Nom affiché sur la platine</label><input type="text" id="f-nom" data-champ="nomAffiche" value="${esc(l.nomAffiche)}" maxlength="24" autocapitalize="characters" ${dis}></div>
       <div class="etiquette-platine" aria-hidden="true"><span class="bouton-appel" id="apercuBouton"></span><span class="nom-lcd" id="apercuNom"></span><span class="compte" id="compteNom"></span></div>
       <div class="champ"><label for="f-occupant">Occupant</label><input type="text" id="f-occupant" data-champ="occupant" value="${esc(l.occupant)}" ${dis}></div>
@@ -1034,6 +1039,7 @@ function majApercuNom() {
   $('apercuNom').classList.toggle('vide', !v);
   $('compteNom').textContent = `${v.length}/24`;
   $('apercuBouton').textContent = l.bouton || '';
+  $('infoCode').textContent = l.bouton ? `Code de programmation : ${codeBouton(l.bouton)}` : 'Le code de programmation se déduit du numéro de bouton.';
   const autres = l.bouton ? etat.logements.filter(x => x !== l && x.bouton === l.bouton) : [];
   $('aideBouton').hidden = !autres.length;
   $('aideBouton').className = 'aide attention';
@@ -2107,15 +2113,39 @@ async function verifierSignaturesDistance(silencieux) {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verifierSignaturesDistance(true); });
 
-/* ---------- Fiche interphone : boutons numérotés et noms correspondants ---------- */
-// Ordre des étages pour la numérotation automatique : RDC d'abord, étages inconnus à la fin.
-const rangEtage = e => { const t = String(e || '').trim().toLowerCase(); if (!t) return 99; if (/^(rdc|rez)/.test(t)) return 0; const n = parseInt(t, 10); return Number.isFinite(n) ? n : 98; };
+/* ---------- Interphone : numéros de bouton, codes de programmation, fiches ---------- */
+// Platine en grille (2 colonnes et 10 boutons par défaut, réglables dans la fenêtre Chantier).
+//  - Numéro de bouton : 1 en haut à gauche, 2 à sa droite… jusqu'en bas à droite, rangée par rangée.
+//  - Code de programmation : 0 en bas à gauche, 1 à sa droite… jusqu'en haut à droite.
+//  - Étages : le dernier étage sur les boutons du haut, le rez-de-chaussée en bas.
+function platine(ch = etat) {
+  const p = ch.platine || {};
+  const colonnes = Math.max(1, parseInt(p.colonnes, 10) || 2);
+  const boutons = Math.max(parseInt(p.boutons, 10) || 10, ...ch.logements.map(l => l.bouton || 0));
+  return { colonnes, boutons, rangees: Math.ceil(boutons / colonnes) };
+}
+function codeBouton(n, ch = etat) {
+  if (!n) return null;
+  const { colonnes, rangees } = platine(ch);
+  return (rangees - Math.ceil(n / colonnes)) * colonnes + (n - 1) % colonnes;
+}
+// Étage d'un logement : le champ Étage, sinon déduit du n° d'appartement (301 → 3e, 101 → 1er, 01 → RDC).
+function numEtage(l) {
+  const t = String(l.etage || '').trim().toLowerCase();
+  if (/^(rdc|rez)/.test(t)) return 0;
+  const n = parseInt(t, 10); if (Number.isFinite(n)) return n;
+  const p = String(l.porte || '').replace(/\D+/g, '');
+  if (p.length >= 3) return parseInt(p.slice(0, -2), 10);
+  if (p.length === 2 && p[0] === '0') return 0;
+  return -1; // étage inconnu : en bas de la liste
+}
 const rangPorte = p => { const n = parseInt(String(p || '').replace(/\D+/g, ''), 10); return Number.isFinite(n) ? n : 9999; };
+const etageTexte = l => { const e = numEtage(l); return e < 0 ? '' : e === 0 ? 'RDC' : e === 1 ? '1er' : e + 'e'; };
 function ordrePlatine(ls) {
-  return [...ls].sort((a, b) => rangEtage(a.etage) - rangEtage(b.etage) || rangPorte(a.porte) - rangPorte(b.porte)
+  return [...ls].sort((a, b) => numEtage(b) - numEtage(a) || rangPorte(a.porte) - rangPorte(b.porte)
     || String(a.batiment).localeCompare(String(b.batiment), 'fr') || String(a.nomAffiche).localeCompare(String(b.nomAffiche), 'fr'));
 }
-// Numérote 1, 2, 3… les logements qui ont un nom affiché, dans l'ordre étage puis porte.
+// Numérote 1, 2, 3… les logements qui ont un nom affiché : du dernier étage au rez-de-chaussée, appartements croissants.
 function numeroterBoutons(ch) {
   let n = 0;
   for (const l of ordrePlatine(ch.logements)) l.bouton = (l.nomAffiche || '').trim() ? ++n : null;
@@ -2126,33 +2156,34 @@ function boutonsChantier(ch = etat) {
   for (const l of ch.logements) if (l.bouton) parNum.set(l.bouton, [...(parNum.get(l.bouton) || []), l]);
   return parNum;
 }
+const nomsBouton = (ls, sep = '  /  ') => ls.map(l => (l.nomAffiche || l.occupant || '').toUpperCase().trim()).filter(Boolean).join(sep);
+// Remarques « À VÉRIFIER » saisies dans les observations, reprises sur la feuille de codification.
+const aVerifier = l => (/^\s*à vérifier/i.test(l.observations || '') ? l.observations.replace(/^\s*à vérifier[^:]*:\s*/i, '') : '');
 
 function pdfPlatine(ch = etat) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
-  const W = 210, M = 20, parNum = boutonsChantier(ch);
-  const n = Math.max(10, ...parNum.keys());
+  const W = 210, M = 20, parNum = boutonsChantier(ch), n = platine(ch).boutons;
   let y = entetePdf(doc, 'Interphone', ch.reference ? 'Réf. ' + ch.reference : 'Correspondance des boutons');
 
   doc.setFont('helvetica', 'normal'); doc.setFontSize(22); doc.setTextColor(...ENCRE);
   doc.text(ch.residence || '', W / 2, y + 8, { align: 'center' });
   if (ch.adresse) { doc.setFontSize(10); doc.setTextColor(...GRIS); doc.text(ch.adresse, W / 2, y + 15, { align: 'center' }); }
   y += 27;
-  const titre = 'CORRESPONDANCE DES BOUTONS D’APPEL', larg = (doc.setFont('helvetica', 'bold'), doc.setFontSize(9), doc.getTextWidth(titre) + 0.8 * (titre.length - 1));
+  const titre = 'CORRESPONDANCE DES BOUTONS D’APPEL';
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+  const larg = doc.getTextWidth(titre) + 0.8 * (titre.length - 1);
   doc.setTextColor(...OR); doc.text(titre, (W - larg) / 2, y, { charSpace: 0.8 });
   doc.setDrawColor(...OR); doc.setLineWidth(0.3); doc.line(M, y + 4, W - M, y + 4);
   y += 9;
 
   const bas = 258, h = Math.min(19, (bas - y) / n), r = Math.min(6.5, h * 0.36);
   for (let i = 1; i <= n; i++) {
-    const cy = y + h / 2, ls = parNum.get(i) || [];
-    // Le bouton : cercle or et son numéro
+    const cy = y + h / 2;
     doc.setDrawColor(...OR); doc.setLineWidth(0.7); doc.circle(M + r, cy, r, 'S');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(r * 2.6); doc.setTextColor(...ENCRE);
     doc.text(String(i), M + r, cy, { align: 'center', baseline: 'middle' });
-    // Le nom (plusieurs logements sur le même bouton : séparés par « / »)
-    const x = M + 2 * r + 8, maxW = W - M - x;
-    const nom = ls.map(l => (l.nomAffiche || l.occupant || '').toUpperCase().trim()).filter(Boolean).join('  /  ');
+    const x = M + 2 * r + 8, maxW = W - M - x, nom = nomsBouton(parNum.get(i) || []);
     if (nom) {
       let fs = Math.min(18, h * 0.95); doc.setFontSize(fs);
       while (doc.getTextWidth(nom) > maxW && fs > 9) { fs -= 0.5; doc.setFontSize(fs); }
@@ -2170,9 +2201,23 @@ function pdfPlatine(ch = etat) {
 
 $('numeroterBoutons').onclick = async () => {
   if (!etat.logements.some(l => (l.nomAffiche || '').trim())) return toast('Aucun logement n’a de nom affiché.');
-  if (etat.logements.some(l => l.bouton) && !await demander('Renuméroter les boutons ?', 'Les numéros déjà saisis seront remplacés : 1, 2, 3… dans l’ordre des étages puis des portes, pour les logements qui ont un nom affiché.', 'Renuméroter')) return;
-  const n = numeroterBoutons(etat); sauver(); rendreTout(); toast(`Boutons numérotés de 1 à ${n}. Corrigez un numéro dans la fiche du logement si besoin.`);
+  if (etat.logements.some(l => l.bouton) && !await demander('Renuméroter les boutons ?', 'Les numéros déjà saisis seront remplacés : 1 en haut à gauche pour le dernier étage, jusqu’au rez-de-chaussée en bas, appartements dans l’ordre croissant. Seuls les logements qui ont un nom affiché reçoivent un bouton.', 'Renuméroter')) return;
+  const n = numeroterBoutons(etat), p = platine();
+  if (n > p.boutons) etat.platine = { ...etat.platine, boutons: n };
+  sauver(); rendreTout(); majChampsPlatine();
+  toast(`Boutons numérotés de 1 à ${n}. Corrigez un numéro dans la fiche du logement si besoin.`);
 };
+function majChampsPlatine() {
+  $('c-platineBoutons').value = parseInt(etat.platine?.boutons, 10) || 10;
+  $('c-platineColonnes').value = platine().colonnes;
+}
+$('ouvrirChantier').addEventListener('click', majChampsPlatine);
+[['c-platineBoutons', 'boutons'], ['c-platineColonnes', 'colonnes']].forEach(([id, cle]) => $(id).addEventListener('input', e => {
+  const n = parseInt(e.target.value, 10);
+  if (!Number.isFinite(n) || n < 1) return;
+  etat.platine = { ...etat.platine, [cle]: n }; sauver(); rendreListe();
+}));
+
 $('fichePlatine').onclick = () => {
   const parNum = boutonsChantier();
   if (!parNum.size) return toast('Aucun numéro de bouton : touchez d’abord « Numéroter les boutons ».');
@@ -2181,86 +2226,145 @@ $('fichePlatine').onclick = () => {
   ouvrirDocument({
     blob: pdfPlatine(), nom: nomFichier(`Fiche interphone - ${etat.residence}`),
     sourcil: 'Fiche interphone', titre: etat.residence,
-    recap: [['Boutons', Math.max(10, ...parNum.keys())], ['Noms placés', [...parNum.values()].flat().length], ...(doublons.length ? [['Boutons partagés', doublons.join(', ')]] : [])],
+    recap: [['Boutons', platine().boutons], ['Noms placés', [...parNum.values()].flat().length], ...(doublons.length ? [['Boutons partagés', doublons.join(', ')]] : [])],
     dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
     objet: `Fiche interphone — ${etat.residence} — Harmonie Électricité`,
     texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint la fiche de correspondance des boutons de l'interphone de la résidence ${etat.residence}, à afficher à côté de la platine de rue.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
   });
 };
 
-/* ---------- Fiche interphone modifiable (Word) ---------- */
-// Même contenu que le PDF, en .docx : noms et numéros se corrigent ensuite dans Word.
+/* ---------- Documents Word modifiables : fiche interphone et feuille de codification ---------- */
 const DOCX_URL = 'vendor/docx-9.5.1.umd.js';
 const octetsDataUrl = u => Uint8Array.from(atob(u.split(',')[1]), c => c.charCodeAt(0));
 
-async function wordPlatine(ch = etat) {
+// Briques communes aux documents Word (design system Harmonie ; Century Gothic, proche de Jost, fournie avec Office).
+async function outilsWord(ch) {
   await chargerScript(DOCX_URL);
-  const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType,
-    BorderStyle, ShadingType, VerticalAlign, TableLayoutType, HeightRule, Footer } = window.docx;
-  const OR_ = 'C9A86A', NOIR_ = '0A0A0A', ENCRE_ = '1E1C16', GRIS_ = '635D52', CLAIR_ = 'D2CDC3';
-  const POLICE = 'Century Gothic'; // proche de Jost (design system), fournie avec Office
-  const LARGEUR = 10206; // A4 moins 2 × 1,5 cm de marges (en DXA)
+  const d = window.docx;
+  const { Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ShadingType,
+    VerticalAlign, TableLayoutType, HeightRule, Footer, Document } = d;
+  const C = { or: 'C9A86A', noir: '0A0A0A', encre: '1E1C16', gris: '635D52', clair: 'D2CDC3', attention: 'A86A1E' };
+  const POLICE = 'Century Gothic', LARGEUR = 10206; // A4 moins 2 × 1,5 cm de marges (en DXA)
   const aucun = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }, sansBordure = { top: aucun, bottom: aucun, left: aucun, right: aucun };
-  const filet = { style: BorderStyle.SINGLE, size: 12, color: OR_ };
+  const filet = (couleur = C.or, taille = 12) => ({ style: BorderStyle.SINGLE, size: taille, color: couleur });
+  const cadre = { top: filet(), bottom: filet(), left: filet(), right: filet() };
   const texte = (t, o = {}) => new TextRun({ text: t, font: POLICE, ...o });
-  const parNum = boutonsChantier(ch), n = Math.max(10, ...parNum.keys());
+  const para = (enfants, o = {}) => new Paragraph({ children: [].concat(enfants), ...o });
+  const cellule = (largeur, enfants, o = {}) => new TableCell({ width: { size: largeur, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+    borders: sansBordure, margins: { left: 100, right: 100, top: 60, bottom: 60 }, children: [].concat(enfants), ...o });
+  const tableau = (colonnes, lignes, bordures = { ...sansBordure, insideHorizontal: aucun, insideVertical: aucun }) =>
+    new Table({ width: { size: LARGEUR, type: WidthType.DXA }, columnWidths: colonnes, layout: TableLayoutType.FIXED, borders: bordures, rows: lignes });
+  const vide = (colonnes, hauteur) => new TableRow({ height: { value: hauteur, rule: HeightRule.EXACT }, children: colonnes.map(w => cellule(w, para(''), { margins: {} })) });
 
-  const cellBandeau = (enfants, marges) => new TableCell({
-    width: { size: LARGEUR / 2, type: WidthType.DXA }, shading: { type: ShadingType.CLEAR, color: 'auto', fill: NOIR_ },
-    verticalAlign: VerticalAlign.CENTER, borders: sansBordure, margins: marges, children: enfants,
-  });
-  const bandeau = new Table({
-    width: { size: LARGEUR, type: WidthType.DXA }, columnWidths: [LARGEUR / 2, LARGEUR / 2], layout: TableLayoutType.FIXED,
-    borders: { ...sansBordure, insideHorizontal: aucun, insideVertical: aucun },
-    rows: [new TableRow({ height: { value: 1250, rule: HeightRule.ATLEAST }, children: [
-      cellBandeau([new Paragraph({ children: [new ImageRun({ type: 'png', data: octetsDataUrl(LOGO_WORDMARK), transformation: { width: 170, height: Math.round(170 * 418 / 1232) } })] })], { left: 300, top: 160, bottom: 160 }),
-      cellBandeau([
-        new Paragraph({ alignment: AlignmentType.RIGHT, children: [texte('INTERPHONE', { color: OR_, size: 30, characterSpacing: 60 })] }),
-        new Paragraph({ alignment: AlignmentType.RIGHT, children: [texte(ch.reference ? 'Réf. ' + ch.reference : '', { color: 'E8E5DE', size: 18 })] }),
-      ], { right: 300 }),
-    ] })],
-  });
-
-  const colonnes = [1100, 300, LARGEUR - 1400];
-  const ligneBouton = (num, nom) => new TableRow({ height: { value: 880, rule: HeightRule.EXACT }, cantSplit: true, children: [
-    new TableCell({ width: { size: colonnes[0], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
-      borders: { top: filet, bottom: filet, left: filet, right: filet },
-      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [texte(String(num), { bold: true, size: 36, color: ENCRE_ })] })] }),
-    new TableCell({ width: { size: colonnes[1], type: WidthType.DXA }, borders: sansBordure, children: [new Paragraph('')] }),
-    new TableCell({ width: { size: colonnes[2], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, margins: { left: 120 },
-      borders: { ...sansBordure, bottom: { style: BorderStyle.DOTTED, size: 6, color: CLAIR_ } },
-      children: [new Paragraph({ children: [texte(nom, { bold: true, size: 34, color: ENCRE_ })] })] }),
-  ] });
-  const espace = () => new TableRow({ height: { value: 120, rule: HeightRule.EXACT },
-    children: colonnes.map(w => new TableCell({ width: { size: w, type: WidthType.DXA }, borders: sansBordure, children: [new Paragraph('')] })) });
-  const lignes = [];
-  for (let i = 1; i <= n; i++) {
-    if (i > 1) lignes.push(espace());
-    lignes.push(ligneBouton(i, (parNum.get(i) || []).map(l => (l.nomAffiche || l.occupant || '').toUpperCase().trim()).filter(Boolean).join(' / ')));
-  }
-
-  const doc = new Document({
-    creator: 'Harmonie Électricité', title: `Fiche interphone — ${ch.residence || ''}`,
-    styles: { default: { document: { run: { font: POLICE, size: 22, color: ENCRE_ } } } },
+  const bandeau = titre => {
+    const moitie = LARGEUR / 2, fond = { type: ShadingType.CLEAR, color: 'auto', fill: C.noir };
+    return tableau([moitie, moitie], [new TableRow({ height: { value: 1250, rule: HeightRule.ATLEAST }, children: [
+      cellule(moitie, para(new ImageRun({ type: 'png', data: octetsDataUrl(LOGO_WORDMARK), transformation: { width: 170, height: Math.round(170 * 418 / 1232) } })),
+        { shading: fond, margins: { left: 300, top: 160, bottom: 160 } }),
+      cellule(moitie, [para(texte(titre, { color: C.or, size: 30, characterSpacing: 60 }), { alignment: AlignmentType.RIGHT }),
+        para(texte(ch.reference ? 'Réf. ' + ch.reference : '', { color: 'E8E5DE', size: 18 }), { alignment: AlignmentType.RIGHT })], { shading: fond, margins: { right: 300 } }),
+    ] })]);
+  };
+  const entete = (titre, sousTitre) => [
+    bandeau(titre),
+    para(texte(ch.residence || '', { size: 44 }), { alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 } }),
+    para(texte(ch.adresse || '', { size: 20, color: C.gris }), { alignment: AlignmentType.CENTER, spacing: { after: 220 } }),
+    para(texte(sousTitre, { bold: true, size: 18, color: C.or, characterSpacing: 60 }),
+      { alignment: AlignmentType.CENTER, spacing: { after: 300 }, border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: C.or, space: 8 } } }),
+  ];
+  const documentA4 = (titre, enfants) => new Document({
+    creator: 'Harmonie Électricité', title: titre, styles: { default: { document: { run: { font: POLICE, size: 22, color: C.encre } } } },
     sections: [{
       properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 850, bottom: 850, left: 850, right: 850, footer: 400 } } },
-      footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER,
-        border: { top: { style: BorderStyle.SINGLE, size: 4, color: OR_, space: 6 } },
-        children: [texte(ENTREPRISE, { size: 15, color: GRIS_ })] })] }) },
-      children: [
-        bandeau,
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, children: [texte(ch.residence || '', { size: 44 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 220 }, children: [texte(ch.adresse || '', { size: 20, color: GRIS_ })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: OR_, space: 8 } },
-          children: [texte('CORRESPONDANCE DES BOUTONS D’APPEL', { bold: true, size: 18, color: OR_, characterSpacing: 60 })] }),
-        new Table({ width: { size: LARGEUR, type: WidthType.DXA }, columnWidths: colonnes, layout: TableLayoutType.FIXED,
-          borders: { ...sansBordure, insideHorizontal: aucun, insideVertical: aucun }, rows: lignes }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 280 },
-          children: [texte('Pour appeler un occupant, appuyez sur le bouton portant son numéro.', { size: 20, color: GRIS_ })] }),
-      ],
+      footers: { default: new Footer({ children: [para(texte(ENTREPRISE, { size: 15, color: C.gris }),
+        { alignment: AlignmentType.CENTER, border: { top: { style: BorderStyle.SINGLE, size: 4, color: C.or, space: 6 } } })] }) },
+      children: enfants,
     }],
   });
-  return Packer.toBlob(doc);
+  return { d, C, LARGEUR, aucun, sansBordure, filet, cadre, texte, para, cellule, tableau, vide, entete, documentA4 };
+}
+
+// Fiche à afficher à côté de la platine : numéro du bouton et nom.
+async function wordPlatine(ch = etat) {
+  const w = await outilsWord(ch), { TableRow, HeightRule, AlignmentType, BorderStyle, Packer } = w.d;
+  const parNum = boutonsChantier(ch), n = platine(ch).boutons, colonnes = [1100, 300, w.LARGEUR - 1400];
+  const lignes = [];
+  for (let i = 1; i <= n; i++) {
+    if (i > 1) lignes.push(w.vide(colonnes, 120));
+    lignes.push(new TableRow({ height: { value: 880, rule: HeightRule.EXACT }, cantSplit: true, children: [
+      w.cellule(colonnes[0], w.para(w.texte(String(i), { bold: true, size: 36 }), { alignment: AlignmentType.CENTER }), { borders: w.cadre }),
+      w.cellule(colonnes[1], w.para('')),
+      w.cellule(colonnes[2], w.para(w.texte(nomsBouton(parNum.get(i) || [], ' / '), { bold: true, size: 34 })),
+        { borders: { ...w.sansBordure, bottom: { style: BorderStyle.DOTTED, size: 6, color: w.C.clair } } }),
+    ] }));
+  }
+  return Packer.toBlob(w.documentA4(`Fiche interphone — ${ch.residence || ''}`, [
+    ...w.entete('INTERPHONE', 'CORRESPONDANCE DES BOUTONS D’APPEL'),
+    w.tableau(colonnes, lignes),
+    w.para(w.texte('Pour appeler un occupant, appuyez sur le bouton portant son numéro.', { size: 20, color: w.C.gris }), { alignment: AlignmentType.CENTER, spacing: { before: 280 } }),
+  ]));
+}
+
+// Feuille de codification (technicien) : platine vue de face avec bouton et code, puis le détail par bouton.
+async function wordCodification(ch = etat) {
+  const w = await outilsWord(ch), { TableRow, HeightRule, AlignmentType, BorderStyle, ShadingType, Packer } = w.d;
+  const parNum = boutonsChantier(ch), p = platine(ch);
+  const ecart = 200, largCase = Math.floor((w.LARGEUR - ecart * (p.colonnes - 1)) / p.colonnes);
+  const colsSchema = []; for (let c = 0; c < p.colonnes; c++) { if (c) colsSchema.push(ecart); colsSchema.push(largCase); }
+  colsSchema[colsSchema.length - 1] += w.LARGEUR - colsSchema.reduce((a, b) => a + b, 0);
+
+  const caseBouton = (n, largeur) => {
+    const ls = parNum.get(n) || [], l = ls[0];
+    const lieuTxt = l ? [l.porte && 'Appt ' + l.porte, etageTexte(l)].filter(Boolean).join(' · ') : '';
+    return w.cellule(largeur, [
+      w.para([w.texte(`BOUTON ${n}`, { bold: true, size: 22, characterSpacing: 20 }), w.texte(`     CODE ${codeBouton(n, ch)}`, { bold: true, size: 22, color: w.C.or, characterSpacing: 20 })]),
+      w.para(w.texte(nomsBouton(ls, ' / ') || '—', { size: 24, color: ls.length ? w.C.encre : w.C.clair }), { spacing: { before: 40 } }),
+      w.para(w.texte(lieuTxt, { size: 17, color: w.C.gris })),
+    ], { borders: w.cadre, margins: { left: 160, right: 120, top: 100, bottom: 100 } });
+  };
+  const schema = [];
+  for (let r = 0; r < p.rangees; r++) {
+    if (r) schema.push(w.vide(colsSchema, 100));
+    const cases = [];
+    for (let c = 0; c < p.colonnes; c++) {
+      const n = r * p.colonnes + c + 1;
+      if (c) cases.push(w.cellule(ecart, w.para('')));
+      cases.push(n <= p.boutons ? caseBouton(n, colsSchema[cases.length]) : w.cellule(colsSchema[cases.length], w.para('')));
+    }
+    schema.push(new TableRow({ cantSplit: true, children: cases }));
+  }
+
+  const cols = [1150, 800, 800, 800, 2850, 3806];
+  const titres = ['Bouton', 'Code', 'Appt', 'Étage', 'Nom affiché', 'Occupant · à vérifier'];
+  const lignes = [new TableRow({ tableHeader: true, children: titres.map((t, i) => w.cellule(cols[i],
+    w.para(w.texte(t.toUpperCase(), { bold: true, size: 15, color: w.C.or, characterSpacing: 20 })), { shading: { type: ShadingType.CLEAR, color: 'auto', fill: w.C.noir } })) })];
+  for (let n = 1; n <= p.boutons; n++) {
+    const ls = parNum.get(n) || [];
+    for (const l of ls.length ? ls : [null]) lignes.push(new TableRow({ cantSplit: true, children: [
+      w.cellule(cols[0], w.para(w.texte(String(n), { bold: true, size: 26 }), { alignment: AlignmentType.CENTER })),
+      w.cellule(cols[1], w.para(w.texte(String(codeBouton(n, ch)), { bold: true, size: 26, color: w.C.or }), { alignment: AlignmentType.CENTER })),
+      w.cellule(cols[2], w.para(w.texte(l ? l.porte || '' : '', { size: 20 }))),
+      w.cellule(cols[3], w.para(w.texte(l ? etageTexte(l) : '', { size: 20 }))),
+      w.cellule(cols[4], w.para(w.texte(l ? (l.nomAffiche || '').toUpperCase() : '—', { bold: true, size: 20, color: l ? w.C.encre : w.C.clair }))),
+      w.cellule(cols[5], l ? [w.para(w.texte(l.occupant || '', { size: 17 })),
+        ...(aVerifier(l) ? [w.para(w.texte('À vérifier : ' + aVerifier(l), { size: 16, color: w.C.attention }))] : [])] : w.para('')),
+    ] }));
+  }
+  const sansBouton = ch.logements.filter(l => !l.bouton);
+
+  return Packer.toBlob(w.documentA4(`Codification interphone — ${ch.residence || ''}`, [
+    ...w.entete('CODIFICATION', 'PROGRAMMATION DE LA PLATINE'),
+    w.para(w.texte('Platine vue de face', { bold: true, size: 18, color: w.C.gris }), { spacing: { after: 120 } }),
+    w.tableau(colsSchema, schema),
+    w.para([w.texte('Numéro de bouton : ', { bold: true, size: 17 }), w.texte(`de 1 (en haut à gauche) à ${p.boutons} (en bas à droite), rangée par rangée.`, { size: 17, color: w.C.gris })], { spacing: { before: 200 } }),
+    w.para([w.texte('Code de programmation : ', { bold: true, size: 17, color: w.C.or }), w.texte(`de 0 (en bas à gauche) à ${p.rangees * p.colonnes - 1} (en haut à droite).`, { size: 17, color: w.C.gris })]),
+    w.para([w.texte('Étages : ', { bold: true, size: 17 }), w.texte('dernier étage en haut, rez-de-chaussée en bas.', { size: 17, color: w.C.gris })]),
+    w.para(w.texte('DÉTAIL PAR BOUTON', { bold: true, size: 18, color: w.C.or, characterSpacing: 60 }),
+      { pageBreakBefore: true, spacing: { after: 240 }, border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: w.C.or, space: 8 } } }),
+    w.tableau(cols, lignes, { top: w.filet(w.C.clair, 4), bottom: w.filet(w.C.clair, 4), left: w.aucun, right: w.aucun, insideHorizontal: w.filet(w.C.clair, 4), insideVertical: w.aucun }),
+    ...(sansBouton.length ? [w.para([w.texte('Logements sans bouton attribué : ', { bold: true, size: 17 }),
+      w.texte(sansBouton.map(l => [l.occupant || l.nomAffiche, l.porte && '(' + l.porte + ')'].filter(Boolean).join(' ')).join(', ') + '.', { size: 17, color: w.C.gris })], { spacing: { before: 240 } })] : []),
+  ]));
 }
 
 // Fichier à garder : partage sur téléphone (Enregistrer, Drive, e-mail…), téléchargement sur ordinateur.
@@ -2272,16 +2376,15 @@ async function remettreFichier(blob, nom) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom; a.click();
   toast('Fichier téléchargé : ' + nom);
 }
-
-$('fichePlatineWord').onclick = async () => {
-  if (!boutonsChantier().size) return toast('Aucun numéro de bouton : touchez d’abord « Numéroter les boutons ».');
-  const b = $('fichePlatineWord'); b.disabled = true; toast('Préparation du fichier Word…');
-  try {
-    const blob = await wordPlatine();
-    await remettreFichier(blob, nomFichier(`Fiche interphone - ${etat.residence}`).replace(/\.pdf$/, '.docx'));
-  } catch (e) { toast('Fichier Word impossible : ' + e.message); }
-  finally { b.disabled = false; }
-};
+[['fichePlatineWord', wordPlatine, 'Fiche interphone'], ['codificationWord', wordCodification, 'Codification interphone']].forEach(([id, fabriquer, titre]) => {
+  $(id).onclick = async () => {
+    if (!boutonsChantier().size) return toast('Aucun numéro de bouton : touchez d’abord « Numéroter les boutons ».');
+    const b = $(id); b.disabled = true; toast('Préparation du fichier Word…');
+    try { await remettreFichier(await fabriquer(), nomFichier(`${titre} - ${etat.residence}`).replace(/\.pdf$/, '.docx')); }
+    catch (e) { toast('Fichier Word impossible : ' + e.message); }
+    finally { b.disabled = false; }
+  };
+});
 
 /* ---------- Démarrage ---------- */
 function rendreTout() { rendreEntete(); rendreListe(); rendreFiche(); majCompteRappels(); }
