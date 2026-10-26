@@ -1,6 +1,6 @@
 // Mode hors-ligne : l'app s'ouvre même sans réseau (les chantiers restent enregistrés sur l'appareil
 // et partent dans Supabase au retour du réseau). Changer VERSION à chaque mise en ligne.
-const VERSION = 'emargement-v3';
+const VERSION = 'emargement-v4';
 const FICHIERS = [
   './', './index.html', './logos.js', './manifest.webmanifest',
   './assets/logo-wordmark.png', './assets/monogram.png', './assets/icone-192.png', './assets/icone-512.png',

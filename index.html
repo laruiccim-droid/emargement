@@ -160,7 +160,7 @@ svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-wid
 .ligne { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px; }
 .ligne > .champ { margin-top: 0; }
 label, .etiq { font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-300); }
-input[type=text], input[type=tel], input[type=email], input[type=date], input[type=time], input[type=search], select, textarea {
+input[type=text], input[type=number], input[type=tel], input[type=email], input[type=date], input[type=time], input[type=search], select, textarea {
   width: 100%; min-height: 44px; padding: 10px 12px; border-radius: var(--r-sm);
   border: 1px solid var(--border-subtle); background: var(--ink-800); color: var(--he-white); font-size: 16px;
   transition: 150ms var(--ease);
@@ -183,6 +183,8 @@ input::placeholder, textarea::placeholder { color: var(--grey-500); }
 .etiquette-platine .bouton-appel::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--he-gold); box-shadow: var(--glow-node); }
 .etiquette-platine .nom-lcd { flex: 1; min-width: 0; font-weight: 500; letter-spacing: var(--ls-wider); text-transform: uppercase; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .etiquette-platine .nom-lcd.vide { color: var(--grey-500); }
+.etiquette-platine .bouton-appel:not(:empty) { border-color: var(--he-gold); color: var(--he-gold-light); font-size: var(--fs-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.etiquette-platine .bouton-appel:not(:empty)::after { display: none; }
 .etiquette-platine .compte { font-size: 10px; color: var(--grey-400); font-variant-numeric: tabular-nums; }
 
 /* Interrupteur oui / non */
@@ -462,6 +464,14 @@ dialog.scan:not([open]) { display: none; }
       <button type="button" class="btn" id="exportBadges">Badges (CSV)</button>
     </div>
     <p class="aide">Le bon de livraison reprend tous les logements : nom affiché, matériel, plaque, numéros de badges, état et signature de chaque client.</p>
+
+    <div class="separateur"></div>
+    <div class="etiq">Interphone</div>
+    <div class="dlg-actions" style="justify-content:flex-start">
+      <button type="button" class="btn" id="numeroterBoutons">Numéroter les boutons</button>
+      <button type="button" class="btn btn-or" id="fichePlatine"><svg class="ic"><use href="#i-file"/></svg>Fiche interphone</button>
+    </div>
+    <p class="aide">Fiche à poser à côté de la platine : le numéro de chaque bouton et le nom correspondant. Le numéro se corrige dans la fiche de chaque logement.</p>
 
     <div class="separateur"></div>
     <div class="etiq">Importer la liste des logements</div>
@@ -772,7 +782,7 @@ function rendreListe() {
     const etatTxt = l.statut === 'signe' ? 'Signé' : l.statut === 'absent' ? 'Absent' : prevenu ? 'Prévenu' : 'À faire';
     const etatCls = l.statut === 'afaire' ? (prevenu ? 'prevenu' : '') : l.statut;
     const nb = l.badges.length;
-    const detail = [l.occupant, l.modele && l.modele.replace(/^[^–]+–\s*/, ''), nb ? `${nb} badge${nb > 1 ? 's' : ''}` : (l.badgesPrevu === null ? 'badges ?' : ''), l.plaque && 'plaque'].filter(Boolean).join(' • ');
+    const detail = [l.bouton && 'bouton ' + l.bouton, l.occupant, l.modele && l.modele.replace(/^[^–]+–\s*/, ''), nb ? `${nb} badge${nb > 1 ? 's' : ''}` : (l.badgesPrevu === null ? 'badges ?' : ''), l.plaque && 'plaque'].filter(Boolean).join(' • ');
     li.innerHTML = `<button type="button" class="carte-log ${l.id === courantId ? 'courant' : ''}">
       <div class="heure">${esc(l.rdvHeure || '--:--')}<small>${l.rdvDate && l.rdvDate !== etat.date ? esc(dateCourte(l.rdvDate).slice(0, 5)) : 'RDV'}</small></div>
       <div class="log-info"><div class="log-lieu">${esc(lieu(l) || 'Logement')}</div><div class="log-nom">${esc(l.nomAffiche || l.occupant || 'Sans nom')}</div><div class="log-detail">${esc(detail)}</div></div>
@@ -841,8 +851,9 @@ function rendreFiche() {
         <div class="champ"><label for="f-etage">Étage</label><input type="text" id="f-etage" data-champ="etage" value="${esc(l.etage)}" ${dis}></div>
         <div class="champ"><label for="f-porte">Porte</label><input type="text" id="f-porte" data-champ="porte" value="${esc(l.porte)}" ${dis}></div>
       </div>
+      <div class="champ"><label for="f-bouton">N° du bouton sur la platine</label><input type="number" id="f-bouton" min="1" max="99" inputmode="numeric" value="${esc(l.bouton ?? '')}" placeholder="ex. 3" ${dis}><p class="aide" id="aideBouton" hidden></p></div>
       <div class="champ"><label for="f-nom">Nom affiché sur la platine</label><input type="text" id="f-nom" data-champ="nomAffiche" value="${esc(l.nomAffiche)}" maxlength="24" autocapitalize="characters" ${dis}></div>
-      <div class="etiquette-platine" aria-hidden="true"><span class="bouton-appel"></span><span class="nom-lcd" id="apercuNom"></span><span class="compte" id="compteNom"></span></div>
+      <div class="etiquette-platine" aria-hidden="true"><span class="bouton-appel" id="apercuBouton"></span><span class="nom-lcd" id="apercuNom"></span><span class="compte" id="compteNom"></span></div>
       <div class="champ"><label for="f-occupant">Occupant</label><input type="text" id="f-occupant" data-champ="occupant" value="${esc(l.occupant)}" ${dis}></div>
     </section>
 
@@ -937,6 +948,10 @@ function rendreFiche() {
     rendreListe(); rendreEntete();
   }));
   majApercuNom();
+  $('f-bouton').addEventListener('input', e => {
+    const n = parseInt(e.target.value, 10);
+    l.bouton = Number.isFinite(n) && n > 0 ? n : null; sauver(); majApercuNom(); rendreListe();
+  });
 
   $('appeler').addEventListener('click', e => {
     if (!telLien(l.tel)) { e.preventDefault(); return toast('Aucun numéro de téléphone.'); }
@@ -1017,6 +1032,11 @@ function majApercuNom() {
   $('apercuNom').textContent = v || 'Nom à afficher';
   $('apercuNom').classList.toggle('vide', !v);
   $('compteNom').textContent = `${v.length}/24`;
+  $('apercuBouton').textContent = l.bouton || '';
+  const autres = l.bouton ? etat.logements.filter(x => x !== l && x.bouton === l.bouton) : [];
+  $('aideBouton').hidden = !autres.length;
+  $('aideBouton').className = 'aide attention';
+  $('aideBouton').textContent = autres.length ? `Bouton ${l.bouton} déjà attribué : ${autres.map(x => x.nomAffiche || lieu(x)).join(', ')}` : '';
 }
 
 /* ---------- Badges ---------- */
@@ -1236,7 +1256,10 @@ async function pdfBon(l, brouillon = false) {
   // Nom affiché : rendu comme l'étiquette de la platine
   y = titreBloc(doc, M, y, 'Nom affiché sur la platine', W - 2 * M);
   doc.setFillColor(...NOIR); doc.roundedRect(M, y - 1, 90, 11, 1.2, 1.2, 'F');
-  doc.setFillColor(...OR); doc.circle(M + 6, y + 4.5, 1.4, 'F');
+  if (l.bouton) {
+    doc.setFillColor(...OR); doc.circle(M + 6, y + 4.5, 3.4, 'F');
+    doc.setTextColor(...NOIR); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text(String(l.bouton), M + 6, y + 4.6, { align: 'center', baseline: 'middle' });
+  } else { doc.setFillColor(...OR); doc.circle(M + 6, y + 4.5, 1.4, 'F'); }
   doc.setTextColor(232, 229, 222); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
   doc.text((l.nomAffiche || '—').toUpperCase(), M + 11, y + 6.2, { charSpace: 0.9 });
   y += 18;
@@ -1330,7 +1353,7 @@ function pdfLivraison() {
   enteteTableau();
   for (const l of tri) {
     const cel = [
-      lieu(l) || '—', (l.nomAffiche || '—').toUpperCase(), l.occupant || '—', l.modele || '—', l.plaque ? 'Oui' : 'Non',
+      lieu(l) || '—', (l.bouton ? l.bouton + ' · ' : '') + (l.nomAffiche || '—').toUpperCase(), l.occupant || '—', l.modele || '—', l.plaque ? 'Oui' : 'Non',
       l.badges.length ? l.badges.map((b, i) => `${i + 1}. ${b || '?'}`).join('\n') : '0',
       l.statut === 'signe' ? (l.signeDistance ? 'Signé à distance\n' : 'Signé\n') + horodatage(l.signeLe) : l.statut === 'absent' ? 'Absent\n' + horodatage(l.absentLe) : 'Non traité',
     ];
@@ -2082,6 +2105,87 @@ async function verifierSignaturesDistance(silencieux) {
   finally { verificationEnCours = false; }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verifierSignaturesDistance(true); });
+
+/* ---------- Fiche interphone : boutons numérotés et noms correspondants ---------- */
+// Ordre des étages pour la numérotation automatique : RDC d'abord, étages inconnus à la fin.
+const rangEtage = e => { const t = String(e || '').trim().toLowerCase(); if (!t) return 99; if (/^(rdc|rez)/.test(t)) return 0; const n = parseInt(t, 10); return Number.isFinite(n) ? n : 98; };
+const rangPorte = p => { const n = parseInt(String(p || '').replace(/\D+/g, ''), 10); return Number.isFinite(n) ? n : 9999; };
+function ordrePlatine(ls) {
+  return [...ls].sort((a, b) => rangEtage(a.etage) - rangEtage(b.etage) || rangPorte(a.porte) - rangPorte(b.porte)
+    || String(a.batiment).localeCompare(String(b.batiment), 'fr') || String(a.nomAffiche).localeCompare(String(b.nomAffiche), 'fr'));
+}
+// Numérote 1, 2, 3… les logements qui ont un nom affiché, dans l'ordre étage puis porte.
+function numeroterBoutons(ch) {
+  let n = 0;
+  for (const l of ordrePlatine(ch.logements)) l.bouton = (l.nomAffiche || '').trim() ? ++n : null;
+  return n;
+}
+function boutonsChantier(ch = etat) {
+  const parNum = new Map();
+  for (const l of ch.logements) if (l.bouton) parNum.set(l.bouton, [...(parNum.get(l.bouton) || []), l]);
+  return parNum;
+}
+
+function pdfPlatine(ch = etat) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
+  const W = 210, M = 20, parNum = boutonsChantier(ch);
+  const n = Math.max(10, ...parNum.keys());
+  let y = entetePdf(doc, 'Interphone', ch.reference ? 'Réf. ' + ch.reference : 'Correspondance des boutons');
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(22); doc.setTextColor(...ENCRE);
+  doc.text(ch.residence || '', W / 2, y + 8, { align: 'center' });
+  if (ch.adresse) { doc.setFontSize(10); doc.setTextColor(...GRIS); doc.text(ch.adresse, W / 2, y + 15, { align: 'center' }); }
+  y += 27;
+  const titre = 'CORRESPONDANCE DES BOUTONS D’APPEL', larg = (doc.setFont('helvetica', 'bold'), doc.setFontSize(9), doc.getTextWidth(titre) + 0.8 * (titre.length - 1));
+  doc.setTextColor(...OR); doc.text(titre, (W - larg) / 2, y, { charSpace: 0.8 });
+  doc.setDrawColor(...OR); doc.setLineWidth(0.3); doc.line(M, y + 4, W - M, y + 4);
+  y += 9;
+
+  const bas = 258, h = Math.min(19, (bas - y) / n), r = Math.min(6.5, h * 0.36);
+  for (let i = 1; i <= n; i++) {
+    const cy = y + h / 2, ls = parNum.get(i) || [];
+    // Le bouton : cercle or et son numéro
+    doc.setDrawColor(...OR); doc.setLineWidth(0.7); doc.circle(M + r, cy, r, 'S');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(r * 2.6); doc.setTextColor(...ENCRE);
+    doc.text(String(i), M + r, cy, { align: 'center', baseline: 'middle' });
+    // Le nom (plusieurs logements sur le même bouton : séparés par « / »)
+    const x = M + 2 * r + 8, maxW = W - M - x;
+    const nom = ls.map(l => (l.nomAffiche || l.occupant || '').toUpperCase().trim()).filter(Boolean).join('  /  ');
+    if (nom) {
+      let fs = Math.min(18, h * 0.95); doc.setFontSize(fs);
+      while (doc.getTextWidth(nom) > maxW && fs > 9) { fs -= 0.5; doc.setFontSize(fs); }
+      doc.text(nom, x, cy, { baseline: 'middle' });
+    }
+    doc.setDrawColor(210, 205, 195); doc.setLineWidth(0.2); doc.setLineDashPattern([0.8, 1.2], 0);
+    doc.line(x, y + h - 1.5, W - M, y + h - 1.5); doc.setLineDashPattern([], 0);
+    y += h;
+  }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...GRIS);
+  doc.text('Pour appeler un occupant, appuyez sur le bouton portant son numéro.', W / 2, Math.max(y + 8, 266), { align: 'center' });
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+$('numeroterBoutons').onclick = async () => {
+  if (!etat.logements.some(l => (l.nomAffiche || '').trim())) return toast('Aucun logement n’a de nom affiché.');
+  if (etat.logements.some(l => l.bouton) && !await demander('Renuméroter les boutons ?', 'Les numéros déjà saisis seront remplacés : 1, 2, 3… dans l’ordre des étages puis des portes, pour les logements qui ont un nom affiché.', 'Renuméroter')) return;
+  const n = numeroterBoutons(etat); sauver(); rendreTout(); toast(`Boutons numérotés de 1 à ${n}. Corrigez un numéro dans la fiche du logement si besoin.`);
+};
+$('fichePlatine').onclick = () => {
+  const parNum = boutonsChantier();
+  if (!parNum.size) return toast('Aucun numéro de bouton : touchez d’abord « Numéroter les boutons ».');
+  const doublons = [...parNum.entries()].filter(([, ls]) => ls.length > 1).map(([n]) => n);
+  $('dlgChantier').close();
+  ouvrirDocument({
+    blob: pdfPlatine(), nom: nomFichier(`Fiche interphone - ${etat.residence}`),
+    sourcil: 'Fiche interphone', titre: etat.residence,
+    recap: [['Boutons', Math.max(10, ...parNum.keys())], ['Noms placés', [...parNum.values()].flat().length], ...(doublons.length ? [['Boutons partagés', doublons.join(', ')]] : [])],
+    dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
+    objet: `Fiche interphone — ${etat.residence} — Harmonie Électricité`,
+    texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint la fiche de correspondance des boutons de l'interphone de la résidence ${etat.residence}, à afficher à côté de la platine de rue.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+  });
+};
 
 /* ---------- Démarrage ---------- */
 function rendreTout() { rendreEntete(); rendreListe(); rendreFiche(); majCompteRappels(); }
