@@ -469,9 +469,10 @@ dialog.scan:not([open]) { display: none; }
     <div class="etiq">Interphone</div>
     <div class="dlg-actions" style="justify-content:flex-start">
       <button type="button" class="btn" id="numeroterBoutons">Numéroter les boutons</button>
-      <button type="button" class="btn btn-or" id="fichePlatine"><svg class="ic"><use href="#i-file"/></svg>Fiche interphone</button>
+      <button type="button" class="btn btn-or" id="fichePlatine"><svg class="ic"><use href="#i-file"/></svg>Fiche interphone (PDF)</button>
+      <button type="button" class="btn" id="fichePlatineWord"><svg class="ic"><use href="#i-file"/></svg>Fiche interphone (Word)</button>
     </div>
-    <p class="aide">Fiche à poser à côté de la platine : le numéro de chaque bouton et le nom correspondant. Le numéro se corrige dans la fiche de chaque logement.</p>
+    <p class="aide">Fiche à poser à côté de la platine : le numéro de chaque bouton et le nom correspondant. La version Word se modifie ensuite librement. Le numéro se corrige dans la fiche de chaque logement.</p>
 
     <div class="separateur"></div>
     <div class="etiq">Importer la liste des logements</div>
@@ -2185,6 +2186,101 @@ $('fichePlatine').onclick = () => {
     objet: `Fiche interphone — ${etat.residence} — Harmonie Électricité`,
     texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint la fiche de correspondance des boutons de l'interphone de la résidence ${etat.residence}, à afficher à côté de la platine de rue.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
   });
+};
+
+/* ---------- Fiche interphone modifiable (Word) ---------- */
+// Même contenu que le PDF, en .docx : noms et numéros se corrigent ensuite dans Word.
+const DOCX_URL = 'vendor/docx-9.5.1.umd.js';
+const octetsDataUrl = u => Uint8Array.from(atob(u.split(',')[1]), c => c.charCodeAt(0));
+
+async function wordPlatine(ch = etat) {
+  await chargerScript(DOCX_URL);
+  const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType,
+    BorderStyle, ShadingType, VerticalAlign, TableLayoutType, HeightRule, Footer } = window.docx;
+  const OR_ = 'C9A86A', NOIR_ = '0A0A0A', ENCRE_ = '1E1C16', GRIS_ = '635D52', CLAIR_ = 'D2CDC3';
+  const POLICE = 'Century Gothic'; // proche de Jost (design system), fournie avec Office
+  const LARGEUR = 10206; // A4 moins 2 × 1,5 cm de marges (en DXA)
+  const aucun = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }, sansBordure = { top: aucun, bottom: aucun, left: aucun, right: aucun };
+  const filet = { style: BorderStyle.SINGLE, size: 12, color: OR_ };
+  const texte = (t, o = {}) => new TextRun({ text: t, font: POLICE, ...o });
+  const parNum = boutonsChantier(ch), n = Math.max(10, ...parNum.keys());
+
+  const cellBandeau = (enfants, marges) => new TableCell({
+    width: { size: LARGEUR / 2, type: WidthType.DXA }, shading: { type: ShadingType.CLEAR, color: 'auto', fill: NOIR_ },
+    verticalAlign: VerticalAlign.CENTER, borders: sansBordure, margins: marges, children: enfants,
+  });
+  const bandeau = new Table({
+    width: { size: LARGEUR, type: WidthType.DXA }, columnWidths: [LARGEUR / 2, LARGEUR / 2], layout: TableLayoutType.FIXED,
+    borders: { ...sansBordure, insideHorizontal: aucun, insideVertical: aucun },
+    rows: [new TableRow({ height: { value: 1250, rule: HeightRule.ATLEAST }, children: [
+      cellBandeau([new Paragraph({ children: [new ImageRun({ type: 'png', data: octetsDataUrl(LOGO_WORDMARK), transformation: { width: 170, height: Math.round(170 * 418 / 1232) } })] })], { left: 300, top: 160, bottom: 160 }),
+      cellBandeau([
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [texte('INTERPHONE', { color: OR_, size: 30, characterSpacing: 60 })] }),
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [texte(ch.reference ? 'Réf. ' + ch.reference : '', { color: 'E8E5DE', size: 18 })] }),
+      ], { right: 300 }),
+    ] })],
+  });
+
+  const colonnes = [1100, 300, LARGEUR - 1400];
+  const ligneBouton = (num, nom) => new TableRow({ height: { value: 880, rule: HeightRule.EXACT }, cantSplit: true, children: [
+    new TableCell({ width: { size: colonnes[0], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+      borders: { top: filet, bottom: filet, left: filet, right: filet },
+      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [texte(String(num), { bold: true, size: 36, color: ENCRE_ })] })] }),
+    new TableCell({ width: { size: colonnes[1], type: WidthType.DXA }, borders: sansBordure, children: [new Paragraph('')] }),
+    new TableCell({ width: { size: colonnes[2], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, margins: { left: 120 },
+      borders: { ...sansBordure, bottom: { style: BorderStyle.DOTTED, size: 6, color: CLAIR_ } },
+      children: [new Paragraph({ children: [texte(nom, { bold: true, size: 34, color: ENCRE_ })] })] }),
+  ] });
+  const espace = () => new TableRow({ height: { value: 120, rule: HeightRule.EXACT },
+    children: colonnes.map(w => new TableCell({ width: { size: w, type: WidthType.DXA }, borders: sansBordure, children: [new Paragraph('')] })) });
+  const lignes = [];
+  for (let i = 1; i <= n; i++) {
+    if (i > 1) lignes.push(espace());
+    lignes.push(ligneBouton(i, (parNum.get(i) || []).map(l => (l.nomAffiche || l.occupant || '').toUpperCase().trim()).filter(Boolean).join(' / ')));
+  }
+
+  const doc = new Document({
+    creator: 'Harmonie Électricité', title: `Fiche interphone — ${ch.residence || ''}`,
+    styles: { default: { document: { run: { font: POLICE, size: 22, color: ENCRE_ } } } },
+    sections: [{
+      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 850, bottom: 850, left: 850, right: 850, footer: 400 } } },
+      footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER,
+        border: { top: { style: BorderStyle.SINGLE, size: 4, color: OR_, space: 6 } },
+        children: [texte(ENTREPRISE, { size: 15, color: GRIS_ })] })] }) },
+      children: [
+        bandeau,
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, children: [texte(ch.residence || '', { size: 44 })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 220 }, children: [texte(ch.adresse || '', { size: 20, color: GRIS_ })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: OR_, space: 8 } },
+          children: [texte('CORRESPONDANCE DES BOUTONS D’APPEL', { bold: true, size: 18, color: OR_, characterSpacing: 60 })] }),
+        new Table({ width: { size: LARGEUR, type: WidthType.DXA }, columnWidths: colonnes, layout: TableLayoutType.FIXED,
+          borders: { ...sansBordure, insideHorizontal: aucun, insideVertical: aucun }, rows: lignes }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 280 },
+          children: [texte('Pour appeler un occupant, appuyez sur le bouton portant son numéro.', { size: 20, color: GRIS_ })] }),
+      ],
+    }],
+  });
+  return Packer.toBlob(doc);
+}
+
+// Fichier à garder : partage sur téléphone (Enregistrer, Drive, e-mail…), téléchargement sur ordinateur.
+async function remettreFichier(blob, nom) {
+  const fichier = new File([blob], nom, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [fichier] }) && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ files: [fichier], title: nom }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom; a.click();
+  toast('Fichier téléchargé : ' + nom);
+}
+
+$('fichePlatineWord').onclick = async () => {
+  if (!boutonsChantier().size) return toast('Aucun numéro de bouton : touchez d’abord « Numéroter les boutons ».');
+  const b = $('fichePlatineWord'); b.disabled = true; toast('Préparation du fichier Word…');
+  try {
+    const blob = await wordPlatine();
+    await remettreFichier(blob, nomFichier(`Fiche interphone - ${etat.residence}`).replace(/\.pdf$/, '.docx'));
+  } catch (e) { toast('Fichier Word impossible : ' + e.message); }
+  finally { b.disabled = false; }
 };
 
 /* ---------- Démarrage ---------- */
