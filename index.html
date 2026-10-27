@@ -502,6 +502,8 @@ dialog.scan:not([open]) { display: none; }
       <div class="champ"><label for="c-donneur">Donneur d’ordre (syndic)</label><input type="text" id="c-donneur"></div>
       <div class="champ"><label for="c-donneurEmail">E-mail du donneur d’ordre</label><input type="email" id="c-donneurEmail" inputmode="email"></div>
     </div>
+    <div class="champ"><label for="c-marque">Marque d’interphone installée</label><select id="c-marque" class="choix-marque"></select>
+      <p class="aide">Seuls les combinés et moniteurs de cette marque sont proposés dans les fiches.</p></div>
     <div class="champ"><label for="c-objet">Objet de l’intervention (repris dans les SMS et avis)</label><input type="text" id="c-objet" placeholder="le remplacement de votre combiné d’interphone"></div>
 
     <div class="separateur"></div>
@@ -601,6 +603,7 @@ dialog.scan:not([open]) { display: none; }
     <div class="etiq">Nouveau chantier</div>
     <div class="champ" style="margin-top:8px"><label for="nc-client">Client ou syndic</label><input type="text" id="nc-client" list="nc-clients" placeholder="Rechercher dans vos clients…" autocomplete="off"><datalist id="nc-clients"></datalist></div>
     <div class="champ" id="nc-blocResidence" hidden><label for="nc-residence">Résidence</label><select id="nc-residence"></select></div>
+    <div class="champ"><label for="nc-marque">Marque d’interphone installée</label><select id="nc-marque" class="choix-marque"></select></div>
     <div class="dlg-actions" style="justify-content:space-between">
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-discret" id="chantierExemple">Exemple</button></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="fermerChantiers">Fermer</button><button type="button" class="btn btn-or" id="creerChantier">Créer le chantier</button></div>
@@ -685,11 +688,27 @@ async function getGoogleRefreshToken() {
 
 const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
 
-// Modèles proposés (à compléter selon vos marchés). « moniteur » sert aux totaux du bon de livraison.
-const MODELES = [
-  { groupe: 'Combinés audio', moniteur: false, items: ['Intratone – Combiné audio', 'Fermax – Loft Basic', 'Fermax – Loft Extra', 'Golmar – T-740', 'Bticino – Classe 100 A16E', 'Urmet – Atlantico'] },
-  { groupe: 'Moniteurs vidéo', moniteur: true, items: ['Intratone – Moniteur vidéo 7"', 'Fermax – VEO 4,3"', 'Fermax – VEO-XS', 'Golmar – Tekna Plus', 'Bticino – Classe 100 V16E', 'Bticino – Classe 300 X13E'] },
-];
+// Catalogue par marque (à compléter selon vos marchés). La marque choisie pour le chantier limite la liste
+// des combinés et moniteurs proposés dans les fiches. « moniteur » sert aux totaux du bon de livraison.
+const CATALOGUE = {
+  Golmar: [
+    { groupe: 'Combinés audio', items: ['Golmar GTART · Audio simple à combiné', 'Golmar GART1 · Audio mains libres'] },
+    { groupe: 'Moniteurs vidéo', items: [
+      'Golmar GART4H/XLITE · Moniteur vidéo ART4 mains libres, écran 4,3"',
+      'Golmar GART4TH/LITE · Moniteur couleur mains libres et à combiné 4,3"',
+      'Golmar GART4WH · Moniteur vidéo ART4 mains libres 4,3", ABS blanc, WiFi',
+      'Golmar GART7/LITE · Moniteur vidéo couleur ART7 mains libres 7", ABS blanc',
+      'Golmar GART7W · Moniteur vidéo couleur ART7 mains libres 7", ABS blanc, WiFi'] },
+  ],
+  Fermax: [{ groupe: 'Combinés audio', items: ['Fermax – Loft Basic', 'Fermax – Loft Extra'] }, { groupe: 'Moniteurs vidéo', items: ['Fermax – VEO 4,3"', 'Fermax – VEO-XS'] }],
+  Intratone: [{ groupe: 'Combinés audio', items: ['Intratone – Combiné audio'] }, { groupe: 'Moniteurs vidéo', items: ['Intratone – Moniteur vidéo 7"'] }],
+  Bticino: [{ groupe: 'Combinés audio', items: ['Bticino – Classe 100 A16E'] }, { groupe: 'Moniteurs vidéo', items: ['Bticino – Classe 100 V16E', 'Bticino – Classe 300 X13E'] }],
+  Urmet: [{ groupe: 'Combinés audio', items: ['Urmet – Atlantico'] }],
+};
+const MARQUES = Object.keys(CATALOGUE);
+// Toutes marques confondues, rangées par type.
+const MODELES = ['Combinés audio', 'Moniteurs vidéo'].map(groupe => ({ groupe, items: Object.values(CATALOGUE).flatMap(gs => gs.filter(g => g.groupe === groupe).flatMap(g => g.items)) }));
+const modelesMarque = () => CATALOGUE[etat?.marque] || MODELES;
 const estMoniteur = m => /moniteur|veo|tekna|v16e|x13e|vid[ée]o/i.test(m || '');
 
 const $ = id => document.getElementById(id);
@@ -912,9 +931,9 @@ function ouvrirFiche(id) {
 function retourListe() { document.body.dataset.vue = 'liste'; rendreListe(); }
 
 function optionsModeles(valeur) {
-  const connus = MODELES.flatMap(g => g.items);
-  let html = '<option value="">— Choisir le modèle —</option>';
-  for (const g of MODELES) html += `<optgroup label="${esc(g.groupe)}">` + g.items.map(m => `<option ${m === valeur ? 'selected' : ''}>${esc(m)}</option>`).join('') + '</optgroup>';
+  const groupes = modelesMarque(), connus = groupes.flatMap(g => g.items);
+  let html = `<option value="">— Choisir le modèle${etat.marque ? ' ' + esc(etat.marque) : ''} —</option>`;
+  for (const g of groupes) html += `<optgroup label="${esc(g.groupe)}">` + g.items.map(m => `<option ${m === valeur ? 'selected' : ''}>${esc(m)}</option>`).join('') + '</optgroup>';
   if (valeur && !connus.includes(valeur)) html += `<option selected>${esc(valeur)}</option>`;
   return html + '<option value="__autre">Autre modèle…</option>';
 }
@@ -983,7 +1002,7 @@ function rendreFiche() {
     <section class="bloc">
       <h3>Matériel posé</h3>
       <div class="champ"><label for="f-modele">Combiné ou moniteur</label><select id="f-modele" ${dis}>${optionsModeles(l.modele)}</select></div>
-      <div class="champ" id="blocAutre" hidden><label for="f-autre">Modèle posé</label><input type="text" id="f-autre" placeholder="Marque – référence"></div>
+      <div class="champ" id="blocAutre" hidden><label for="f-autre">Modèle posé</label><input type="text" id="f-autre" placeholder="Référence et désignation"></div>
       <div class="champ"><span class="etiq" id="lblPlaque">Plaque posée</span>
         <div class="segment" role="group" aria-labelledby="lblPlaque">
           <button type="button" data-plaque="1" aria-pressed="${l.plaque}" ${dis}>Oui</button>
@@ -1605,7 +1624,8 @@ $('docEnvoyer').onclick = async () => {
 
 /* ---------- Chantier ---------- */
 let padTechChantier = null;
-const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet', 'badgesLivres'];
+const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet', 'badgesLivres', 'marque'];
+document.querySelectorAll('.choix-marque').forEach(sel => { sel.innerHTML = '<option value="">— Toutes marques —</option>' + MARQUES.map(m => `<option>${esc(m)}</option>`).join(''); });
 $('ouvrirChantier').onclick = () => {
   champsChantier.forEach(k => { $('c-' + k).value = etat[k] || ''; });
   const t = totaux();
@@ -2166,9 +2186,10 @@ $('creerChantier').onclick = async () => {
   etat = chantierVide({
     residence: r ? r.nom : saisi, adresse: r ? (r.adresse || '') : (c ? (c.addressChantier || c.address || '') : ''),
     donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null, residenceId: r ? r.id : null,
+    marque: $('nc-marque').value,
   });
   courantId = null; sauver(); rendreTout();
-  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-blocResidence').hidden = true;
+  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-blocResidence').hidden = true;
   $('ouvrirChantier').click(); // compléter la référence et importer la liste des logements
 };
 $('fermerChantiers').onclick = () => $('dlgChantiers').close();
