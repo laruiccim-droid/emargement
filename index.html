@@ -276,6 +276,9 @@ dialog::backdrop { background: rgba(10,10,10,0.75); backdrop-filter: blur(6px); 
 .notice-bib { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--border-subtle); }
 .notice-bib .ligne-titre { display: grid; grid-template-columns: 20px minmax(0, 1fr) 40px 40px; gap: 6px; align-items: center; color: var(--he-gold-light); }
 .notice-bib .aide { margin: 0; }
+.puces { display: flex; flex-wrap: wrap; gap: 6px; }
+.puce { min-height: 32px; padding: 4px 12px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--grey-300); font-size: var(--fs-xs); text-align: left; }
+.puce[aria-pressed="true"] { border-color: var(--he-gold); background: var(--grad-gold); color: var(--he-black); font-weight: 600; }
 .liste-envoi li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
 .liste-envoi li > div { display: grid; gap: 2px; min-width: 0; }
 .liste-envoi li span { font-size: var(--fs-sm); color: var(--grey-400); overflow-wrap: anywhere; }
@@ -467,10 +470,11 @@ dialog.scan:not([open]) { display: none; }
     <div class="sourcil">Notices du matériel</div>
     <h3>Une notice par modèle</h3>
     <p class="aide">Les notices servent à tous vos chantiers. Chacune part avec le bon d’intervention des clients qui ont ce modèle, et elle est jointe au dossier de fin de chantier.</p>
+    <div class="champ" style="margin-top:10px;max-width:260px"><label for="noticesMarque">Marque</label><select id="noticesMarque"></select></div>
     <div class="depot" id="depotNotices" role="button" tabindex="0">Glissez les notices PDF ici<span>ou touchez pour les choisir</span></div>
     <p class="aide" id="noticesBibVide">Aucune notice pour l’instant.</p>
     <ul class="liste-notices-bib" id="listeNoticesBib"></ul>
-    <datalist id="modelesConnus"></datalist>
+
     <div class="dlg-actions"><button type="button" class="btn btn-or" id="fermerNotices">Fermer</button></div>
   </div>
 </dialog>
@@ -1636,7 +1640,7 @@ $('ouvrirChantier').onclick = () => {
   else padTechChantier.poser(sigTech);
   majReception(); rendrePieces(); majResumeNotices(); chargerNotices().then(majResumeNotices);
 };
-champsChantier.forEach(k => $('c-' + k).addEventListener('input', e => { etat[k] = e.target.value; etat.exemple = false; sauver(); rendreEntete(); }));
+champsChantier.forEach(k => $('c-' + k).addEventListener('input', e => { etat[k] = e.target.value; sauver(); rendreEntete(); }));
 $('dlgChantier').addEventListener('close', () => { rendreTout(); });
 $('effacerSigTech').onclick = () => padTechChantier.effacer();
 
@@ -2969,20 +2973,21 @@ async function ajouterNotices(fichiers) {
     try {
       const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/pdf', 'x-upsert': 'true' }, body: f });
       if (!r.ok) throw new Error('envoi refusé (' + r.status + ')');
-      // Modèle deviné d'après le nom du fichier, parmi ceux posés sur ce chantier (à corriger si besoin).
-      const nomN = ' ' + normModele(f.name) + ' ';
-      const devine = modelesChantier().filter(m => !noticePour(m)).find(m => normModele(m).split(' ').some(t => t.length >= 3 && !/^(audio|video|mains|libres|combine|moniteur)$/.test(t) && nomN.includes(' ' + t + ' ')));
-      notices.push({ id, titre: f.name.replace(/\.pdf$/i, ''), nom: f.name, modeles: devine ? [devine] : [], url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, taille: f.size, ajouteLe: Date.now() });
+      // Aucun modèle d'office : c'est vous qui cochez le ou les modèles concernés.
+      notices.push({ id, titre: f.name.replace(/\.pdf$/i, ''), nom: f.name, modeles: [], url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, taille: f.size, ajouteLe: Date.now() });
       await photoEcrire('notice:' + id, f).catch(() => {});
     } catch (e) { toast(`${f.name} : ${e.message} (connexion ?)`); }
   }
-  try { await enregistrerNotices(); toast('Notices enregistrées : indiquez le ou les modèles de chacune.'); } catch (e) { toast('Liste des notices non enregistrée : ' + e.message); }
+  try { await enregistrerNotices(); toast('Notices enregistrées : cochez le ou les modèles de chacune.'); } catch (e) { toast('Liste des notices non enregistrée : ' + e.message); }
   rendreNotices(); majResumeNotices();
 }
 
 function rendreNotices() {
-  const connus = [...new Set([...modelesChantier(), ...MODELES.flatMap(g => g.items)])];
-  $('modelesConnus').innerHTML = connus.map(m => `<option value="${esc(m)}">`).join('');
+  // Modèles proposés : uniquement ceux de la marque choisie en haut de la fenêtre.
+  const sel = $('noticesMarque');
+  if (!sel.options.length) sel.innerHTML = MARQUES.map(m => `<option>${esc(m)}</option>`).join('');
+  if (!MARQUES.includes(sel.value) || !sel.dataset.choisi) sel.value = MARQUES.includes(etat.marque) ? etat.marque : MARQUES[0];
+  const modelesProposes = CATALOGUE[sel.value].flatMap(g => g.items);
   const ul = $('listeNoticesBib'); ul.innerHTML = '';
   $('noticesBibVide').hidden = notices.length > 0;
   for (const n of notices) {
@@ -2991,11 +2996,15 @@ function rendreNotices() {
     li.innerHTML = `<div class="ligne-titre"><svg class="ic"><use href="#i-file"/></svg><input type="text" class="titre" value="${esc(n.titre)}" aria-label="Titre de la notice">
         <button type="button" class="btn btn-discret btn-carre voir" aria-label="Voir la notice"><svg class="ic"><use href="#i-search"/></svg></button>
         <button type="button" class="btn btn-discret btn-carre retirer" aria-label="Retirer la notice"><svg class="ic"><use href="#i-x"/></svg></button></div>
-      <input type="text" class="modeles" list="modelesConnus" value="${esc((n.modeles || []).join(' ; '))}" placeholder="Modèle(s) concerné(s), séparés par ;" aria-label="Modèles concernés">
-      <p class="aide ${(n.modeles || []).length ? '' : 'attention'}">${!(n.modeles || []).length ? 'Indiquez le modèle pour l’envoyer automatiquement.' : ici ? `Posé dans ${ici} logement${ici > 1 ? 's' : ''} de ce chantier.` : 'Aucun logement de ce chantier avec ce modèle.'} ${n.taille >= 1048576 ? (n.taille / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n.taille / 1024)) + ' Ko'}.</p>`;
+      <div class="puces" role="group" aria-label="Modèles concernés">${modelesProposes.map(m => `<button type="button" class="puce" aria-pressed="${(n.modeles || []).includes(m)}">${esc(m.replace(/^\S+\s(–\s)?/, ''))}</button>`).join('')}</div>
+      <p class="aide ${(n.modeles || []).length ? '' : 'attention'}">${!(n.modeles || []).length ? 'Cochez le ou les modèles concernés par cette notice.' : ici ? `Posé dans ${ici} logement${ici > 1 ? 's' : ''} de ce chantier.` : 'Aucun logement de ce chantier avec ce modèle.'} ${n.taille >= 1048576 ? (n.taille / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n.taille / 1024)) + ' Ko'}.</p>`;
     const sauverNotice = async () => { try { await enregistrerNotices(); } catch (e) { toast('Non enregistré : ' + e.message); } };
     li.querySelector('.titre').onchange = e => { n.titre = e.target.value.trim() || n.nom; sauverNotice(); };
-    li.querySelector('.modeles').onchange = e => { n.modeles = e.target.value.split(';').map(s => s.trim()).filter(Boolean); sauverNotice(); rendreNotices(); majResumeNotices(); };
+    li.querySelectorAll('.puce').forEach((b, i) => b.onclick = () => {
+      const m = modelesProposes[i], avec = (n.modeles || []).includes(m);
+      n.modeles = avec ? n.modeles.filter(x => x !== m) : [...(n.modeles || []), m];
+      sauverNotice(); rendreNotices(); majResumeNotices();
+    });
     li.querySelector('.voir').onclick = async () => { const b = await noticeBlob(n); if (b) window.open(URL.createObjectURL(b), '_blank'); else toast('Notice indisponible (connexion ?)'); };
     li.querySelector('.retirer').onclick = async () => {
       if (!await demander('Retirer la notice ?', `« ${n.titre} » ne sera plus envoyée ni jointe aux dossiers, sur tous les chantiers.`, 'Retirer')) return;
@@ -3011,8 +3020,9 @@ function majResumeNotices() {
     : `Les ${ms.length} modèle${ms.length > 1 ? 's' : ''} posé${ms.length > 1 ? 's' : ''} sur ce chantier ont leur notice.`;
   $('resumeNotices').className = 'aide' + (sans.length ? ' attention' : '');
 }
-$('gererNotices').onclick = async () => { rendreNotices(); $('dlgNotices').showModal(); await chargerNotices(); rendreNotices(); };
+$('gererNotices').onclick = async () => { $('noticesMarque').dataset.choisi = ''; rendreNotices(); $('dlgNotices').showModal(); await chargerNotices(); rendreNotices(); };
 $('fermerNotices').onclick = () => $('dlgNotices').close();
+$('noticesMarque').onchange = e => { e.target.dataset.choisi = '1'; rendreNotices(); };
 $('dlgNotices').addEventListener('close', majResumeNotices);
 const depot = $('depotNotices');
 depot.onclick = () => $('noticePdf').click();
