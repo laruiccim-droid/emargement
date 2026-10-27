@@ -208,6 +208,8 @@ input::placeholder, textarea::placeholder { color: var(--grey-500); }
 .badge-sous:empty { display: none; }
 .badge-sous .erreur { color: var(--erreur); }
 .badge-sous img { height: 36px; border-radius: 3px; border: 1px solid var(--ink-500); }
+.badge-dest { grid-column: 2 / 4; justify-self: start; min-height: 32px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--grey-300); font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; }
+.badge-dest[aria-pressed="true"] { border-color: var(--he-gold); color: var(--he-black); background: var(--grad-gold); font-weight: 600; }
 .candidat { border: 1px solid var(--he-gold); background: transparent; color: var(--he-gold-light); border-radius: var(--r-pill); padding: 5px 11px; font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); }
 .candidat:hover { background: rgba(201,168,106,.12); }
 .lecture { display: inline-flex; align-items: center; gap: 8px; }
@@ -466,9 +468,11 @@ dialog.scan:not([open]) { display: none; }
     <div class="dlg-actions" style="justify-content:flex-start">
       <button type="button" class="btn btn-or" id="dossierFin"><svg class="ic"><use href="#i-file"/></svg>Dossier de fin de chantier</button>
       <button type="button" class="btn" id="bonLivraison"><svg class="ic"><use href="#i-file"/></svg>Bon de livraison</button>
+      <button type="button" class="btn" id="syntheseBons"><svg class="ic"><use href="#i-file"/></svg>Synthèse des bons</button>
+      <button type="button" class="btn" id="badgesSyndic"><svg class="ic"><use href="#i-file"/></svg>Badges pour le syndic</button>
       <button type="button" class="btn" id="exportBadges">Badges (CSV)</button>
     </div>
-    <p class="aide">Le dossier de fin de chantier réunit en un seul PDF : page de garde (sommaire, points en suspens), bon de livraison, fiche interphone, codification avec le schéma de la platine, puis tous les bons d’intervention signés, photos comprises. Le bon de livraison seul reprend tous les logements : nom affiché, matériel, plaque, badges, état et signature.</p>
+    <p class="aide">Le dossier de fin de chantier réunit en un seul PDF : page de garde (sommaire, points en suspens), synthèse des bons, bon de livraison, remise des badges au syndic, fiche interphone, codification avec le schéma de la platine, puis tous les bons d’intervention signés, photos comprises. Le bon de livraison seul reprend tous les logements : nom affiché, matériel, plaque, badges, état et signature. « Badges pour le syndic » liste les badges des propriétaires absents, à faire signer au syndic à la remise.</p>
 
     <div class="separateur"></div>
     <div class="etiq">Interphone</div>
@@ -639,7 +643,7 @@ function nouveauLogement(champs = {}) {
     id: uid(), batiment: '', etage: '', porte: '', nomAffiche: '', occupant: '', tel: '', email: '',
     rdvDate: etat ? etat.date : aujourdhui(), rdvHeure: '', modele: '', plaque: false,
     badgesPrevu: null, badges: [], observations: '', statut: 'afaire', prevenuLe: null,
-    signataire: '', sigClient: '', signeLe: null, absentLe: null, numeroBon: '', ...champs,
+    signataire: '', sigClient: '', signeLe: null, absentLe: null, numeroBon: '', proprietaire: '', badgesProprio: [], ...champs,
   };
 }
 
@@ -866,6 +870,8 @@ function rendreFiche() {
       <div class="champ"><label for="f-nom">Nom affiché sur la platine</label><input type="text" id="f-nom" data-champ="nomAffiche" value="${esc(l.nomAffiche)}" maxlength="24" autocapitalize="characters" ${dis}></div>
       <div class="etiquette-platine" aria-hidden="true"><span class="bouton-appel" id="apercuBouton"></span><span class="nom-lcd" id="apercuNom"></span><span class="compte" id="compteNom"></span></div>
       <div class="champ"><label for="f-occupant">Occupant</label><input type="text" id="f-occupant" data-champ="occupant" value="${esc(l.occupant)}" ${dis}></div>
+      <div class="champ"><label for="f-proprietaire">Propriétaire (s’il n’habite pas le logement)</label><input type="text" id="f-proprietaire" data-champ="proprietaire" value="${esc(l.proprietaire || '')}" placeholder="ex. M. et Mme BRUNEL" ${dis}>
+        <p class="aide">Renseigné, il permet de marquer les badges à remettre au syndic pour lui.</p></div>
     </section>
 
     <section class="bloc">
@@ -957,6 +963,7 @@ function rendreFiche() {
     }
     if (el.dataset.champ === 'nomAffiche') majApercuNom();
     if (el.dataset.champ === 'tel') $('appeler').href = 'tel:' + telLien(l.tel);
+    if (el.dataset.champ === 'proprietaire') rendreBadges();
     rendreListe(); rendreEntete();
   }));
   majApercuNom();
@@ -1058,6 +1065,7 @@ function changerNbBadges(d) {
   const n = Math.max(0, Math.min(30, l.badges.length + d));
   if (n > l.badges.length) l.badges.push(...Array(n - l.badges.length).fill(''));
   else l.badges.length = n;
+  l.badgesProprio = (l.badgesProprio || []).slice(0, n);
   if (l.badgesPrevu === null && n === 0 && d < 0) l.badgesPrevu = 0;
   sauver();
   $('nbBadges').textContent = n;
@@ -1079,6 +1087,11 @@ function proprietaireBadge(num, saufId, saufIndex) {
   return null;
 }
 
+// Un badge est pour le propriétaire (remis au syndic) seulement si un propriétaire est indiqué.
+const pourProprio = (l, i) => !!((l.proprietaire || '').trim() && (l.badgesProprio || [])[i]);
+const badgesProprietaire = l => l.badges.filter((b, i) => pourProprio(l, i));
+const badgesOccupant = l => l.badges.filter((b, i) => !pourProprio(l, i));
+
 let badgePhotoIndex = null;
 function rendreBadges() {
   const l = courant(), ul = $('listeBadges'), verrou = l.statut === 'signe';
@@ -1088,6 +1101,7 @@ function rendreBadges() {
     li.innerHTML = `<span class="badge-num">${i + 1}</span>
       <input type="text" id="badge-${i}" value="${esc(num)}" placeholder="N° du badge ${i + 1}" autocomplete="off" spellcheck="false" inputmode="text" aria-label="Numéro du badge ${i + 1}" ${verrou ? 'disabled' : ''}>
       <button type="button" class="btn btn-carre" aria-label="Scanner le badge ${i + 1}" ${verrou ? 'disabled' : ''}><svg class="ic"><use href="#i-scan"/></svg></button>
+      ${(l.proprietaire || '').trim() ? `<button type="button" class="badge-dest" aria-pressed="${!!pourProprio(l, i)}" ${verrou ? 'disabled' : ''}>${pourProprio(l, i) ? 'Pour le propriétaire · via le syndic' : 'Remis à l’occupant'}</button>` : ''}
       <div class="badge-sous" id="badge-sous-${i}"></div>`;
     const input = li.querySelector('input');
     const verifier = () => {
@@ -1099,6 +1113,12 @@ function rendreBadges() {
     };
     input.addEventListener('input', () => { l.badges[i] = input.value.trim(); sauver(); verifier(); });
     li.querySelector('button').onclick = () => ouvrirScanner(i);
+    const dest = li.querySelector('.badge-dest');
+    if (dest) dest.onclick = () => {
+      const v = !pourProprio(l, i), t = [...(l.badgesProprio || [])];
+      t[i] = v; l.badgesProprio = Array.from({ length: l.badges.length }, (_, k) => !!t[k]); sauver();
+      dest.setAttribute('aria-pressed', v); dest.textContent = v ? 'Pour le propriétaire · via le syndic' : 'Remis à l’occupant';
+    };
     ul.append(li); verifier();
   });
 }
@@ -1262,7 +1282,7 @@ async function pdfBon(l, brouillon = false) {
   let y1 = titreBloc(doc, M, y, 'Chantier', col);
   y1 = paires(doc, M, y1, [['Résidence', etat.residence], ['Adresse', etat.adresse], ['Référence', etat.reference], ['Donneur d’ordre', etat.donneur]], col);
   let y2 = titreBloc(doc, M + col + 8, y, 'Client', col);
-  y2 = paires(doc, M + col + 8, y2, [['Occupant', l.occupant], ['Logement', lieu(l)], ['Téléphone', l.tel], ['E-mail', l.email]], col);
+  y2 = paires(doc, M + col + 8, y2, [['Occupant', l.occupant], ['Propriétaire', badgesProprietaire(l).length ? l.proprietaire : ''], ['Logement', lieu(l)], ['Téléphone', l.tel], ['E-mail', l.email]], col);
   y = Math.max(y1, y2) + 4;
 
   y = titreBloc(doc, M, y, 'Rendez-vous', W - 2 * M);
@@ -1290,8 +1310,14 @@ async function pdfBon(l, brouillon = false) {
   if (l.badges.length) {
     y += 2; doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRIS); doc.setFontSize(8.5); doc.text('Numéros des badges remis', M, y); y += 5;
     doc.setFont('courier', 'bold'); doc.setFontSize(10); doc.setTextColor(...ENCRE);
-    l.badges.forEach((b, i) => { const cx = M + (i % 3) * 62, cy = y + Math.floor(i / 3) * 6; doc.text(`${i + 1}.  ${b || '(non saisi)'}`, cx, cy); });
+    l.badges.forEach((b, i) => { const cx = M + (i % 3) * 62, cy = y + Math.floor(i / 3) * 6; doc.text(`${i + 1}.  ${b || '(non saisi)'}${pourProprio(l, i) ? ' (P)' : ''}`, cx, cy); });
     y += Math.ceil(l.badges.length / 3) * 6 + 2;
+    const pourP = badgesProprietaire(l);
+    if (pourP.length) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS);
+      const t = doc.splitTextToSize(`(P) ${pourP.length > 1 ? `${pourP.length} badges confiés` : 'Badge confié'} au donneur d’ordre${etat.donneur ? ' (' + etat.donneur + ')' : ''} pour remise au propriétaire : ${l.proprietaire}. ${badgesOccupant(l).length} remis à l’occupant.`, W - 2 * M);
+      doc.text(t, M, y); y += t.length * 4.2 + 1;
+    }
   }
   if (l.observations.trim()) {
     y += 3; y = titreBloc(doc, M, y, 'Observations', W - 2 * M);
@@ -1314,7 +1340,7 @@ async function pdfBon(l, brouillon = false) {
   y += 44;
   doc.setFontSize(7.5); doc.setTextColor(...GRIS);
   doc.text(brouillon ? 'Projet de bon d’intervention : à relire et signer en ligne avec le lien reçu par SMS ou e-mail.'
-    : `Document signé ${l.signeDistance ? 'à distance' : 'électroniquement'} le ${horodatage(l.signeLe)}. Le client reconnaît la pose du matériel et la remise des badges ci-dessus.`, M, y);
+    : `Document signé ${l.signeDistance ? 'à distance' : 'électroniquement'} le ${horodatage(l.signeLe)}. Le client reconnaît la pose du matériel et la remise des badges ${badgesProprietaire(l).length ? 'qui lui sont destinés' : 'ci-dessus'}.`, M, y);
   // Photos avant / après sur une page à part, en gardant leurs proportions.
   const photos = [];
   for (const [k, titre] of [['avant', 'Avant intervention'], ['apres', 'Après intervention']]) {
@@ -1369,7 +1395,7 @@ function pdfLivraison() {
   for (const l of tri) {
     const cel = [
       lieu(l) || '—', (l.bouton ? l.bouton + ' · ' : '') + (l.nomAffiche || '—').toUpperCase(), l.occupant || '—', l.modele || '—', l.plaque ? 'Oui' : 'Non',
-      l.badges.length ? l.badges.map((b, i) => `${i + 1}. ${b || '?'}`).join('\n') : '0',
+      l.badges.length ? l.badges.map((b, i) => `${i + 1}. ${b || '?'}${pourProprio(l, i) ? ' (P)' : ''}`).join('\n') : '0',
       l.statut === 'signe' ? (l.signeDistance ? 'Signé à distance\n' : 'Signé\n') + horodatage(l.signeLe) : l.statut === 'absent' ? 'Absent\n' + horodatage(l.absentLe) : 'Non traité',
     ];
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
@@ -1386,6 +1412,10 @@ function pdfLivraison() {
     y += h; doc.setDrawColor(225, 221, 212); doc.setLineWidth(0.2); doc.line(M, y - 2, W - M, y - 2);
   }
 
+  if (tri.some(l => badgesProprietaire(l).length)) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+    doc.text('(P) badge pour le propriétaire, confié au donneur d’ordre (voir la remise de badges au syndic).', M, y + 2); y += 4;
+  }
   if (y > H - 60) { doc.addPage(); y = 20; }
   y += 6;
   const cw = (W - 2 * M - 10) / 2;
@@ -1496,8 +1526,9 @@ $('bonLivraison').onclick = async () => {
 };
 
 $('exportBadges').onclick = () => {
-  const lignes = [['Batiment', 'Etage', 'Porte', 'Nom affiche', 'Occupant', 'Numero badge']];
-  trier(etat.logements).forEach(l => l.badges.filter(Boolean).forEach(b => lignes.push([l.batiment, l.etage, l.porte, l.nomAffiche, l.occupant, b])));
+  const lignes = [['Batiment', 'Etage', 'Porte', 'Nom affiche', 'Occupant', 'Numero badge', 'Remis a', 'Proprietaire']];
+  trier(etat.logements).forEach(l => l.badges.forEach((b, i) => b && lignes.push([l.batiment, l.etage, l.porte, l.nomAffiche, l.occupant, b,
+    pourProprio(l, i) ? 'Syndic, pour le proprietaire' : 'Occupant', l.proprietaire || ''])));
   if (lignes.length === 1) return toast('Aucun numéro de badge saisi.');
   const csv = '﻿' + lignes.map(r => r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -2335,6 +2366,154 @@ function pdfCodification(ch = etat) {
   return doc.output('blob');
 }
 
+/* ---------- Synthèse des bons : un coup d'œil sur tout le chantier ---------- */
+function pdfSynthese() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4', orientation: 'landscape' });
+  const W = 297, H = 210, M = 14, tri = trier(etat.logements), signes = tri.filter(l => l.statut === 'signe');
+  let y = entetePdf(doc, 'Synthèse des bons', `${etat.reference || ''} • ${dateCourte(etat.date)}`);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(13); doc.setTextColor(...ENCRE);
+  doc.text(etat.residence || '', M, y + 2);
+  doc.setFontSize(9); doc.setTextColor(...GRIS);
+  doc.text([etat.adresse, etat.donneur && 'Donneur d’ordre : ' + etat.donneur, etat.technicien && 'Technicien : ' + etat.technicien].filter(Boolean).join('   •   '), M, y + 8);
+  y += 15;
+
+  const nbOcc = signes.reduce((t, l) => t + badgesOccupant(l).length, 0), nbProp = signes.reduce((t, l) => t + badgesProprietaire(l).length, 0);
+  const tuiles = [['Bons signés', `${signes.length} / ${tri.length}`], ['Sur place', signes.filter(l => !l.signeDistance).length], ['À distance', signes.filter(l => l.signeDistance).length],
+    ['Absents', tri.filter(l => l.statut === 'absent').length], ['Badges remis', nbOcc], ['Badges via syndic', nbProp], ['Avec photos', signes.filter(l => l.photos?.avant || l.photos?.apres).length]];
+  const tw = (W - 2 * M - 6 * 4) / 7;
+  tuiles.forEach(([k, v], i) => {
+    const x = M + i * (tw + 4);
+    doc.setDrawColor(...OR); doc.setLineWidth(0.25); doc.rect(x, y, tw, 15);
+    doc.setFontSize(15); doc.setTextColor(...ENCRE); doc.setFont('helvetica', 'normal'); doc.text(String(v), x + 4, y + 8);
+    doc.setFontSize(6.2); doc.setTextColor(...GRIS); doc.text(k.toUpperCase(), x + 4, y + 12.5, { charSpace: 0.2 });
+  });
+  y += 22;
+
+  const colonnes = [['N° de bon', 27], ['Logement', 34], ['Client', 38], ['Signé', 27], ['Matériel', 35], ['Plaque', 16], ['Badges', 26], ['Photos', 16], ['Observations', 50]];
+  const enteteTableau = () => {
+    doc.setFillColor(...NOIR); doc.rect(M, y, W - 2 * M, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...OR);
+    let x = M + 2; colonnes.forEach(([k, w]) => { doc.text(k.toUpperCase(), x, y + 4.7, { charSpace: 0.3 }); x += w; });
+    y += 10;
+  };
+  enteteTableau();
+  for (const l of [...signes, ...tri.filter(l => l.statut !== 'signe')]) {
+    const signe = l.statut === 'signe', occ = badgesOccupant(l).length, prop = badgesProprietaire(l).length;
+    const obs = (l.observations || '').replace(/\s+/g, ' ').trim();
+    const cel = [
+      signe ? l.numeroBon || '—' : '—',
+      [lieu(l), l.bouton && 'Bouton ' + l.bouton].filter(Boolean).join('\n') || '—',
+      [(l.nomAffiche || l.occupant || '—').toUpperCase(), l.signataire && l.signataire !== l.occupant ? 'Signé par ' + l.signataire : '', prop ? 'Propr. : ' + l.proprietaire : ''].filter(Boolean).join('\n'),
+      signe ? `${horodatage(l.signeLe)}\n${l.signeDistance ? 'à distance' : 'sur place'}` : l.statut === 'absent' ? `Absent\n${horodatage(l.absentLe)}` : 'Non traité',
+      signe ? l.modele || '—' : '', signe ? (l.plaque ? 'Oui' : 'Non') : '',
+      signe ? [`${occ} occupant${occ > 1 ? 's' : ''}`, prop ? `${prop} propriétaire` : ''].filter(Boolean).join('\n') : '',
+      signe ? [l.photos?.avant && 'avant', l.photos?.apres && 'après'].filter(Boolean).join('\n') || '—' : '',
+      obs.length > 150 ? obs.slice(0, 147) + '…' : obs,
+    ];
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    const textes = cel.map((c, i) => doc.splitTextToSize(c, colonnes[i][1] - 3));
+    const h = Math.max(10, ...textes.map(t => t.length * 3.6 + 3));
+    if (y + h > H - 18) { doc.addPage(); y = 16; enteteTableau(); }
+    let x = M + 2;
+    textes.forEach((t, i) => {
+      const attention = (i === 3 && !signe) || (i === 6 && prop);
+      doc.setTextColor(...(attention ? [168, 106, 30] : i === 8 ? GRIS : ENCRE));
+      doc.setFont(i === 0 ? 'courier' : 'helvetica', i === 2 ? 'bold' : 'normal');
+      doc.text(t, x, y); x += colonnes[i][1];
+    });
+    y += h; doc.setDrawColor(225, 221, 212); doc.setLineWidth(0.2); doc.line(M, y - 5, W - M, y - 5);
+  }
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+/* ---------- Remise de badges au syndic : propriétaires absents lors de l'intervention ---------- */
+function pdfBadgesSyndic() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
+  const W = 210, M = 14, ls = trier(etat.logements).filter(l => badgesProprietaire(l).length);
+  const total = ls.reduce((t, l) => t + badgesProprietaire(l).length, 0);
+  let y = entetePdf(doc, 'Remise de badges', [etat.reference && 'Réf. ' + etat.reference, dateCourte(etat.date)].filter(Boolean).join(' • '));
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(18); doc.setTextColor(...ENCRE);
+  doc.text(etat.residence || '', M, y + 4);
+  doc.setFontSize(9.5); doc.setTextColor(...GRIS); if (etat.adresse) doc.text(etat.adresse, M, y + 10);
+  y += 18;
+  doc.setFontSize(9.5); doc.setTextColor(...ENCRE);
+  const intro = doc.splitTextToSize(`Badges d’accès confiés ${etat.donneur ? 'à ' + etat.donneur : 'au donneur d’ordre'} pour remise aux propriétaires qui n’étaient pas présents lors de l’intervention. Les badges des occupants leur ont été remis en main propre (voir les bons d’intervention). Total : ${total} badge${total > 1 ? 's' : ''} pour ${ls.length} logement${ls.length > 1 ? 's' : ''}.`, W - 2 * M);
+  doc.text(intro, M, y); y += intro.length * 4.6 + 5;
+
+  const colonnes = [['Logement', 30], ['Propriétaire', 42], ['Occupant', 32], ['N° de badge', 30], ['Bon', 14], ['Remis au propr. le', 34]];
+  const enteteTableau = () => {
+    doc.setFillColor(...NOIR); doc.rect(M, y, W - 2 * M, 9, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...OR);
+    let x = M + 2; colonnes.forEach(([k, w]) => { doc.text(k.toUpperCase(), x, y + 5.8); x += w; });
+    y += 13;
+  };
+  enteteTableau();
+  for (const l of ls) {
+    const badges = badgesProprietaire(l);
+    const cel = [lieu(l) || '—', l.proprietaire, l.occupant || l.nomAffiche || '—', badges.map(b => b || '(non saisi)').join('\n'), (l.numeroBon || '').replace(/^BI-\d{8}-/, 'n° '), ''];
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    const textes = cel.map((c, i) => doc.splitTextToSize(c, colonnes[i][1] - 3));
+    const h = Math.max(12, ...textes.map(t => t.length * 4.2 + 4));
+    if (y + h > 215) { doc.addPage(); y = 20; enteteTableau(); }
+    let x = M + 2;
+    textes.forEach((t, i) => {
+      doc.setTextColor(...ENCRE); doc.setFont(i === 3 ? 'courier' : 'helvetica', i === 1 || i === 3 ? 'bold' : 'normal');
+      doc.text(t, x, y); x += colonnes[i][1];
+    });
+    doc.setDrawColor(210, 205, 195); doc.setLineWidth(0.2); doc.line(x - 32, y + 2, x - 4, y + 2); // à remplir par le syndic
+    y += h; doc.setDrawColor(225, 221, 212); doc.line(M, y - 6, W - M, y - 6);
+  }
+
+  // Remise et réception
+  if (y > 225) { doc.addPage(); y = 20; }
+  y = Math.max(y + 2, 225);
+  const cw = (W - 2 * M - 8) / 2;
+  const cadre = (x, titre, nom, img) => {
+    doc.setDrawColor(210, 205, 195); doc.setLineWidth(0.25); doc.rect(x, y, cw, 36);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRIS); doc.text(titre, x + 3, y + 5);
+    if (img) doc.addImage(img, 'PNG', x + 3, y + 7, cw - 6, 22);
+    doc.setTextColor(...ENCRE); doc.setFontSize(8.5); doc.text(nom || '', x + 3, y + 33);
+  };
+  cadre(M, `Remis par le technicien le ${dateCourte(aujourdhui())}`, etat.technicien, sigTech);
+  cadre(M + cw + 8, `Reçu par ${etat.donneur || 'le donneur d’ordre'} le ____ / ____ / ________`, 'Nom et signature :', '');
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+$('syntheseBons').onclick = () => {
+  const signes = etat.logements.filter(l => l.statut === 'signe');
+  if (!signes.length) return toast('Aucun bon signé pour l’instant.');
+  $('dlgChantier').close();
+  ouvrirDocument({
+    blob: pdfSynthese(), nom: nomFichier(`Synthese des bons - ${etat.residence}`),
+    sourcil: 'Synthèse des bons', titre: etat.residence,
+    recap: [['Bons signés', `${signes.length} / ${etat.logements.length}`], ['À distance', signes.filter(l => l.signeDistance).length],
+      ['Badges occupants', signes.reduce((t, l) => t + badgesOccupant(l).length, 0)], ['Badges propriétaires', signes.reduce((t, l) => t + badgesProprietaire(l).length, 0)]],
+    dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
+    objet: `Synthèse des bons d'intervention — ${etat.residence} — Harmonie Électricité`,
+    texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint la synthèse des bons d'intervention de la résidence ${etat.residence}.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+  });
+};
+
+$('badgesSyndic').onclick = () => {
+  const ls = etat.logements.filter(l => badgesProprietaire(l).length);
+  if (!ls.length) return toast('Aucun badge pour un propriétaire : dans la fiche du logement, indiquez le propriétaire puis touchez « Remis à l’occupant » sous le badge concerné.');
+  if (!sigTech) return toast('Signez d’abord dans le cadre « Signature du technicien ».');
+  const total = ls.reduce((t, l) => t + badgesProprietaire(l).length, 0);
+  $('dlgChantier').close();
+  ouvrirDocument({
+    blob: pdfBadgesSyndic(), nom: nomFichier(`Remise de badges au syndic - ${etat.residence}`),
+    sourcil: 'Remise de badges au syndic', titre: etat.residence,
+    recap: [['Logements', ls.length], ['Badges', total], ...ls.map(l => [l.proprietaire, badgesProprietaire(l).join(', ') || '(non saisi)'])],
+    dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
+    objet: `Badges à remettre aux propriétaires — ${etat.residence} — Harmonie Électricité`,
+    texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint la liste des ${total} badge${total > 1 ? 's' : ''} d'accès de la résidence ${etat.residence} confiés à vos services pour remise aux propriétaires absents lors de notre intervention.\n\n${ls.map(l => `- ${lieu(l)} : ${l.proprietaire} — ${badgesProprietaire(l).join(', ')}`).join('\n')}\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+  });
+};
+
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
 const PDFLIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
 
@@ -2410,7 +2589,8 @@ async function pdfDossier() {
   const charger = async b => PDFDocument.load(await b.arrayBuffer());
   pourDossier = true;
   try {
-    const parties = [['Bon de livraison — récapitulatif des logements', pdfLivraison()]];
+    const parties = [['Synthèse des bons d’intervention', pdfSynthese()], ['Bon de livraison — récapitulatif des logements', pdfLivraison()]];
+    if (etat.logements.some(l => badgesProprietaire(l).length)) parties.push(['Remise de badges au syndic — propriétaires absents', pdfBadgesSyndic()]);
     if (avecBoutons) parties.push(['Fiche interphone — correspondance des boutons d’appel', pdfPlatine()], ['Codification — schéma de la platine et codes', pdfCodification()]);
     for (const l of signes) parties.push([`Bon ${l.numeroBon} — ${[lieu(l), l.nomAffiche || l.occupant].filter(Boolean).join(' — ')}`, await pdfBon(l), true]);
     const morceaux = await Promise.all(parties.map(([, b]) => charger(b)));
@@ -2456,7 +2636,7 @@ $('dossierFin').onclick = async () => {
         ['Interphone', d.avecBoutons ? 'Fiche + codification' : 'Boutons non numérotés'], ['Taille', (d.blob.size / 1048576).toFixed(1).replace('.', ',') + ' Mo']],
       dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
       objet: `Dossier de fin de chantier — ${etat.residence}${etat.reference ? ' — ' + etat.reference : ''} — Harmonie Électricité`,
-      texte: `Madame, Monsieur,\n\nLes travaux d'interphonie de la résidence ${etat.residence}${etat.adresse ? ' (' + etat.adresse + ')' : ''} sont terminés. Veuillez trouver ci-joint le dossier de fin de chantier : bon de livraison, fiche de correspondance des boutons de l'interphone, codification de la platine et bons d'intervention signés par les occupants (${t.signes} logement${t.signes > 1 ? 's' : ''}${t.absents ? ', ' + t.absents + ' absent' + (t.absents > 1 ? 's' : '') + ' à reprogrammer' : ''}).\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+      texte: `Madame, Monsieur,\n\nLes travaux d'interphonie de la résidence ${etat.residence}${etat.adresse ? ' (' + etat.adresse + ')' : ''} sont terminés. Veuillez trouver ci-joint le dossier de fin de chantier : synthèse des bons, bon de livraison, liste des badges à remettre aux propriétaires, fiche de correspondance des boutons de l'interphone, codification de la platine et bons d'intervention signés par les occupants (${t.signes} logement${t.signes > 1 ? 's' : ''}${t.absents ? ', ' + t.absents + ' absent' + (t.absents > 1 ? 's' : '') + ' à reprogrammer' : ''}).\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
     });
   } catch (e) { toast('Dossier impossible : ' + e.message); }
   finally { b.disabled = false; }
