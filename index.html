@@ -491,6 +491,26 @@ dialog.scan:not([open]) { display: none; }
   </div>
 </dialog>
 
+<!-- Robot BatiConnect : favori à placer dans Chrome -->
+<dialog id="dlgRobot">
+  <div class="dlg">
+    <div class="sourcil">Centrale Vigik Noralsy</div>
+    <h3>Robot BatiConnect</h3>
+    <p>À faire une seule fois, sur votre ordinateur, dans Chrome : affichez la barre de favoris (Ctrl + Maj + B) puis <b>faites glisser ce bouton dedans</b>.</p>
+    <p style="text-align:center;margin:18px 0"><a class="btn btn-or" id="lienRobot" href="#">Robot BatiConnect</a></p>
+    <p class="aide">Si le glisser ne fonctionne pas : « Copier le favori », puis clic droit sur la barre de favoris → « Ajouter une page… », nom « Robot BatiConnect », et collez dans « URL ».</p>
+    <div class="separateur"></div>
+    <div class="etiq">Utilisation</div>
+    <ol class="aide" style="margin:6px 0 0;padding-left:18px">
+      <li>Connectez-vous sur <b>baticonnect.com</b> (page « Mes sites »).</li>
+      <li>Cliquez sur le favori « Robot BatiConnect » : une fenêtre s’ouvre en haut à droite.</li>
+      <li>Choisissez le chantier, vérifiez le site, le bâtiment, les appartements et les badges, puis « Lancer la création ».</li>
+      <li>Laissez la page travailler jusqu’à « Terminé ». En cas d’arrêt, relancez : il reprend sans créer de doublon.</li>
+    </ol>
+    <div class="dlg-actions"><button type="button" class="btn" id="copierRobot">Copier le favori</button><button type="button" class="btn btn-or" id="fermerRobot">Fermer</button></div>
+  </div>
+</dialog>
+
 <!-- Chantier : infos, donneur d'ordre, signature technicien, bon de livraison, import -->
 <dialog id="dlgChantier">
   <form class="dlg" method="dialog" id="formChantier">
@@ -585,12 +605,12 @@ dialog.scan:not([open]) { display: none; }
     <div class="etiq">Centrale Vigik</div>
     <div class="champ" style="margin-top:8px;max-width:320px"><label for="c-centrale">Modèle de centrale</label><select id="c-centrale" class="choix-centrale"></select></div>
     <div id="blocNoralsy" hidden>
-      <div class="champ"><label for="c-batimentVigik">Nom du bâtiment dans BatiConnect</label><input type="text" id="c-batimentVigik">
-        <p class="aide">Repris tel quel : il doit être identique au bâtiment déjà créé sur le site BatiConnect, sinon un nouveau bâtiment sera créé.</p></div>
-      <label class="aide" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="c-contactsVigik"> Inclure téléphones et e-mails des occupants (comptes résidents BatiConnect)</label>
+      <div class="champ"><label for="c-copropriete">Nom du site BatiConnect (copropriété du listing)</label><input type="text" id="c-copropriete"></div>
+      <div class="champ"><label for="c-batimentVigik">Nom du bâtiment BatiConnect</label><input type="text" id="c-batimentVigik">
+        <p class="aide">Par exemple le nom du site et le numéro de la montée.</p></div>
       <p class="aide" id="resumeVigik"></p>
-      <div class="dlg-actions" style="justify-content:flex-start"><button type="button" class="btn btn-or" id="fichierBaticonnect"><svg class="ic"><use href="#i-file"/></svg>Fichier d’import BatiConnect</button></div>
-      <p class="aide">Sur <b>baticonnect.com</b> : ouvrez le site de la résidence → « Importer » → « Cliquer sur ce bouton pour charger le fichier CSV » → choisissez ce fichier → « Valider ». Chaque appartement est créé au nom du listing du syndic, avec ses badges. Ne l’importez qu’une fois : un second import créerait les badges en double.</p>
+      <div class="dlg-actions" style="justify-content:flex-start"><button type="button" class="btn btn-or" id="robotBaticonnect"><svg class="ic"><use href="#i-settings"/></svg>Robot BatiConnect</button></div>
+      <p class="aide">Le robot crée sur baticonnect.com le site, le bâtiment (propriétaires du listing + « Stock syndic » + « Société de nettoyage »), nomme chaque appartement et ajoute les badges. Il s’utilise depuis Chrome sur ordinateur.</p>
     </div>
 
     <div class="separateur"></div>
@@ -1660,7 +1680,7 @@ $('docEnvoyer').onclick = async () => {
 
 /* ---------- Chantier ---------- */
 let padTechChantier = null;
-const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet', 'badgesLivres', 'marque', 'centrale', 'batimentVigik'];
+const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet', 'badgesLivres', 'marque', 'centrale', 'batimentVigik', 'copropriete'];
 document.querySelectorAll('.choix-marque').forEach(sel => { sel.innerHTML = '<option value="">— Toutes marques —</option>' + MARQUES.map(m => `<option>${esc(m)}</option>`).join(''); });
 $('ouvrirChantier').onclick = () => {
   champsChantier.forEach(k => { $('c-' + k).value = etat[k] || ''; });
@@ -3119,54 +3139,34 @@ $('envoyerToutesNotices').onclick = async () => {
   toast(ok === ls.length ? `${ok} notice${ok > 1 ? 's' : ''} envoyée${ok > 1 ? 's' : ''}.` : `${ok} envoyée(s) sur ${ls.length} : envoi Gmail interrompu (${derniereErreurGmail}).`);
 };
 
-/* ---------- Centrale Vigik : fichier d'import BatiConnect (Noralsy) ---------- */
-// BatiConnect importe un CSV (menu du site → Importer) : une ligne par badge, rattachée à son appartement.
-// L'appartement porte le nom du listing du syndic (propriétaire), le résident est l'occupant.
+/* ---------- Centrale Vigik : robot BatiConnect (Noralsy) ---------- */
+// Le favori charge robot-baticonnect.js sur baticonnect.com (où l'utilisateur est connecté) ; le robot lit les
+// chantiers Noralsy dans Supabase et crée site, bâtiment, appartements (noms du listing) et badges.
 const CENTRALES = ['Noralsy EasyConnect', 'Noralsy (autre centrale)', 'Intratone', 'Autre'];
 document.querySelectorAll('.choix-centrale').forEach(sel => { sel.innerHTML = '<option value="">— Non précisée —</option>' + CENTRALES.map(m => `<option>${esc(m)}</option>`).join(''); });
 const estNoralsy = () => /^noralsy/i.test(etat.centrale || '');
-const ENTETE_BATICONNECT = ['Bâtiment', 'Nom de l\'appartement', 'Numéro de l\'appartement', 'Etage', 'Nom du résident', 'Code d\'appel', 'Code d\'accès',
-  'N° Tel 1', 'N° Tel 2', 'N° Tel 3', 'Adresse mail 1', 'Adresse mail 2', 'Adresse mail 3', 'Numéro de badge', 'Nombre de badges', 'Couleur de badge',
-  'Numéro de télécommande', 'Nombre de télécommandes'];
-const nomAppartement = l => (l.nomListing || l.proprietaire || l.occupant || l.nomAffiche || lieu(l) || 'Appartement').trim();
-// Ordre du listing : par nom d'appartement, comme la liste du syndic ; les fiches sans logement (stock, entreprise) à la fin.
-const appartementsVigik = () => [...etat.logements].filter(l => l.statut === 'signe' || l.badges.some(Boolean))
-  .sort((a, b) => (!a.porte && !a.etage) - (!b.porte && !b.etage) || nomAppartement(a).localeCompare(nomAppartement(b), 'fr'));
-function lignesBaticonnect(avecContacts) {
-  const bat = (etat.batimentVigik || etat.residence || 'Bâtiment').trim(), lignes = [];
-  appartementsVigik().forEach((l, i) => {
-    const num = String(i + 1), etage = numEtage(l) < 0 ? '' : String(numEtage(l));
-    const tel = avecContacts ? (l.tel || '').replace(/\D/g, '').replace(/^33(?=\d{9}$)/, '0') : '', mail = avecContacts ? (l.email || '') : '';
-    const badges = l.badges.filter(Boolean);
-    // Un appartement sans badge est créé quand même (ligne sans numéro de badge).
-    (badges.length ? badges : ['']).forEach(b => lignes.push([bat, nomAppartement(l), num, etage, l.occupant || '', '', '', tel, '', '', mail, '', '', b, b ? '1' : '', '', '', '']));
-  });
-  return lignes;
-}
-// BatiConnect lit les fichiers en Windows-1252 (accents compris).
-function csvWindows1252(lignes) {
-  const texte = lignes.map(r => r.map(c => String(c).replace(/[;\r\n]+/g, ' ').trim()).join(';')).join('\r\n') + '\r\n';
-  const speciaux = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '–': 0x96, '—': 0x97, 'œ': 0x9c, 'Œ': 0x8c, 'Ÿ': 0x9f };
-  return new Blob([Uint8Array.from(texte, ch => { const c = ch.charCodeAt(0); return c < 256 ? c : (speciaux[ch] || 0x3f); })], { type: 'text/csv' });
-}
+const URL_ROBOT = new URL('robot-baticonnect.js', location.href).href;
+const FAVORI_ROBOT = `javascript:(function(){var s=document.createElement('script');s.src='${URL_ROBOT}?v='+Date.now();document.body.appendChild(s);})();`;
 function majVigik() {
   $('c-centrale').value = etat.centrale || '';
   $('blocNoralsy').hidden = !estNoralsy();
+  $('c-copropriete').placeholder = etat.residence || 'Nom de la copropriété';
   $('c-batimentVigik').placeholder = etat.residence || 'Nom du bâtiment';
-  const ls = appartementsVigik(), nb = ls.reduce((t, l) => t + l.badges.filter(Boolean).length, 0);
-  $('resumeVigik').textContent = `${ls.length} appartement${ls.length > 1 ? 's' : ''} et ${nb} badge${nb > 1 ? 's' : ''} à créer (logements signés ou avec badges).`;
+  const reels = etat.logements.filter(l => l.porte || l.etage), nb = etat.logements.reduce((t, l) => t + l.badges.filter(Boolean).length, 0);
+  const sansNom = reels.filter(l => !l.nomListing).length;
+  $('resumeVigik').textContent = `${reels.length + 2} appartements (${reels.length} propriétaires + Stock syndic + Société de nettoyage) et ${nb} badge${nb > 1 ? 's' : ''}.`
+    + (sansNom ? ` ${sansNom} logement${sansNom > 1 ? 's' : ''} sans « Nom sur le listing du syndic » : le propriétaire ou l’occupant sera utilisé.` : '');
 }
 $('c-centrale').addEventListener('change', majVigik);
-$('fichierBaticonnect').onclick = async () => {
-  const ls = appartementsVigik();
-  if (!ls.length) return toast('Aucun logement signé ni badge saisi pour l’instant.');
-  const sansListing = ls.filter(l => !l.nomListing && (l.porte || l.etage));
-  if (sansListing.length && !await demander('Noms du listing manquants', `${sansListing.length} appartement${sansListing.length > 1 ? 's' : ''} sans « Nom sur le listing du syndic » : le nom du propriétaire, sinon de l’occupant, sera utilisé (${sansListing.slice(0, 4).map(nomAppartement).join(', ')}${sansListing.length > 4 ? '…' : ''}).`, 'Continuer')) return;
-  const lignes = lignesBaticonnect($('c-contactsVigik').checked);
-  const nom = nomFichier(`Import BatiConnect - ${etat.residence}`).replace(/\.pdf$/, '.csv');
-  await remettreFichier(csvWindows1252([ENTETE_BATICONNECT, ...lignes]), nom);
-  etat.importVigikLe = Date.now(); sauver();
+$('robotBaticonnect').onclick = () => {
+  if (!etat.copropriete && !etat.residence) return toast('Indiquez le nom du site (copropriété).');
+  if (etat.exemple) return toast('Le robot ne travaille que sur les chantiers enregistrés en ligne.');
+  $('lienRobot').href = FAVORI_ROBOT;
+  $('dlgRobot').showModal();
 };
+$('lienRobot').onclick = e => { e.preventDefault(); toast('Faites glisser ce bouton dans la barre de favoris de Chrome.'); };
+$('copierRobot').onclick = () => navigator.clipboard.writeText(FAVORI_ROBOT).then(() => toast('Favori copié.'), () => toast('Copie impossible.'));
+$('fermerRobot').onclick = () => $('dlgRobot').close();
 
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
 const PDFLIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
