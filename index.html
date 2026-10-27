@@ -1576,7 +1576,7 @@ async function proposerBon(l) {
     d.apresGmail = async dest => {
       const b = await noticeBlob(n);
       if (b && await envoiGmail(dest, `Notice d'utilisation — ${l.modele} — Harmonie Électricité`, texteNotice(l, n), b, nomNotice(n))) toast('Bon et notice envoyés à ' + dest);
-      else toast('Bon envoyé ; notice non envoyée (le lien est dans le message).');
+      else toast(`Bon envoyé ; notice non envoyée (${derniereErreurGmail}). Le lien est dans le message.`);
     };
   }
   ouvrirDocument(d);
@@ -1593,14 +1593,31 @@ function ouvrirDocument(d) {
 }
 $('docFermer').onclick = () => { $('dlgDocument').close(); docCourant?.apres?.(); };
 $('docApercu').onclick = () => window.open(URL.createObjectURL(docCourant.blob), '_blank');
-// Envoi par le service Gmail Harmonie (un PDF joint) ; faux si pas de jeton Google ou en cas d'échec.
+// Envoi par le service Gmail Harmonie (un PDF joint) ; faux en cas d'échec, la raison dans derniereErreurGmail.
+let derniereErreurGmail = '';
 async function envoiGmail(dest, objet, texte, blob, nom) {
+  derniereErreurGmail = '';
   if (!ENVOI_GMAIL_URL) return false;
-  const refreshToken = await getGoogleRefreshToken(); if (!refreshToken) return false;
   const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.readAsDataURL(blob); });
-  const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken, to: dest, subject: objet, bodyText: texte, pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
-  const res = rep && await rep.json().catch(() => null);
-  return !!(res && res.success);
+  const essai = async jeton => {
+    const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: jeton, to: dest, subject: objet, bodyText: texte, pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+    if (!rep) return 'pas de connexion au service d’envoi';
+    const res = await rep.json().catch(() => null);
+    if (res && res.success) return '';
+    const e = res?.error;
+    return String(e?.error?.message || e?.error_description || e?.message || (typeof e === 'string' ? e : '') || res?.message || 'erreur ' + rep.status).slice(0, 140);
+  };
+  const jeton = await getGoogleRefreshToken();
+  if (!jeton) { derniereErreurGmail = 'autorisation Google introuvable'; return false; }
+  let erreur = await essai(jeton);
+  if (erreur) {
+    // L'autorisation gardée sur l'appareil peut être périmée : on reprend celle enregistrée en ligne et on réessaie.
+    try { localStorage.removeItem('gcal_refresh_token'); } catch {}
+    const frais = await getGoogleRefreshToken();
+    if (frais && frais !== jeton) erreur = await essai(frais);
+  }
+  derniereErreurGmail = erreur;
+  return !erreur;
 }
 $('docEnvoyer').onclick = async () => {
   const d = docCourant, dest = $('docDest').value.trim();
@@ -1611,7 +1628,7 @@ $('docEnvoyer').onclick = async () => {
     // Envoi par le service Gmail Harmonie ; sans jeton Google, passage par la messagerie de l'appareil.
     toast('Envoi en cours…');
     if (await envoiGmail(dest, d.objet, d.texte, d.blob, d.nom)) { toast('Envoyé à ' + dest); d.envoye?.(); $('dlgDocument').close(); d.apres?.(); d.apresGmail?.(dest); return; }
-    toast('Envoi Gmail impossible : passage par la messagerie de l’appareil.');
+    toast(`Envoi Gmail impossible (${derniereErreurGmail}) : passage par la messagerie de l’appareil.`);
   }
   // Partage depuis le téléphone : le PDF et ses pièces jointes (notice) dans le même message.
   const fichiers = navigator.canShare?.({ files: [fichier, ...(d.joints || [])] }) ? [fichier, ...(d.joints || [])] : [fichier];
@@ -3061,6 +3078,7 @@ async function envoyerNoticeClient(l, silencieux = false) {
     l.noticeEnvoyeeLe = Date.now(); sauver(); if (!silencieux) toast('Notice envoyée à ' + l.email); return true;
   }
   if (silencieux) return false;
+  toast(`Envoi Gmail impossible (${derniereErreurGmail}) : passage par la messagerie de l’appareil.`);
   const fichier = new File([blob], nomNotice(n), { type: 'application/pdf' });
   if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
     navigator.clipboard?.writeText(l.email).catch(() => {});
@@ -3083,7 +3101,7 @@ $('envoyerToutesNotices').onclick = async () => {
   let ok = 0;
   for (const l of ls) { toast(`Envoi ${ok + 1} / ${ls.length}…`); if (await envoyerNoticeClient(l, true)) ok++; else break; rendreEnvoiNotices(); }
   b.disabled = false; rendreEnvoiNotices();
-  toast(ok === ls.length ? `${ok} notice${ok > 1 ? 's' : ''} envoyée${ok > 1 ? 's' : ''}.` : `${ok} envoyée(s) sur ${ls.length} : envoi Gmail interrompu, utilisez les boutons « Envoyer ».`);
+  toast(ok === ls.length ? `${ok} notice${ok > 1 ? 's' : ''} envoyée${ok > 1 ? 's' : ''}.` : `${ok} envoyée(s) sur ${ls.length} : envoi Gmail interrompu (${derniereErreurGmail}).`);
 };
 
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
