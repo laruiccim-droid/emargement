@@ -582,9 +582,21 @@ dialog.scan:not([open]) { display: none; }
     <p class="aide">Boutons numérotés de 1 (en haut à gauche) jusqu’en bas à droite, du dernier étage au rez-de-chaussée ; codes de programmation de 0 (en bas à gauche) jusqu’en haut à droite. La fiche interphone se pose à côté de la platine ; la codification sert à programmer. Un numéro se corrige dans la fiche du logement.</p>
 
     <div class="separateur"></div>
+    <div class="etiq">Centrale Vigik</div>
+    <div class="champ" style="margin-top:8px;max-width:320px"><label for="c-centrale">Modèle de centrale</label><select id="c-centrale" class="choix-centrale"></select></div>
+    <div id="blocNoralsy" hidden>
+      <div class="champ"><label for="c-batimentVigik">Nom du bâtiment dans BatiConnect</label><input type="text" id="c-batimentVigik">
+        <p class="aide">Repris tel quel : il doit être identique au bâtiment déjà créé sur le site BatiConnect, sinon un nouveau bâtiment sera créé.</p></div>
+      <label class="aide" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="c-contactsVigik"> Inclure téléphones et e-mails des occupants (comptes résidents BatiConnect)</label>
+      <p class="aide" id="resumeVigik"></p>
+      <div class="dlg-actions" style="justify-content:flex-start"><button type="button" class="btn btn-or" id="fichierBaticonnect"><svg class="ic"><use href="#i-file"/></svg>Fichier d’import BatiConnect</button></div>
+      <p class="aide">Sur <b>baticonnect.com</b> : ouvrez le site de la résidence → « Importer » → « Cliquer sur ce bouton pour charger le fichier CSV » → choisissez ce fichier → « Valider ». Chaque appartement est créé au nom du listing du syndic, avec ses badges. Ne l’importez qu’une fois : un second import créerait les badges en double.</p>
+    </div>
+
+    <div class="separateur"></div>
     <div class="etiq">Importer la liste des logements</div>
     <p class="aide">Copiez les lignes depuis Excel (une ligne par logement), dans cet ordre :</p>
-    <div class="code">Bâtiment  Étage  Porte  Nom affiché  Occupant  Téléphone  E-mail  Heure RDV  Nb badges  Modèle</div>
+    <div class="code">Bâtiment  Étage  Porte  Nom affiché  Occupant  Téléphone  E-mail  Heure RDV  Nb badges  Modèle  Nom listing syndic</div>
     <textarea id="importTexte" placeholder="A	2	21	MARTIN	Mme Martin Claire	06 12 34 56 78	c.martin@exemple.fr	09:00	2	Fermax – VEO 4,3&quot;" style="margin-top:8px"></textarea>
     <div class="dlg-actions" style="justify-content:space-between">
       <button type="button" class="btn btn-discret" id="nouveauChantier">Changer de chantier</button>
@@ -608,6 +620,7 @@ dialog.scan:not([open]) { display: none; }
     <div class="champ" style="margin-top:8px"><label for="nc-client">Client ou syndic</label><input type="text" id="nc-client" list="nc-clients" placeholder="Rechercher dans vos clients…" autocomplete="off"><datalist id="nc-clients"></datalist></div>
     <div class="champ" id="nc-blocResidence" hidden><label for="nc-residence">Résidence</label><select id="nc-residence"></select></div>
     <div class="champ"><label for="nc-marque">Marque d’interphone installée</label><select id="nc-marque" class="choix-marque"></select></div>
+    <div class="champ"><label for="nc-centrale">Centrale Vigik</label><select id="nc-centrale" class="choix-centrale"></select></div>
     <div class="dlg-actions" style="justify-content:space-between">
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-discret" id="chantierExemple">Exemple</button></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="fermerChantiers">Fermer</button><button type="button" class="btn btn-or" id="creerChantier">Créer le chantier</button></div>
@@ -980,6 +993,8 @@ function rendreFiche() {
       <div class="champ"><label for="f-nom">Nom affiché sur la platine</label><input type="text" id="f-nom" data-champ="nomAffiche" value="${esc(l.nomAffiche)}" maxlength="24" autocapitalize="characters" ${dis}></div>
       <div class="etiquette-platine" aria-hidden="true"><span class="bouton-appel" id="apercuBouton"></span><span class="nom-lcd" id="apercuNom"></span><span class="compte" id="compteNom"></span></div>
       <div class="champ"><label for="f-occupant">Occupant</label><input type="text" id="f-occupant" data-champ="occupant" value="${esc(l.occupant)}" ${dis}></div>
+      <div class="champ"><label for="f-nomListing">Nom sur le listing du syndic</label><input type="text" id="f-nomListing" data-champ="nomListing" value="${esc(l.nomListing || '')}" placeholder="ex. BROTTES Philippe" ${dis}>
+        <p class="aide">Nom de l’appartement dans la centrale Vigik (BatiConnect).</p></div>
       <div class="champ"><label for="f-proprietaire">Propriétaire (s’il n’habite pas le logement)</label><input type="text" id="f-proprietaire" data-champ="proprietaire" value="${esc(l.proprietaire || '')}" placeholder="ex. M. et Mme BRUNEL" ${dis}>
         <p class="aide">Renseigné, il permet de marquer les badges à remettre au syndic pour lui.</p></div>
     </section>
@@ -1645,7 +1660,7 @@ $('docEnvoyer').onclick = async () => {
 
 /* ---------- Chantier ---------- */
 let padTechChantier = null;
-const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet', 'badgesLivres', 'marque'];
+const champsChantier = ['residence', 'adresse', 'reference', 'technicien', 'donneur', 'donneurEmail', 'objet', 'badgesLivres', 'marque', 'centrale', 'batimentVigik'];
 document.querySelectorAll('.choix-marque').forEach(sel => { sel.innerHTML = '<option value="">— Toutes marques —</option>' + MARQUES.map(m => `<option>${esc(m)}</option>`).join(''); });
 $('ouvrirChantier').onclick = () => {
   champsChantier.forEach(k => { $('c-' + k).value = etat[k] || ''; });
@@ -1655,7 +1670,7 @@ $('ouvrirChantier').onclick = () => {
   $('dlgChantier').showModal();
   if (!padTechChantier) padTechChantier = creerPad($('sigTechChantier'), { valeur: sigTech, onChange: v => { sigTech = v; stock.ecrire(CLE_SIG, v); } });
   else padTechChantier.poser(sigTech);
-  majReception(); rendrePieces(); majResumeNotices(); chargerNotices().then(majResumeNotices);
+  majReception(); rendrePieces(); majResumeNotices(); majVigik(); chargerNotices().then(majResumeNotices);
 };
 champsChantier.forEach(k => $('c-' + k).addEventListener('input', e => { etat[k] = e.target.value; sauver(); rendreEntete(); }));
 $('dlgChantier').addEventListener('close', () => { rendreTout(); });
@@ -1698,7 +1713,7 @@ $('importer').onclick = () => {
     etat.logements.push(nouveauLogement({
       batiment: c[0] || '', etage: c[1] || '', porte: c[2] || '', nomAffiche: (c[3] || '').toUpperCase(), occupant: c[4] || '',
       tel: c[5] || '', email: c[6] || '', rdvHeure: (c[7] || '').replace('h', ':').replace(/^(\d):/, '0$1:'),
-      badgesPrevu: Number.isFinite(nb) ? nb : null, badges: Number.isFinite(nb) ? Array(nb).fill('') : [], modele: c[9] || '',
+      badgesPrevu: Number.isFinite(nb) ? nb : null, badges: Number.isFinite(nb) ? Array(nb).fill('') : [], modele: c[9] || '', nomListing: c[10] || '',
     }));
     n++;
   }
@@ -2207,10 +2222,10 @@ $('creerChantier').onclick = async () => {
   etat = chantierVide({
     residence: r ? r.nom : saisi, adresse: r ? (r.adresse || '') : (c ? (c.addressChantier || c.address || '') : ''),
     donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null, residenceId: r ? r.id : null,
-    marque: $('nc-marque').value,
+    marque: $('nc-marque').value, centrale: $('nc-centrale').value,
   });
   courantId = null; sauver(); rendreTout();
-  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-blocResidence').hidden = true;
+  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = ''; $('nc-blocResidence').hidden = true;
   $('ouvrirChantier').click(); // compléter la référence et importer la liste des logements
 };
 $('fermerChantiers').onclick = () => $('dlgChantiers').close();
@@ -3102,6 +3117,55 @@ $('envoyerToutesNotices').onclick = async () => {
   for (const l of ls) { toast(`Envoi ${ok + 1} / ${ls.length}…`); if (await envoyerNoticeClient(l, true)) ok++; else break; rendreEnvoiNotices(); }
   b.disabled = false; rendreEnvoiNotices();
   toast(ok === ls.length ? `${ok} notice${ok > 1 ? 's' : ''} envoyée${ok > 1 ? 's' : ''}.` : `${ok} envoyée(s) sur ${ls.length} : envoi Gmail interrompu (${derniereErreurGmail}).`);
+};
+
+/* ---------- Centrale Vigik : fichier d'import BatiConnect (Noralsy) ---------- */
+// BatiConnect importe un CSV (menu du site → Importer) : une ligne par badge, rattachée à son appartement.
+// L'appartement porte le nom du listing du syndic (propriétaire), le résident est l'occupant.
+const CENTRALES = ['Noralsy EasyConnect', 'Noralsy (autre centrale)', 'Intratone', 'Autre'];
+document.querySelectorAll('.choix-centrale').forEach(sel => { sel.innerHTML = '<option value="">— Non précisée —</option>' + CENTRALES.map(m => `<option>${esc(m)}</option>`).join(''); });
+const estNoralsy = () => /^noralsy/i.test(etat.centrale || '');
+const ENTETE_BATICONNECT = ['Bâtiment', 'Nom de l\'appartement', 'Numéro de l\'appartement', 'Etage', 'Nom du résident', 'Code d\'appel', 'Code d\'accès',
+  'N° Tel 1', 'N° Tel 2', 'N° Tel 3', 'Adresse mail 1', 'Adresse mail 2', 'Adresse mail 3', 'Numéro de badge', 'Nombre de badges', 'Couleur de badge',
+  'Numéro de télécommande', 'Nombre de télécommandes'];
+const nomAppartement = l => (l.nomListing || l.proprietaire || l.occupant || l.nomAffiche || lieu(l) || 'Appartement').trim();
+// Ordre du listing : par nom d'appartement, comme la liste du syndic ; les fiches sans logement (stock, entreprise) à la fin.
+const appartementsVigik = () => [...etat.logements].filter(l => l.statut === 'signe' || l.badges.some(Boolean))
+  .sort((a, b) => (!a.porte && !a.etage) - (!b.porte && !b.etage) || nomAppartement(a).localeCompare(nomAppartement(b), 'fr'));
+function lignesBaticonnect(avecContacts) {
+  const bat = (etat.batimentVigik || etat.residence || 'Bâtiment').trim(), lignes = [];
+  appartementsVigik().forEach((l, i) => {
+    const num = String(i + 1), etage = numEtage(l) < 0 ? '' : String(numEtage(l));
+    const tel = avecContacts ? (l.tel || '').replace(/\D/g, '').replace(/^33(?=\d{9}$)/, '0') : '', mail = avecContacts ? (l.email || '') : '';
+    const badges = l.badges.filter(Boolean);
+    // Un appartement sans badge est créé quand même (ligne sans numéro de badge).
+    (badges.length ? badges : ['']).forEach(b => lignes.push([bat, nomAppartement(l), num, etage, l.occupant || '', '', '', tel, '', '', mail, '', '', b, b ? '1' : '', '', '', '']));
+  });
+  return lignes;
+}
+// BatiConnect lit les fichiers en Windows-1252 (accents compris).
+function csvWindows1252(lignes) {
+  const texte = lignes.map(r => r.map(c => String(c).replace(/[;\r\n]+/g, ' ').trim()).join(';')).join('\r\n') + '\r\n';
+  const speciaux = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '–': 0x96, '—': 0x97, 'œ': 0x9c, 'Œ': 0x8c, 'Ÿ': 0x9f };
+  return new Blob([Uint8Array.from(texte, ch => { const c = ch.charCodeAt(0); return c < 256 ? c : (speciaux[ch] || 0x3f); })], { type: 'text/csv' });
+}
+function majVigik() {
+  $('c-centrale').value = etat.centrale || '';
+  $('blocNoralsy').hidden = !estNoralsy();
+  $('c-batimentVigik').placeholder = etat.residence || 'Nom du bâtiment';
+  const ls = appartementsVigik(), nb = ls.reduce((t, l) => t + l.badges.filter(Boolean).length, 0);
+  $('resumeVigik').textContent = `${ls.length} appartement${ls.length > 1 ? 's' : ''} et ${nb} badge${nb > 1 ? 's' : ''} à créer (logements signés ou avec badges).`;
+}
+$('c-centrale').addEventListener('change', majVigik);
+$('fichierBaticonnect').onclick = async () => {
+  const ls = appartementsVigik();
+  if (!ls.length) return toast('Aucun logement signé ni badge saisi pour l’instant.');
+  const sansListing = ls.filter(l => !l.nomListing && (l.porte || l.etage));
+  if (sansListing.length && !await demander('Noms du listing manquants', `${sansListing.length} appartement${sansListing.length > 1 ? 's' : ''} sans « Nom sur le listing du syndic » : le nom du propriétaire, sinon de l’occupant, sera utilisé (${sansListing.slice(0, 4).map(nomAppartement).join(', ')}${sansListing.length > 4 ? '…' : ''}).`, 'Continuer')) return;
+  const lignes = lignesBaticonnect($('c-contactsVigik').checked);
+  const nom = nomFichier(`Import BatiConnect - ${etat.residence}`).replace(/\.pdf$/, '.csv');
+  await remettreFichier(csvWindows1252([ENTETE_BATICONNECT, ...lignes]), nom);
+  etat.importVigikLe = Date.now(); sauver();
 };
 
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
