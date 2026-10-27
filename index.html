@@ -269,6 +269,17 @@ dialog::backdrop { background: rgba(10,10,10,0.75); backdrop-filter: blur(6px); 
 .piece-photo .retirer { position: absolute; right: 6px; top: 6px; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: rgba(10,10,10,.75); color: var(--he-white); display: grid; place-items: center; }
 .liste-notices { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
 .liste-notices li { display: grid; grid-template-columns: 20px minmax(0, 1fr) 44px; gap: 8px; align-items: center; color: var(--he-gold-light); }
+.depot { margin-top: 12px; padding: 22px 16px; border: 1.5px dashed var(--he-gold); border-radius: var(--r-sm); text-align: center; color: var(--he-gold-light); cursor: pointer; display: grid; gap: 4px; }
+.depot span { color: var(--grey-400); font-size: var(--fs-sm); }
+.depot.survol { background: rgba(201, 168, 106, .12); }
+.liste-notices-bib, .liste-envoi { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
+.notice-bib { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--border-subtle); }
+.notice-bib .ligne-titre { display: grid; grid-template-columns: 20px minmax(0, 1fr) 40px 40px; gap: 6px; align-items: center; color: var(--he-gold-light); }
+.notice-bib .aide { margin: 0; }
+.liste-envoi li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
+.liste-envoi li > div { display: grid; gap: 2px; min-width: 0; }
+.liste-envoi li span { font-size: var(--fs-sm); color: var(--grey-400); overflow-wrap: anywhere; }
+.liste-envoi li span.attention { color: var(--he-gold-light); }
 .tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
 .tuile { border: 1px solid var(--border-hairline); border-radius: var(--r-sm); padding: 10px; }
 .tuile b { display: block; font-size: var(--fs-2xl); font-weight: 300; color: var(--he-white); font-variant-numeric: tabular-nums; }
@@ -450,6 +461,32 @@ dialog.scan:not([open]) { display: none; }
   </div>
 </dialog>
 
+<!-- Notices du matériel : une notice PDF par modèle, pour tous les chantiers -->
+<dialog id="dlgNotices">
+  <div class="dlg">
+    <div class="sourcil">Notices du matériel</div>
+    <h3>Une notice par modèle</h3>
+    <p class="aide">Les notices servent à tous vos chantiers. Chacune part avec le bon d’intervention des clients qui ont ce modèle, et elle est jointe au dossier de fin de chantier.</p>
+    <div class="depot" id="depotNotices" role="button" tabindex="0">Glissez les notices PDF ici<span>ou touchez pour les choisir</span></div>
+    <p class="aide" id="noticesBibVide">Aucune notice pour l’instant.</p>
+    <ul class="liste-notices-bib" id="listeNoticesBib"></ul>
+    <datalist id="modelesConnus"></datalist>
+    <div class="dlg-actions"><button type="button" class="btn btn-or" id="fermerNotices">Fermer</button></div>
+  </div>
+</dialog>
+
+<!-- Envoi des notices aux clients du chantier -->
+<dialog id="dlgEnvoiNotices">
+  <div class="dlg">
+    <div class="sourcil">Notices du matériel</div>
+    <h3>Envoyer les notices aux clients</h3>
+    <p class="aide">Chaque client reçoit la notice du modèle posé chez lui. Celles déjà parties avec le bon d’intervention sont indiquées « Envoyée ».</p>
+    <p class="aide" id="envoiNoticesVide">Aucun bon signé pour l’instant.</p>
+    <ul class="liste-envoi" id="listeEnvoiNotices"></ul>
+    <div class="dlg-actions"><button type="button" class="btn" id="envoyerToutesNotices" hidden></button><button type="button" class="btn btn-or" id="fermerEnvoiNotices">Fermer</button></div>
+  </div>
+</dialog>
+
 <!-- Chantier : infos, donneur d'ordre, signature technicien, bon de livraison, import -->
 <dialog id="dlgChantier">
   <form class="dlg" method="dialog" id="formChantier">
@@ -517,9 +554,12 @@ dialog.scan:not([open]) { display: none; }
 
     <div class="separateur"></div>
     <div class="etiq">Notices du matériel</div>
-    <p class="aide" id="noticesVide">Ajoutez les notices PDF du combiné ou du moniteur posé : elles sont jointes à la fin du dossier.</p>
-    <ul class="liste-notices" id="noticesListe"></ul>
-    <div class="dlg-actions" style="justify-content:flex-start"><button type="button" class="btn" id="ajoutNotice"><svg class="ic"><use href="#i-file"/></svg>Ajouter une notice (PDF)</button></div>
+    <p class="aide" id="resumeNotices"></p>
+    <div class="dlg-actions" style="justify-content:flex-start">
+      <button type="button" class="btn" id="gererNotices"><svg class="ic"><use href="#i-file"/></svg>Notices par modèle</button>
+      <button type="button" class="btn" id="envoyerNotices"><svg class="ic"><use href="#i-mail"/></svg>Envoyer les notices aux clients</button>
+    </div>
+    <p class="aide">Une notice par modèle, commune à tous vos chantiers : elle part avec le bon d’intervention du client et elle est jointe au dossier de fin de chantier.</p>
 
     <div class="separateur"></div>
     <div class="etiq">Interphone</div>
@@ -1492,8 +1532,8 @@ const nomFichier = s => s.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').tri
 let docCourant = null;
 
 async function proposerBon(l) {
-  const blob = await pdfBon(l);
-  ouvrirDocument({
+  const blob = await pdfBon(l), n = noticePour(l.modele);
+  const d = {
     blob, nom: nomFichier(`Bon d'intervention ${l.numeroBon} - ${etat.residence} - ${lieu(l)}`),
     sourcil: 'Bon d’intervention • ' + l.numeroBon, titre: l.nomAffiche || l.occupant,
     recap: [['Matériel', l.modele || '—'], ['Plaque', l.plaque ? 'Oui' : 'Non'], ['Badges', l.badges.length], ['Signé par', l.signataire || '—'], ['Le', horodatage(l.signeLe)]],
@@ -1501,7 +1541,22 @@ async function proposerBon(l) {
     objet: `Bon d'intervention ${l.numeroBon} — ${etat.residence} — Harmonie Électricité`,
     texte: `Madame, Monsieur,\n\nSuite à notre intervention du ${dateFr(etat.date)} au ${lieu(l)} de la résidence ${etat.residence}, veuillez trouver ci-joint votre bon d'intervention signé.\n\nMatériel posé : ${l.modele || 'combiné / moniteur'}${l.plaque ? ', plaque' : ''}.\nBadges remis : ${l.badges.length}${l.badges.length ? ' (' + l.badges.filter(Boolean).join(', ') + ')' : ''}.\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
     apres: apresBon,
-  });
+  };
+  if (n) {
+    // Gmail : le bon puis un second message avec la notice jointe. Partage du téléphone : les deux PDF ensemble.
+    const avant = '\n\nNous restons à votre disposition.';
+    d.recap.push(['Notice', n.titre]);
+    d.texte = d.texte.replace(avant, `\n\nLa notice d'utilisation de votre ${l.modele} vous est envoyée dans un second message. Elle est aussi téléchargeable ici :\n${n.url}${avant}`);
+    d.textePartage = d.texte.replace(/La notice d'utilisation[^\n]*\n[^\n]*/, `Vous trouverez également la notice d'utilisation de votre ${l.modele} (aussi téléchargeable ici : ${n.url}).`);
+    noticeBlob(n).then(b => { if (b) d.joints = [new File([b], nomNotice(n), { type: 'application/pdf' })]; });
+    d.envoye = () => { l.noticeEnvoyeeLe = Date.now(); sauver(); };
+    d.apresGmail = async dest => {
+      const b = await noticeBlob(n);
+      if (b && await envoiGmail(dest, `Notice d'utilisation — ${l.modele} — Harmonie Électricité`, texteNotice(l, n), b, nomNotice(n))) toast('Bon et notice envoyés à ' + dest);
+      else toast('Bon envoyé ; notice non envoyée (le lien est dans le message).');
+    };
+  }
+  ouvrirDocument(d);
 }
 
 function ouvrirDocument(d) {
@@ -1515,6 +1570,15 @@ function ouvrirDocument(d) {
 }
 $('docFermer').onclick = () => { $('dlgDocument').close(); docCourant?.apres?.(); };
 $('docApercu').onclick = () => window.open(URL.createObjectURL(docCourant.blob), '_blank');
+// Envoi par le service Gmail Harmonie (un PDF joint) ; faux si pas de jeton Google ou en cas d'échec.
+async function envoiGmail(dest, objet, texte, blob, nom) {
+  if (!ENVOI_GMAIL_URL) return false;
+  const refreshToken = await getGoogleRefreshToken(); if (!refreshToken) return false;
+  const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.readAsDataURL(blob); });
+  const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken, to: dest, subject: objet, bodyText: texte, pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+  const res = rep && await rep.json().catch(() => null);
+  return !!(res && res.success);
+}
 $('docEnvoyer').onclick = async () => {
   const d = docCourant, dest = $('docDest').value.trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dest)) { $('docDest').focus(); return toast('Indiquez une adresse e-mail valide.'); }
@@ -1523,20 +1587,18 @@ $('docEnvoyer').onclick = async () => {
   if (ENVOI_GMAIL_URL) {
     // Envoi par le service Gmail Harmonie ; sans jeton Google, passage par la messagerie de l'appareil.
     toast('Envoi en cours…');
-    const refreshToken = await getGoogleRefreshToken();
-    const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.readAsDataURL(d.blob); });
-    const rep = refreshToken && await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refreshToken, to: dest, subject: d.objet, bodyText: d.texte, pdfBase64: b64, pdfFilename: d.nom }) }).catch(() => null);
-    const res = rep && await rep.json().catch(() => null);
-    if (res && res.success) { toast('Envoyé à ' + dest); d.envoye?.(); $('dlgDocument').close(); d.apres?.(); return; }
+    if (await envoiGmail(dest, d.objet, d.texte, d.blob, d.nom)) { toast('Envoyé à ' + dest); d.envoye?.(); $('dlgDocument').close(); d.apres?.(); d.apresGmail?.(dest); return; }
     toast('Envoi Gmail impossible : passage par la messagerie de l’appareil.');
   }
-  if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+  // Partage depuis le téléphone : le PDF et ses pièces jointes (notice) dans le même message.
+  const fichiers = navigator.canShare?.({ files: [fichier, ...(d.joints || [])] }) ? [fichier, ...(d.joints || [])] : [fichier];
+  if (navigator.canShare && navigator.canShare({ files: fichiers })) {
     navigator.clipboard?.writeText(dest).catch(() => {});
-    try { await navigator.share({ files: [fichier], title: d.objet, text: d.texte }); d.envoye?.(); toast('Collez l’adresse ' + dest + ' comme destinataire.'); }
+    try { await navigator.share({ files: fichiers, title: d.objet, text: d.textePartage || d.texte }); d.envoye?.(); toast('Collez l’adresse ' + dest + ' comme destinataire.'); }
     catch (e) { if (e.name !== 'AbortError') toast('Partage impossible : ' + e.message); return; }
   } else {
     const a = document.createElement('a'); a.href = URL.createObjectURL(d.blob); a.download = d.nom; a.click();
-    location.href = `mailto:${encodeURIComponent(dest)}?subject=${encodeURIComponent(d.objet)}&body=${encodeURIComponent(d.texte + '\n\n(PDF joint : ' + d.nom + ')')}`;
+    location.href = `mailto:${encodeURIComponent(dest)}?subject=${encodeURIComponent(d.objet)}&body=${encodeURIComponent((d.textePartage || d.texte) + '\n\n(PDF joint : ' + d.nom + ')')}`;
     d.envoye?.(); toast('PDF téléchargé : joignez-le au message qui s’ouvre.');
   }
 };
@@ -1552,7 +1614,7 @@ $('ouvrirChantier').onclick = () => {
   $('dlgChantier').showModal();
   if (!padTechChantier) padTechChantier = creerPad($('sigTechChantier'), { valeur: sigTech, onChange: v => { sigTech = v; stock.ecrire(CLE_SIG, v); } });
   else padTechChantier.poser(sigTech);
-  majReception(); rendrePieces();
+  majReception(); rendrePieces(); majResumeNotices(); chargerNotices().then(majResumeNotices);
 };
 champsChantier.forEach(k => $('c-' + k).addEventListener('input', e => { etat[k] = e.target.value; etat.exemple = false; sauver(); rendreEntete(); }));
 $('dlgChantier').addEventListener('close', () => { rendreTout(); });
@@ -2602,32 +2664,14 @@ async function rendrePieces() {
     zone.append(d);
     pieceBlob(p).then(b => { if (b) d.querySelector('.vignette').style.backgroundImage = `url(${URL.createObjectURL(b)})`; });
   }
-  const ul = $('noticesListe'); ul.innerHTML = '';
-  for (const p of piecesDe('notice')) {
-    const li = document.createElement('li');
-    li.innerHTML = `<svg class="ic"><use href="#i-file"/></svg><input type="text" value="${esc(p.legende || p.nom)}" aria-label="Titre de la notice"><button type="button" class="btn btn-discret btn-carre" aria-label="Retirer la notice"><svg class="ic"><use href="#i-x"/></svg></button>`;
-    li.querySelector('input').oninput = e => { p.legende = e.target.value; sauver(); };
-    li.querySelector('button').onclick = async () => { etat.pieces = etat.pieces.filter(x => x !== p); await photoEcrire(clePiece(p), null).catch(() => {}); sauver(); rendrePieces(); };
-    ul.append(li);
-  }
-  $('noticesVide').hidden = piecesDe('notice').length > 0;
 }
 $('ajoutPhotoChantier').onclick = () => $('photoPiece').click();
 $('ajoutPhotoChantierGalerie').onclick = () => $('photoPieceGalerie').click();
-$('ajoutNotice').onclick = () => $('noticePdf').click();
 ['photoPiece', 'photoPieceGalerie'].forEach(id => $(id).addEventListener('change', async e => {
   const fichiers = [...e.target.files]; e.target.value = '';
   for (const f of fichiers) { try { await ajouterPiece('photo', await compresserPhoto(f)); } catch (err) { toast('Photo non enregistrée : ' + err.message); } }
   if (fichiers.length) toast(fichiers.length > 1 ? `${fichiers.length} photos ajoutées.` : 'Photo ajoutée : indiquez une légende.');
 }));
-$('noticePdf').addEventListener('change', async e => {
-  const fichiers = [...e.target.files]; e.target.value = '';
-  for (const f of fichiers) {
-    if (f.size > 15 * 1048576) { toast(`${f.name} dépasse 15 Mo : non ajoutée.`); continue; }
-    try { await ajouterPiece('notice', f, { nom: f.name, legende: f.name.replace(/\.pdf$/i, '') }); } catch (err) { toast('Notice non enregistrée : ' + err.message); }
-  }
-  if (fichiers.length) toast('Notice ajoutée : elle sera jointe à la fin du dossier.');
-});
 
 /* ---------- Réception des travaux ---------- */
 let padReception = null;
@@ -2863,6 +2907,154 @@ async function pdfPhotosChantier() {
   return doc.output('blob');
 }
 
+/* ---------- Bibliothèque des notices : une notice PDF par modèle, commune à tous les chantiers ---------- */
+// La liste est rangée dans la table des émargements (ligne NOTICES), les PDF dans le stockage Supabase.
+const ID_NOTICES = 'NOTICES', CLE_NOTICES = 'he.emargement.notices';
+let notices = (() => { try { return JSON.parse(stock.lire(CLE_NOTICES) || '[]'); } catch { return []; } })();
+const normModele = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const noticePour = modele => modele ? notices.find(n => (n.modeles || []).some(m => normModele(m) === normModele(modele))) || null : null;
+const nomNotice = n => { const t = n.titre || n.nom || 'materiel'; return nomFichier(/^notice/i.test(t) ? t : 'Notice ' + t); };
+
+async function chargerNotices() {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=payload&id=eq.${ID_NOTICES}`, { headers: SB });
+    if (!r.ok) return notices;
+    notices = (await r.json())[0]?.payload?.notices || [];
+    stock.ecrire(CLE_NOTICES, JSON.stringify(notices));
+  } catch {}
+  return notices;
+}
+async function enregistrerNotices() {
+  stock.ecrire(CLE_NOTICES, JSON.stringify(notices));
+  const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ id: ID_NOTICES, payload: { notices, modifieLe: Date.now() } }) });
+  if (!r.ok) throw new Error('enregistrement refusé (' + r.status + ')');
+}
+// PDF de la notice : gardé sur l'appareil après le premier téléchargement (utilisable sans réseau).
+async function noticeBlob(n) {
+  const local = await photoLire('notice:' + n.id); if (local) return local;
+  try { const r = await fetch(n.url); if (!r.ok) return null; const b = await r.blob(); photoEcrire('notice:' + n.id, b).catch(() => {}); return b; } catch { return null; }
+}
+const modelesChantier = () => [...new Set(etat.logements.map(l => (l.modele || '').trim()).filter(Boolean))];
+
+async function ajouterNotices(fichiers) {
+  const pdfs = [...fichiers].filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  if (!pdfs.length) return toast('Déposez des fichiers PDF.');
+  toast('Envoi des notices…');
+  await chargerNotices();
+  for (const f of pdfs) {
+    if (f.size > 20 * 1048576) { toast(`${f.name} dépasse 20 Mo : non ajoutée.`); continue; }
+    const id = uid(), chemin = `emargement/notices/${id}.pdf`;
+    try {
+      const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/pdf', 'x-upsert': 'true' }, body: f });
+      if (!r.ok) throw new Error('envoi refusé (' + r.status + ')');
+      // Modèle deviné d'après le nom du fichier, parmi ceux posés sur ce chantier (à corriger si besoin).
+      const nomN = ' ' + normModele(f.name) + ' ';
+      const devine = modelesChantier().filter(m => !noticePour(m)).find(m => normModele(m).split(' ').some(t => t.length >= 3 && !/^(audio|video|mains|libres|combine|moniteur)$/.test(t) && nomN.includes(' ' + t + ' ')));
+      notices.push({ id, titre: f.name.replace(/\.pdf$/i, ''), nom: f.name, modeles: devine ? [devine] : [], url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, taille: f.size, ajouteLe: Date.now() });
+      await photoEcrire('notice:' + id, f).catch(() => {});
+    } catch (e) { toast(`${f.name} : ${e.message} (connexion ?)`); }
+  }
+  try { await enregistrerNotices(); toast('Notices enregistrées : indiquez le ou les modèles de chacune.'); } catch (e) { toast('Liste des notices non enregistrée : ' + e.message); }
+  rendreNotices(); majResumeNotices();
+}
+
+function rendreNotices() {
+  const connus = [...new Set([...modelesChantier(), ...MODELES.flatMap(g => g.items)])];
+  $('modelesConnus').innerHTML = connus.map(m => `<option value="${esc(m)}">`).join('');
+  const ul = $('listeNoticesBib'); ul.innerHTML = '';
+  $('noticesBibVide').hidden = notices.length > 0;
+  for (const n of notices) {
+    const ici = etat.logements.filter(l => (n.modeles || []).some(m => normModele(m) === normModele(l.modele))).length;
+    const li = document.createElement('li'); li.className = 'notice-bib';
+    li.innerHTML = `<div class="ligne-titre"><svg class="ic"><use href="#i-file"/></svg><input type="text" class="titre" value="${esc(n.titre)}" aria-label="Titre de la notice">
+        <button type="button" class="btn btn-discret btn-carre voir" aria-label="Voir la notice"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button type="button" class="btn btn-discret btn-carre retirer" aria-label="Retirer la notice"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <input type="text" class="modeles" list="modelesConnus" value="${esc((n.modeles || []).join(' ; '))}" placeholder="Modèle(s) concerné(s), séparés par ;" aria-label="Modèles concernés">
+      <p class="aide ${(n.modeles || []).length ? '' : 'attention'}">${!(n.modeles || []).length ? 'Indiquez le modèle pour l’envoyer automatiquement.' : ici ? `Posé dans ${ici} logement${ici > 1 ? 's' : ''} de ce chantier.` : 'Aucun logement de ce chantier avec ce modèle.'} ${n.taille >= 1048576 ? (n.taille / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(n.taille / 1024)) + ' Ko'}.</p>`;
+    const sauverNotice = async () => { try { await enregistrerNotices(); } catch (e) { toast('Non enregistré : ' + e.message); } };
+    li.querySelector('.titre').onchange = e => { n.titre = e.target.value.trim() || n.nom; sauverNotice(); };
+    li.querySelector('.modeles').onchange = e => { n.modeles = e.target.value.split(';').map(s => s.trim()).filter(Boolean); sauverNotice(); rendreNotices(); majResumeNotices(); };
+    li.querySelector('.voir').onclick = async () => { const b = await noticeBlob(n); if (b) window.open(URL.createObjectURL(b), '_blank'); else toast('Notice indisponible (connexion ?)'); };
+    li.querySelector('.retirer').onclick = async () => {
+      if (!await demander('Retirer la notice ?', `« ${n.titre} » ne sera plus envoyée ni jointe aux dossiers, sur tous les chantiers.`, 'Retirer')) return;
+      notices = notices.filter(x => x !== n); await sauverNotice(); rendreNotices(); majResumeNotices();
+    };
+    ul.append(li);
+  }
+}
+function majResumeNotices() {
+  const ms = modelesChantier(), sans = ms.filter(m => !noticePour(m));
+  $('resumeNotices').textContent = !ms.length ? 'Aucun modèle saisi sur ce chantier.'
+    : sans.length ? `${ms.length - sans.length} modèle${ms.length - sans.length > 1 ? 's' : ''} sur ${ms.length} avec notice. Sans notice : ${sans.join(', ')}.`
+    : `Les ${ms.length} modèle${ms.length > 1 ? 's' : ''} posé${ms.length > 1 ? 's' : ''} sur ce chantier ont leur notice.`;
+  $('resumeNotices').className = 'aide' + (sans.length ? ' attention' : '');
+}
+$('gererNotices').onclick = async () => { rendreNotices(); $('dlgNotices').showModal(); await chargerNotices(); rendreNotices(); };
+$('fermerNotices').onclick = () => $('dlgNotices').close();
+$('dlgNotices').addEventListener('close', majResumeNotices);
+const depot = $('depotNotices');
+depot.onclick = () => $('noticePdf').click();
+depot.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('noticePdf').click(); } };
+['dragenter', 'dragover'].forEach(t => depot.addEventListener(t, e => { e.preventDefault(); depot.classList.add('survol'); }));
+['dragleave', 'drop'].forEach(t => depot.addEventListener(t, () => depot.classList.remove('survol')));
+depot.addEventListener('drop', e => { e.preventDefault(); ajouterNotices(e.dataTransfer.files); });
+$('noticePdf').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; ajouterNotices(f); });
+
+/* ---------- Envoi des notices aux clients ---------- */
+function rendreEnvoiNotices() {
+  const ls = trier(etat.logements).filter(l => l.statut === 'signe');
+  const ul = $('listeEnvoiNotices'); ul.innerHTML = '';
+  let aEnvoyer = 0;
+  for (const l of ls) {
+    const n = noticePour(l.modele), pret = n && l.email;
+    if (pret && !l.noticeEnvoyeeLe) aEnvoyer++;
+    const li = document.createElement('li');
+    li.innerHTML = `<div><b>${esc(l.nomAffiche || l.occupant || lieu(l))}</b><span>${esc(l.modele || 'modèle non saisi')}${l.email ? ' · ' + esc(l.email) : ''}</span>
+      <span class="${pret ? '' : 'attention'}">${!n ? 'Pas de notice pour ce modèle' : !l.email ? 'Pas d’adresse e-mail' : l.noticeEnvoyeeLe ? 'Envoyée le ' + esc(horodatage(l.noticeEnvoyeeLe)) : 'À envoyer'}</span></div>
+      ${pret ? `<button type="button" class="btn ${l.noticeEnvoyeeLe ? 'btn-discret' : ''}">${l.noticeEnvoyeeLe ? 'Renvoyer' : 'Envoyer'}</button>` : ''}`;
+    li.querySelector('button')?.addEventListener('click', async e => { e.target.disabled = true; await envoyerNoticeClient(l); rendreEnvoiNotices(); });
+    ul.append(li);
+  }
+  $('envoyerToutesNotices').hidden = !aEnvoyer || !ENVOI_GMAIL_URL;
+  $('envoyerToutesNotices').textContent = aEnvoyer > 1 ? `Envoyer les ${aEnvoyer} notices restantes` : 'Envoyer la notice restante';
+  $('envoiNoticesVide').hidden = ls.length > 0;
+}
+const texteNotice = (l, n) => `Madame, Monsieur,\n\nVeuillez trouver ci-joint la notice d'utilisation de votre ${l.modele}, installé le ${dateFr(etat.date)} au ${lieu(l)} de la résidence ${etat.residence}.\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`;
+// Envoi d'une notice : Gmail si possible (sans écran), sinon messagerie du téléphone.
+async function envoyerNoticeClient(l, silencieux = false) {
+  const n = noticePour(l.modele); if (!n || !l.email) return false;
+  const blob = await noticeBlob(n); if (!blob) { toast('Notice indisponible (connexion ?)'); return false; }
+  const objet = `Notice d'utilisation — ${l.modele} — Harmonie Électricité`, texte = texteNotice(l, n);
+  if (await envoiGmail(l.email, objet, texte, blob, nomNotice(n))) {
+    l.noticeEnvoyeeLe = Date.now(); sauver(); if (!silencieux) toast('Notice envoyée à ' + l.email); return true;
+  }
+  if (silencieux) return false;
+  const fichier = new File([blob], nomNotice(n), { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+    navigator.clipboard?.writeText(l.email).catch(() => {});
+    try { await navigator.share({ files: [fichier], title: objet, text: texte }); l.noticeEnvoyeeLe = Date.now(); sauver(); toast('Collez l’adresse ' + l.email + ' comme destinataire.'); return true; }
+    catch (e) { if (e.name !== 'AbortError') toast('Partage impossible : ' + e.message); return false; }
+  }
+  location.href = `mailto:${encodeURIComponent(l.email)}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(texte.replace('ci-joint', 'en téléchargement') + '\n\nNotice : ' + n.url)}`;
+  l.noticeEnvoyeeLe = Date.now(); sauver(); return true;
+}
+$('envoyerNotices').onclick = async () => {
+  if (!etat.logements.some(l => l.statut === 'signe')) return toast('Aucun bon signé pour l’instant.');
+  rendreEnvoiNotices(); $('dlgEnvoiNotices').showModal();
+  await chargerNotices(); rendreEnvoiNotices();
+};
+$('fermerEnvoiNotices').onclick = () => $('dlgEnvoiNotices').close();
+$('envoyerToutesNotices').onclick = async () => {
+  const ls = etat.logements.filter(l => l.statut === 'signe' && l.email && !l.noticeEnvoyeeLe && noticePour(l.modele));
+  if (!await demander('Envoyer les notices ?', `${ls.length} e-mail${ls.length > 1 ? 's' : ''} vont partir depuis votre Gmail, un par client, avec la notice de son modèle en pièce jointe.`, 'Envoyer')) return;
+  const b = $('envoyerToutesNotices'); b.disabled = true;
+  let ok = 0;
+  for (const l of ls) { toast(`Envoi ${ok + 1} / ${ls.length}…`); if (await envoyerNoticeClient(l, true)) ok++; else break; rendreEnvoiNotices(); }
+  b.disabled = false; rendreEnvoiNotices();
+  toast(ok === ls.length ? `${ok} notice${ok > 1 ? 's' : ''} envoyée${ok > 1 ? 's' : ''}.` : `${ok} envoyée(s) sur ${ls.length} : envoi Gmail interrompu, utilisez les boutons « Envoyer ».`);
+};
+
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
 const PDFLIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
 
@@ -2950,7 +3142,10 @@ async function pdfDossier() {
     const photos = await pdfPhotosChantier(); if (photos) parties.push(['Photos du chantier', photos]);
     for (const l of signes) parties.push([`Bon ${l.numeroBon} — ${[lieu(l), l.nomAffiche || l.occupant].filter(Boolean).join(' — ')}`, await pdfBon(l), 'bons']);
     const nbOk = parties.length;
-    for (const n of piecesDe('notice')) { const b = await pieceBlob(n); if (b) parties.push([n.legende || n.nom || 'Notice', b, 'notices']); }
+    await chargerNotices();
+    for (const n of new Set(signes.map(l => noticePour(l.modele)).filter(Boolean))) {
+      const b = await noticeBlob(n); if (b) parties.push([`${n.titre} — ${(n.modeles || []).join(', ')}`, b, 'notices']);
+    }
     const morceaux = [], ecartees = [];
     for (const [i, [titre, b]] of parties.entries()) {
       try { morceaux.push(await PDFDocument.load(await b.arrayBuffer(), { ignoreEncryption: true })); }
@@ -3171,6 +3366,7 @@ window.addEventListener('resize', () => document.documentElement.style.setProper
 async function garderEcran() { try { await navigator.wakeLock?.request('screen'); } catch {} }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') garderEcran(); });
 garderEcran();
+chargerNotices();
 
 // Prochain logement à faire déjà ouvert à droite sur tablette ; sur téléphone on reste sur la liste.
 courantId = trier(etat.logements).find(l => l.statut === 'afaire')?.id || null;
