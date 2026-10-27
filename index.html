@@ -464,10 +464,11 @@ dialog.scan:not([open]) { display: none; }
     <div class="etiq">Fin de chantier</div>
     <div class="tuiles" id="tuilesChantier"></div>
     <div class="dlg-actions" style="justify-content:flex-start">
-      <button type="button" class="btn btn-or" id="bonLivraison"><svg class="ic"><use href="#i-file"/></svg>Bon de livraison</button>
+      <button type="button" class="btn btn-or" id="dossierFin"><svg class="ic"><use href="#i-file"/></svg>Dossier de fin de chantier</button>
+      <button type="button" class="btn" id="bonLivraison"><svg class="ic"><use href="#i-file"/></svg>Bon de livraison</button>
       <button type="button" class="btn" id="exportBadges">Badges (CSV)</button>
     </div>
-    <p class="aide">Le bon de livraison reprend tous les logements : nom affiché, matériel, plaque, numéros de badges, état et signature de chaque client.</p>
+    <p class="aide">Le dossier de fin de chantier réunit en un seul PDF : page de garde (sommaire, points en suspens), bon de livraison, fiche interphone, codification avec le schéma de la platine, puis tous les bons d’intervention signés, photos comprises. Le bon de livraison seul reprend tous les logements : nom affiché, matériel, plaque, badges, état et signature.</p>
 
     <div class="separateur"></div>
     <div class="etiq">Interphone</div>
@@ -1221,6 +1222,8 @@ function entetePdf(doc, titre, sousTitre) {
   doc.setFillColor(...OR); doc.circle(14, 33, 0.9, 'F'); doc.circle(W - 36, 29.5, 0.9, 'F');
   return 42;
 }
+// Vrai pendant la fabrication du dossier de fin de chantier : il numérote ses pages lui-même et allège les photos.
+let pourDossier = false;
 function piedPdf(doc) {
   const n = doc.getNumberOfPages();
   for (let p = 1; p <= n; p++) {
@@ -1229,7 +1232,7 @@ function piedPdf(doc) {
     doc.setDrawColor(...OR); doc.setLineWidth(0.2); doc.line(14, H - 13, W - 14, H - 13);
     doc.setFontSize(7.5); doc.setTextColor(...GRIS); doc.setFont('helvetica', 'normal');
     doc.text(ENTREPRISE, 14, H - 8);
-    doc.text(`Page ${p} / ${n}`, W - 14, H - 8, { align: 'right' });
+    if (!pourDossier) doc.text(`Page ${p} / ${n}`, W - 14, H - 8, { align: 'right' });
   }
 }
 function titreBloc(doc, x, y, txt, w) {
@@ -1642,16 +1645,18 @@ async function photoEcrire(cle, blob) {
   const db = await ouvrirBdPhotos();
   await new Promise((ok, ko) => { const t = db.transaction('photos', 'readwrite'), st = t.objectStore('photos'); blob ? st.put(blob, cle) : st.delete(cle); t.oncomplete = ok; t.onerror = () => ko(t.error); });
 }
-async function compresserPhoto(fichier) {
-  const bmp = await createImageBitmap(fichier), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+async function compresserPhoto(fichier, cote = 1600, qualite = 0.75) {
+  const bmp = await createImageBitmap(fichier), k = Math.min(1, cote / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.75));
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', qualite));
 }
 async function imagePourPdf(blob) {
-  const url = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
   const bmp = await createImageBitmap(blob);
-  return { url, w: bmp.width, h: bmp.height };
+  if (pourDossier && Math.max(bmp.width, bmp.height) > 1000) blob = await compresserPhoto(blob, 1000, 0.6); // dossier plus léger à envoyer
+  const url = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
+  const k = pourDossier ? Math.min(1, 1000 / Math.max(bmp.width, bmp.height)) : 1;
+  return { url, w: Math.round(bmp.width * k), h: Math.round(bmp.height * k) };
 }
 let photoCible = null;
 async function rendrePhotos(l) {
@@ -1863,9 +1868,11 @@ function chantierVide(champs = {}) {
   };
 }
 const resumeChantier = c => ({ total: c.logements.length, signes: c.logements.filter(l => l.statut === 'signe').length, absents: c.logements.filter(l => l.statut === 'absent').length });
+// Numéro suivant du chantier (BI-date-01, -02…) : jamais deux bons avec le même numéro.
 function numeroterBon(l) {
-  const rang = trier(etat.logements).indexOf(l) + 1;
-  return `BI-${(etat.date || aujourdhui()).replace(/-/g, '')}-${String(rang).padStart(2, '0')}`;
+  const prefixe = `BI-${(etat.date || aujourdhui()).replace(/-/g, '')}-`;
+  const dernier = Math.max(0, ...etat.logements.filter(x => x !== l && (x.numeroBon || '').startsWith(prefixe)).map(x => parseInt(x.numeroBon.slice(prefixe.length), 10) || 0));
+  return prefixe + String(dernier + 1).padStart(2, '0');
 }
 
 let tableManquante = false;
@@ -2239,6 +2246,220 @@ $('fichePlatine').onclick = () => {
     objet: `Fiche interphone — ${etat.residence} — Harmonie Électricité`,
     texte: `Madame, Monsieur,\n\nVeuillez trouver ci-joint la fiche de correspondance des boutons de l'interphone de la résidence ${etat.residence}, à afficher à côté de la platine de rue.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
   });
+};
+
+/* ---------- Codification en PDF : platine vue de face, puis détail par bouton ---------- */
+function pdfCodification(ch = etat) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
+  const W = 210, M = 14, parNum = boutonsChantier(ch), p = platine(ch);
+  let y = entetePdf(doc, 'Codification', ch.reference ? 'Réf. ' + ch.reference : 'Programmation de la platine');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(18); doc.setTextColor(...ENCRE);
+  doc.text(ch.residence || '', W / 2, y + 4, { align: 'center' });
+  if (ch.adresse) { doc.setFontSize(9.5); doc.setTextColor(...GRIS); doc.text(ch.adresse, W / 2, y + 10, { align: 'center' }); }
+  y = titreBloc(doc, M, y + 20, 'Platine vue de face', W - 2 * M);
+
+  // La platine : façade noire, une case par bouton (numéro d'appel à gauche, code de programmation en pastille or).
+  const ecart = 4, bord = 6, larg = W - 2 * M - 30, x0 = (W - larg) / 2;
+  const hCase = Math.min(24, (150 - 2 * bord - ecart * (p.rangees - 1)) / p.rangees);
+  const wCase = (larg - 2 * bord - ecart * (p.colonnes - 1)) / p.colonnes;
+  const hPlat = 2 * bord + p.rangees * hCase + (p.rangees - 1) * ecart;
+  doc.setFillColor(...NOIR); doc.roundedRect(x0, y, larg, hPlat, 3, 3, 'F');
+  doc.setDrawColor(...OR); doc.setLineWidth(0.5); doc.roundedRect(x0 - 1.2, y - 1.2, larg + 2.4, hPlat + 2.4, 3.6, 3.6, 'S');
+  for (let n = 1; n <= p.boutons; n++) {
+    const r = Math.ceil(n / p.colonnes) - 1, c = (n - 1) % p.colonnes;
+    const x = x0 + bord + c * (wCase + ecart), yc = y + bord + r * (hCase + ecart), ls = parNum.get(n) || [], l = ls[0];
+    doc.setFillColor(28, 26, 22); doc.setDrawColor(70, 64, 54); doc.setLineWidth(0.25); doc.roundedRect(x, yc, wCase, hCase, 1.5, 1.5, 'FD');
+    const rb = Math.min(5, hCase * 0.28), cx = x + 4 + rb, cy = yc + hCase / 2;
+    doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.circle(cx, cy, rb, 'S');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(rb * 2.6); doc.setTextColor(232, 229, 222);
+    doc.text(String(n), cx, cy, { align: 'center', baseline: 'middle' });
+    const code = 'CODE ' + codeBouton(n, ch);
+    doc.setFontSize(7.5); const wc = doc.getTextWidth(code) + 4;
+    doc.setFillColor(...OR); doc.roundedRect(x + wCase - wc - 2.5, yc + 2.5, wc, 5, 1, 1, 'F');
+    doc.setTextColor(...NOIR); doc.text(code, x + wCase - 2.5 - wc / 2, yc + 5.1, { align: 'center', baseline: 'middle' });
+    const tx = cx + rb + 4, maxW = x + wCase - 3 - tx, nom = nomsBouton(ls, ' / ');
+    let fs = 10; doc.setFont('helvetica', 'bold'); doc.setFontSize(fs);
+    while (nom && doc.getTextWidth(nom) > maxW && fs > 6) { fs -= 0.5; doc.setFontSize(fs); }
+    doc.setTextColor(...(nom ? [232, 229, 222] : GRIS)); doc.text(nom || '—', tx, cy + 1.2, { baseline: 'middle' });
+    if (l) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(170, 160, 140);
+      doc.text([l.porte && 'Appt ' + l.porte, etageTexte(l)].filter(Boolean).join(' · '), tx, yc + hCase - 3);
+    }
+  }
+  y += hPlat + 9;
+  const legende = [['Numéro de bouton', `de 1 (en haut à gauche) à ${p.boutons} (en bas à droite), rangée par rangée.`],
+    ['Code de programmation', `de 0 (en bas à gauche) à ${p.rangees * p.colonnes - 1} (en haut à droite).`],
+    ['Étages', 'dernier étage en haut, rez-de-chaussée en bas.']];
+  doc.setFontSize(9);
+  for (const [k, v] of legende) {
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...(k.startsWith('Code') ? OR : ENCRE)); doc.text(k + ' : ', M, y);
+    const d = doc.getTextWidth(k + ' : '); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRIS); doc.text(v, M + d, y); y += 5.5;
+  }
+
+  // Détail par bouton
+  doc.addPage(); y = 20;
+  y = titreBloc(doc, M, y, 'Détail par bouton', W - 2 * M);
+  const cols = [['Bouton', 16], ['Code', 14], ['Appt', 14], ['Étage', 14], ['Nom affiché', 52], ['Occupant · à vérifier', 72]];
+  doc.setFillColor(...NOIR); doc.rect(M, y, W - 2 * M, 7, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...OR);
+  let x = M + 2; cols.forEach(([k, w]) => { doc.text(k.toUpperCase(), x, y + 4.7, { charSpace: 0.3 }); x += w; });
+  y += 13;
+  for (let n = 1; n <= p.boutons; n++) {
+    for (const l of (parNum.get(n) || [null])) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      const occ = l ? doc.splitTextToSize(l.occupant || '', 70) : [], av = l && aVerifier(l) ? doc.splitTextToSize('À vérifier : ' + aVerifier(l), 70) : [];
+      const h = Math.max(10, (occ.length + av.length) * 3.8 + 5);
+      if (y + h > 280) { doc.addPage(); y = 20; }
+      x = M + 2;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...ENCRE); doc.text(String(n), x + 4, y, { align: 'center' }); x += 16;
+      doc.setTextColor(...OR); doc.text(String(codeBouton(n, ch)), x + 4, y, { align: 'center' }); x += 14;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...ENCRE);
+      doc.text(l ? l.porte || '' : '', x, y); x += 14;
+      doc.text(l ? etageTexte(l) : '', x, y); x += 14;
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...(l ? ENCRE : [210, 205, 195]));
+      doc.text(doc.splitTextToSize(l ? (l.nomAffiche || '').toUpperCase() : '—', 50), x, y); x += 52;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...ENCRE); doc.text(occ, x, y);
+      if (av.length) { doc.setTextColor(168, 106, 30); doc.text(av, x, y + occ.length * 3.8); }
+      y += h; doc.setDrawColor(225, 221, 212); doc.setLineWidth(0.2); doc.line(M, y - 6, W - M, y - 6);
+    }
+  }
+  const sansBouton = ch.logements.filter(l => !l.bouton);
+  if (sansBouton.length) {
+    if (y > 265) { doc.addPage(); y = 20; }
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...ENCRE); doc.text('Logements sans bouton attribué :', M, y);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRIS);
+    doc.text(doc.splitTextToSize(sansBouton.map(l => [l.occupant || l.nomAffiche, l.porte && '(' + l.porte + ')'].filter(Boolean).join(' ')).join(', ') + '.', W - 2 * M), M, y + 5);
+  }
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+/* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
+const PDFLIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+
+// Points restant à régler avant de clore le chantier.
+function pointsEnSuspens() {
+  const suspens = [];
+  for (const l of trier(etat.logements)) {
+    const qui = [lieu(l), l.nomAffiche || l.occupant].filter(Boolean).join(' — ');
+    if (l.statut === 'absent') suspens.push(`${qui} : absent (avis de passage le ${horodatage(l.absentLe)}), intervention à reprogrammer.`);
+    else if (l.statut !== 'signe') suspens.push(`${qui} : non traité.`);
+    else if (l.badges.some(b => !b.trim())) suspens.push(`${qui} : numéro de badge non saisi.`);
+    if (aVerifier(l)) suspens.push(`${qui} : à vérifier — ${aVerifier(l)}`);
+  }
+  for (const [n, ls] of boutonsChantier()) if (ls.length > 1) suspens.push(`Bouton ${n} partagé par ${ls.length} logements.`);
+  const parNumero = {};
+  for (const l of etat.logements) if (l.statut === 'signe' && l.numeroBon) parNumero[l.numeroBon] = (parNumero[l.numeroBon] || 0) + 1;
+  for (const [n, nb] of Object.entries(parNumero)) if (nb > 1) suspens.push(`Numéro de bon ${n} porté par ${nb} bons signés.`);
+  return suspens;
+}
+
+// Page de garde : chantier, chiffres clés, sommaire et points en suspens.
+function pdfGarde(sommaire) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
+  const W = 210, M = 14, t = totaux();
+  let y = entetePdf(doc, 'Dossier de fin de chantier', [etat.reference && 'Réf. ' + etat.reference, dateCourte(etat.date)].filter(Boolean).join(' • '));
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(22); doc.setTextColor(...ENCRE);
+  doc.text(etat.residence || '', M, y + 6);
+  doc.setFontSize(10); doc.setTextColor(...GRIS); if (etat.adresse) doc.text(etat.adresse, M, y + 13);
+  y = paires(doc, M, y + 23, [['Donneur d’ordre', etat.donneur], ['Technicien', etat.technicien], ['Intervention', dateFr(etat.date)], ['Dossier établi le', horodatage(Date.now())]], W - 2 * M) + 4;
+
+  const tuiles = [['Logements', t.total], ['Signés', t.signes], ['Absents', t.absents], ['Combinés', t.combines], ['Moniteurs', t.moniteurs], ['Plaques', t.plaques], ['Badges', t.badges]];
+  const tw = (W - 2 * M - 6 * 3) / 7;
+  tuiles.forEach(([k, v], i) => {
+    const x = M + i * (tw + 3);
+    doc.setDrawColor(...OR); doc.setLineWidth(0.25); doc.rect(x, y, tw, 14);
+    doc.setFontSize(14); doc.setTextColor(...ENCRE); doc.setFont('helvetica', 'normal'); doc.text(String(v), x + 3, y + 7.5);
+    doc.setFontSize(6); doc.setTextColor(...GRIS); doc.text(k.toUpperCase(), x + 3, y + 11.8, { charSpace: 0.3 });
+  });
+  y += 22;
+
+  y = titreBloc(doc, M, y, 'Sommaire', W - 2 * M);
+  for (const [titre, page, sous] of sommaire) {
+    if (y > 270) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', sous ? 'normal' : 'bold'); doc.setFontSize(sous ? 8.5 : 9.5); doc.setTextColor(...(sous ? GRIS : ENCRE));
+    const x = M + (sous ? 6 : 0), txt = doc.splitTextToSize(titre, W - 2 * M - 30 - (sous ? 6 : 0))[0];
+    doc.text(txt, x, y);
+    doc.text(String(page), W - M, y, { align: 'right' });
+    doc.setDrawColor(210, 205, 195); doc.setLineWidth(0.2); doc.setLineDashPattern([0.5, 1], 0);
+    doc.line(x + doc.getTextWidth(txt) + 2, y, W - M - doc.getTextWidth(String(page)) - 2, y); doc.setLineDashPattern([], 0);
+    y += sous ? 5 : 6.5;
+  }
+
+  const suspens = pointsEnSuspens();
+  y += 4; if (y > 255) { doc.addPage(); y = 20; }
+  y = titreBloc(doc, M, y, suspens.length ? `Points en suspens (${suspens.length})` : 'Points en suspens', W - 2 * M);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+  if (!suspens.length) { doc.setTextColor(...ENCRE); doc.text('Aucun : tous les logements sont signés et complets.', M, y); }
+  for (const s of suspens) {
+    const lignes = doc.splitTextToSize(s, W - 2 * M - 5);
+    if (y + lignes.length * 4 > 280) { doc.addPage(); y = 20; }
+    doc.setFillColor(...OR); doc.circle(M + 1, y - 1, 0.8, 'F');
+    doc.setTextColor(...ENCRE); doc.text(lignes, M + 5, y); y += lignes.length * 4 + 1.5;
+  }
+  piedPdf(doc);
+  return doc.output('blob');
+}
+
+async function pdfDossier() {
+  await chargerScript(PDFLIB_URL);
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+  const signes = trier(etat.logements).filter(l => l.statut === 'signe'), avecBoutons = boutonsChantier().size > 0;
+  const charger = async b => PDFDocument.load(await b.arrayBuffer());
+  pourDossier = true;
+  try {
+    const parties = [['Bon de livraison — récapitulatif des logements', pdfLivraison()]];
+    if (avecBoutons) parties.push(['Fiche interphone — correspondance des boutons d’appel', pdfPlatine()], ['Codification — schéma de la platine et codes', pdfCodification()]);
+    for (const l of signes) parties.push([`Bon ${l.numeroBon} — ${[lieu(l), l.nomAffiche || l.occupant].filter(Boolean).join(' — ')}`, await pdfBon(l), true]);
+    const morceaux = await Promise.all(parties.map(([, b]) => charger(b)));
+
+    // Sommaire avec numéros de page ; la page de garde peut déborder, on la refait alors avec le bon décalage.
+    const sommaire = debut => {
+      let page = debut; const s = [];
+      parties.forEach(([titre, , sous], i) => {
+        if (sous && !parties[i - 1][2]) s.push([`Bons d’intervention signés (${signes.length})`, page]);
+        s.push([titre, page, sous]); page += morceaux[i].getPageCount();
+      });
+      return s;
+    };
+    let garde = await charger(pdfGarde(sommaire(2)));
+    if (garde.getPageCount() > 1) garde = await charger(pdfGarde(sommaire(1 + garde.getPageCount())));
+
+    const dossier = await PDFDocument.create();
+    for (const src of [garde, ...morceaux]) (await dossier.copyPages(src, src.getPageIndices())).forEach(pg => dossier.addPage(pg));
+    // Numérotation continue du dossier, à la place du « Page x / y » de chaque document.
+    const police = await dossier.embedFont(StandardFonts.Helvetica), total = dossier.getPageCount(), mm = 72 / 25.4;
+    dossier.getPages().forEach((pg, i) => {
+      const t = `Page ${i + 1} / ${total}`, w = police.widthOfTextAtSize(t, 7.5);
+      pg.drawText(t, { x: pg.getWidth() - 14 * mm - w, y: 8 * mm, size: 7.5, font: police, color: rgb(99 / 255, 93 / 255, 82 / 255) });
+    });
+    dossier.setTitle(`Dossier de fin de chantier — ${etat.residence || ''}`); dossier.setAuthor('Harmonie Électricité'); dossier.setCreator('Émargement Harmonie');
+    return { blob: new Blob([await dossier.save()], { type: 'application/pdf' }), pages: total, bons: signes.length, avecBoutons };
+  } finally { pourDossier = false; }
+}
+
+$('dossierFin').onclick = async () => {
+  const t = totaux(), restants = t.total - t.signes - t.absents;
+  if (!t.signes) return toast('Aucun bon signé : le dossier rassemble les bons d’intervention signés.');
+  if (!sigTech) return toast('Signez d’abord dans le cadre « Signature du technicien ».');
+  if (restants && !await demander('Logements non traités', `${restants} logement(s) ne sont ni signés ni notés absents. Ils figureront dans les points en suspens du dossier.`, 'Générer quand même')) return;
+  const b = $('dossierFin'); b.disabled = true; toast('Préparation du dossier… (jusqu’à une minute avec les photos)');
+  try {
+    const d = await pdfDossier();
+    $('dlgChantier').close();
+    ouvrirDocument({
+      blob: d.blob, nom: nomFichier(`Dossier de fin de chantier - ${etat.residence} - ${dateCourte(etat.date).replace(/\//g, '-')}`),
+      sourcil: 'Dossier de fin de chantier', titre: etat.residence,
+      recap: [['Pages', d.pages], ['Bons d’intervention', d.bons], ['Logements signés', `${t.signes} / ${t.total}`], ['Absents', t.absents],
+        ['Interphone', d.avecBoutons ? 'Fiche + codification' : 'Boutons non numérotés'], ['Taille', (d.blob.size / 1048576).toFixed(1).replace('.', ',') + ' Mo']],
+      dest: etat.donneurEmail, surDest: v => { etat.donneurEmail = v; sauver(); },
+      objet: `Dossier de fin de chantier — ${etat.residence}${etat.reference ? ' — ' + etat.reference : ''} — Harmonie Électricité`,
+      texte: `Madame, Monsieur,\n\nLes travaux d'interphonie de la résidence ${etat.residence}${etat.adresse ? ' (' + etat.adresse + ')' : ''} sont terminés. Veuillez trouver ci-joint le dossier de fin de chantier : bon de livraison, fiche de correspondance des boutons de l'interphone, codification de la platine et bons d'intervention signés par les occupants (${t.signes} logement${t.signes > 1 ? 's' : ''}${t.absents ? ', ' + t.absents + ' absent' + (t.absents > 1 ? 's' : '') + ' à reprogrammer' : ''}).\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
+    });
+  } catch (e) { toast('Dossier impossible : ' + e.message); }
+  finally { b.disabled = false; }
 };
 
 /* ---------- Documents Word modifiables : fiche interphone et feuille de codification ---------- */

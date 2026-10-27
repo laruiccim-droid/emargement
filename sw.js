@@ -1,10 +1,11 @@
 // Mode hors-ligne : l'app s'ouvre même sans réseau (les chantiers restent enregistrés sur l'appareil
 // et partent dans Supabase au retour du réseau). Changer VERSION à chaque mise en ligne.
-const VERSION = 'emargement-v7';
+const VERSION = 'emargement-v8';
 const FICHIERS = [
   './', './index.html', './logos.js', './manifest.webmanifest', './vendor/docx-9.5.1.umd.js',
   './assets/logo-wordmark.png', './assets/monogram.png', './assets/icone-192.png', './assets/icone-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
 ];
 
 self.addEventListener('install', e => {
