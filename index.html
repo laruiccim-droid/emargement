@@ -283,6 +283,16 @@ dialog::backdrop { background: rgba(10,10,10,0.75); backdrop-filter: blur(6px); 
 .liste-envoi li > div { display: grid; gap: 2px; min-width: 0; }
 .liste-envoi li span { font-size: var(--fs-sm); color: var(--grey-400); overflow-wrap: anywhere; }
 .liste-envoi li span.attention { color: var(--he-gold-light); }
+.depot.lecture { opacity: .7; pointer-events: none; }
+.tableau-listing { overflow-x: auto; margin-top: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); }
+.tableau-listing table { border-collapse: collapse; font-size: var(--fs-sm); min-width: 760px; width: 100%; }
+.tableau-listing th { text-align: left; padding: 6px; font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-gold-light); background: var(--ink-800); position: sticky; top: 0; }
+.tableau-listing td { padding: 4px 6px; border-top: 1px solid var(--border-subtle); vertical-align: top; }
+.tableau-listing input:not([type=checkbox]), .tableau-listing select { min-height: 34px; padding: 4px 6px; font-size: var(--fs-sm); width: 100%; }
+.tableau-listing tr.ecarte td { opacity: .45; }
+.tableau-listing input.doute { border-color: var(--he-gold); background: rgba(201, 168, 106, .14); }
+.tableau-listing .lu { font-size: 10px; color: var(--grey-400); margin-top: 2px; }
+dialog#dlgListing { width: min(1100px, 96vw); max-width: 96vw; }
 .tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
 .tuile { border: 1px solid var(--border-hairline); border-radius: var(--r-sm); padding: 10px; }
 .tuile b { display: block; font-size: var(--fs-2xl); font-weight: 300; color: var(--he-white); font-variant-numeric: tabular-nums; }
@@ -426,6 +436,7 @@ dialog.scan:not([open]) { display: none; }
 <input type="file" id="photoBadge" accept="image/*" capture="environment" hidden>
 <input type="file" id="photoChantier" accept="image/*" capture="environment" hidden>
 <input type="file" id="photoGalerie" accept="image/*" hidden>
+<input type="file" id="fichierListing" accept=".xls,.xlsx,.xlsm,.ods,.csv,.docx,.doc,.pdf,image/*" hidden>
 <input type="file" id="photoPiece" accept="image/*" capture="environment" hidden>
 <input type="file" id="photoPieceGalerie" accept="image/*" multiple hidden>
 <input type="file" id="noticePdf" accept="application/pdf,.pdf" multiple hidden>
@@ -508,6 +519,30 @@ dialog.scan:not([open]) { display: none; }
       <li>Laissez la page travailler jusqu’à « Terminé ». En cas d’arrêt, relancez : il reprend sans créer de doublon.</li>
     </ol>
     <div class="dlg-actions"><button type="button" class="btn" id="copierRobot">Copier le favori</button><button type="button" class="btn btn-or" id="fermerRobot">Fermer</button></div>
+  </div>
+</dialog>
+
+<!-- Listing du syndic : vérification avant création du chantier -->
+<dialog id="dlgListing">
+  <div class="dlg">
+    <div class="sourcil">Listing du syndic · <span id="lst-fichier"></span></div>
+    <h3>Vérifier avant de créer le chantier</h3>
+    <div class="ligne" style="margin-top:8px">
+      <div class="champ"><label for="lst-copropriete">Copropriété (nom du site)</label><input type="text" id="lst-copropriete"></div>
+      <div class="champ"><label for="lst-reference">Référence</label><input type="text" id="lst-reference"></div>
+    </div>
+    <div class="champ"><label for="lst-adresse">Adresse</label><input type="text" id="lst-adresse" placeholder="rue, code postal ville"></div>
+    <div class="ligne">
+      <div class="champ"><label for="lst-marque">Marque d’interphone</label><select id="lst-marque"></select></div>
+      <div class="champ"><label for="lst-centrale">Centrale Vigik</label><select id="lst-centrale"></select></div>
+    </div>
+    <p class="aide" id="lst-resume"></p>
+    <div class="tableau-listing"><table>
+      <thead><tr><th></th><th>Bât. / montée</th><th>Appt / lot</th><th>Étage</th><th>Propriétaire</th><th>Téléphone</th><th>Modèle choisi</th><th>Badges</th><th>Plaque</th></tr></thead>
+      <tbody id="lst-lignes"></tbody>
+    </table></div>
+    <p class="aide">Décochez une ligne pour ne pas la créer. Le modèle, les badges et la plaque restent modifiables ensuite dans chaque fiche.</p>
+    <div class="dlg-actions"><button type="button" class="btn" id="lst-annuler">Annuler</button><button type="button" class="btn btn-or" id="lst-creer">Créer le chantier</button></div>
   </div>
 </dialog>
 
@@ -637,6 +672,8 @@ dialog.scan:not([open]) { display: none; }
     <ul class="liste-chantiers" id="listeChantiers"></ul>
     <div class="separateur"></div>
     <div class="etiq">Nouveau chantier</div>
+    <div class="depot" id="depotListing" role="button" tabindex="0" style="margin-top:10px"><span id="depotListingTexte" style="color:inherit;font-size:inherit">Déposez le listing du syndic</span><span>Excel, Word, PDF ou photo : le chantier est créé d’après le document, après vérification</span></div>
+    <p class="aide" style="margin-top:6px">Ou créez un chantier vide :</p>
     <div class="champ" style="margin-top:8px"><label for="nc-client">Client ou syndic</label><input type="text" id="nc-client" list="nc-clients" placeholder="Rechercher dans vos clients…" autocomplete="off"><datalist id="nc-clients"></datalist></div>
     <div class="champ" id="nc-blocResidence" hidden><label for="nc-residence">Résidence</label><select id="nc-residence"></select></div>
     <div class="champ"><label for="nc-marque">Marque d’interphone installée</label><select id="nc-marque" class="choix-marque"></select></div>
@@ -3167,6 +3204,329 @@ $('robotBaticonnect').onclick = () => {
 $('lienRobot').onclick = e => { e.preventDefault(); toast('Faites glisser ce bouton dans la barre de favoris de Chrome.'); };
 $('copierRobot').onclick = () => navigator.clipboard.writeText(FAVORI_ROBOT).then(() => toast('Favori copié.'), () => toast('Copie impossible.'));
 $('fermerRobot').onclick = () => $('dlgRobot').close();
+
+/* ---------- Document du syndic : création du chantier à partir du listing des choix ---------- */
+// Lit un Excel, un Word, un PDF (texte ou scanné) ou une photo du listing, en déduit les propriétaires,
+// les appartements, le modèle choisi, le nombre de badges et la plaque, puis montre le tout pour vérification.
+const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const JSZIP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+const EXTRAS_LISTING = ['Stock syndic', 'Entreprise de nettoyage'];
+const sansAccent = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Texte libre (en-tête de colonne, légende « Version 3 : … ») → modèle du catalogue de la marque.
+function modeleDepuisTexte(txt, marque) {
+  const t = sansAccent(txt).replace(/[’']/g, ' ');
+  if (!t || /pas de retour|aucun|sans choix/.test(t)) return '';
+  if (marque && marque !== 'Golmar' && CATALOGUE[marque]) {
+    const items = CATALOGUE[marque].flatMap(g => g.items);
+    return items.find(m => sansAccent(m).split(/[ –·-]+/).filter(x => x.length > 3 && x !== sansAccent(marque)).some(x => t.includes(x))) || '';
+  }
+  const g = re => CATALOGUE.Golmar.flatMap(x => x.items).find(m => re.test(m)) || '';
+  const art7 = /art ?7|gart7/.test(t), art4 = /art ?4|gart4|4h\b|4th|4hwh/.test(t);
+  if (art7) return /wifi|gart7w|couleur connect/.test(t) ? g(/GART7W/) : g(/GART7\/LITE/);
+  if (/4hwh|gart4wh/.test(t) || (art4 && /connect|wifi/.test(t))) return g(/GART4WH/);
+  if (/4th|gart4th/.test(t) || (art4 && /combin/.test(t))) return g(/GART4TH/);
+  if (art4 || /basic 4,3/.test(t)) return g(/GART4H/);
+  if (/art ?1\b|gart1|mains.?libre/.test(t)) return g(/GART1/);
+  if (/gtart|combin|audio/.test(t)) return g(/GTART/);
+  return '';
+}
+
+/* Lecture des fichiers : tableau de lignes (chaque ligne = tableau de cellules texte) */
+async function lignesExcel(f) {
+  await chargerScript(XLSX_URL);
+  const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+  return wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }).map(r => r.map(c => String(c).trim())));
+}
+async function lignesWord(f) {
+  await chargerScript(JSZIP_URL);
+  const xml = await (await JSZip.loadAsync(await f.arrayBuffer())).file('word/document.xml').async('string');
+  const doc = new DOMParser().parseFromString(xml, 'application/xml'), W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const texte = el => [...el.getElementsByTagNameNS(W, 't')].map(t => t.textContent).join('').trim();
+  const lignes = [];
+  for (const el of doc.getElementsByTagNameNS(W, 'body')[0].children) {
+    if (el.localName === 'tbl') for (const tr of el.getElementsByTagNameNS(W, 'tr')) lignes.push([...tr.getElementsByTagNameNS(W, 'tc')].map(texte));
+    else if (el.localName === 'p' && texte(el)) lignes.push([texte(el)]);
+  }
+  return lignes;
+}
+async function pdfJs() {
+  await chargerScript(PDFJS_URL);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  return pdfjsLib;
+}
+// PDF « texte » : les morceaux de texte sont regroupés en lignes (même hauteur) puis en cellules (écart horizontal).
+async function lignesPdf(f, etat) {
+  const pdf = await (await pdfJs()).getDocument({ data: await f.arrayBuffer() }).promise, lignes = [];
+  let caracteres = 0;
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const items = (await (await pdf.getPage(n)).getTextContent()).items.filter(i => i.str.trim());
+    caracteres += items.reduce((t, i) => t + i.str.trim().length, 0);
+    const parY = [];
+    for (const i of items) {
+      const y = i.transform[5], l = parY.find(l => Math.abs(l.y - y) < 3);
+      (l || (parY.push({ y, items: [] }), parY[parY.length - 1])).items.push(i);
+    }
+    for (const l of parY.sort((a, b) => b.y - a.y)) {
+      const cells = []; let fin = -1e9;
+      for (const i of l.items.sort((a, b) => a.transform[4] - b.transform[4])) {
+        if (cells.length && i.transform[4] - fin < 8) cells[cells.length - 1] += (i.transform[4] - fin > 1.5 ? ' ' : '') + i.str.trim();
+        else cells.push(i.str.trim());
+        fin = i.transform[4] + i.width;
+      }
+      lignes.push(cells);
+    }
+  }
+  if (caracteres < 40) return { scanne: true, pdf };
+  return { lignes };
+}
+// Document scanné ou photo : reconnaissance de texte (français), une ligne de texte par ligne de tableau.
+let lecteurListing = null;
+async function texteOcr(sources, avance) {
+  await chargerScript(TESSERACT_URL);
+  lecteurListing ||= await Tesseract.createWorker('fra');
+  await lecteurListing.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+  let texte = '';
+  for (let i = 0; i < sources.length; i++) { avance?.(i + 1, sources.length); texte += (await lecteurListing.recognize(sources[i])).data.text + '\n'; }
+  return texte;
+}
+// Noir et blanc (le fond coloré des lignes disparaît) et effacement des traits du tableau, qui gênent la lecture.
+function nettoyerScan(c) {
+  const ctx = c.getContext('2d', { willReadFrequently: true }), W = c.width, H = c.height, im = ctx.getImageData(0, 0, W, H), d = im.data;
+  const noir = new Uint8Array(W * H), effacer = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) noir[i] = 0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2] < 140 ? 1 : 0;
+  for (let y = 0; y < H; y++) { let run = 0; for (let x = 0; x <= W; x++) { if (x < W && noir[y * W + x]) run++; else { if (run > W * 0.08) for (let k = x - run; k < x; k++) effacer[y * W + k] = 1; run = 0; } } }
+  for (let x = 0; x < W; x++) { let run = 0; for (let y = 0; y <= H; y++) { if (y < H && noir[y * W + x]) run++; else { if (run > 40) for (let k = y - run; k < y; k++) effacer[k * W + x] = 1; run = 0; } } }
+  for (let i = 0; i < W * H; i++) { const v = noir[i] && !effacer[i] ? 0 : 255; d[4 * i] = d[4 * i + 1] = d[4 * i + 2] = v; d[4 * i + 3] = 255; }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+async function imageEnCanvas(f) {
+  const bmp = await createImageBitmap(f), k = Math.min(1, 3000 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c;
+}
+async function pagesEnImages(pdf) {
+  const images = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n), vue = page.getViewport({ scale: 2.6 });
+    const c = document.createElement('canvas'); c.width = vue.width; c.height = vue.height;
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vue, intent: 'print' }).promise; // « print » : rendu sans attendre l'affichage de la page
+    images.push(nettoyerScan(c));
+  }
+  return images;
+}
+
+/* Analyse : en-tête (copropriété, adresse, référence), légende des versions, tableau des propriétaires */
+const RE_TEL = /((?:\+33\s?|0)[1-9](?:[\s.,-]?\d{2}){4})/;
+const RE_RUE = /\b(chemin|rue|avenue|av\.|route|all[ée]e|impasse|place|boulevard|bd|quai|lieu-?dit|montee|montée|cours|square|résidence)\b/i;
+const telPropre = t => (t || '').replace(/\D/g, '').replace(/^33/, '0').replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+function infosEnTete(textes) {
+  const tout = textes.join('\n'), r = {};
+  const ref = tout.match(/r[ée]f(?:[ée]rence)?\.?\s*:?\s*([A-Z0-9][A-Z0-9\/\-.]{1,})/i); if (ref) r.reference = ref[1];
+  for (const t of textes) {
+    const cp = t.match(/^(.*?)(\d{5})\s+([A-Za-zÀ-ÿ' \-]{2,})$/);
+    if (!cp || r.adresse) continue;
+    const avant = cp[1].replace(/[,\s]+$/, ''), m = avant.search(RE_RUE);
+    if (m > 0) { r.copropriete = avant.slice(0, m).trim(); r.adresse = `${avant.slice(m).trim()}, ${cp[2]} ${cp[3].trim()}`; }
+    else r.adresse = `${avant}, ${cp[2]} ${cp[3].trim()}`.replace(/^, /, '');
+  }
+  if (r.copropriete) r.copropriete = r.copropriete.replace(/\s+/g, ' ').replace(/^\w/, c => c.toUpperCase());
+  return r;
+}
+// Légende « Version 3 : Moniteur vidéo ART 4… » : numéro → description.
+function legendeVersions(textes) {
+  const v = {};
+  for (const t of textes) { const m = t.match(/^\s*version\s*(\d+)\s*[:\-–]\s*(.+)$/i); if (m) v[m[1]] = m[2]; }
+  return v;
+}
+// Modèle d'une ligne : description de sa version dans la légende, sinon le texte lu (colonne cochée).
+const modeleDuChoix = (choix, versions, marque) => { const num = String(choix || '').match(/version\s*(\d+)/i)?.[1]; return modeleDepuisTexte(num ? versions[num] || '' : choix, marque); };
+const lotEnPorte = lot => {
+  const t = String(lot || '').trim(), m = t.match(/^([A-Za-z])\s*[-.]?\s*(\d{1,4}[A-Za-z]?)$/);
+  return m ? { batiment: m[1].toUpperCase(), porte: m[2] } : /^[A-Za-z]$/.test(t) ? { batiment: t.toUpperCase(), porte: '' } : { batiment: '', porte: t };
+};
+// Étage déduit d'une porte à deux chiffres (02 → RDC, 23 → 2e) ; laissé vide pour les numéros de lot.
+const etageDePorte = p => /^\d{2}$/.test(p) ? (p[0] === '0' ? 'RDC' : p[0]) : '';
+// Nom affiché proposé : les mots écrits en majuscules (le nom de famille), « BROTTES Philippe » → « BROTTES ».
+const nomAfficheDe = nom => ((String(nom).match(/(?<![\wÀ-ÿ])[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'\-]+(?![\wÀ-ÿ])/g) || []).join(' ') || String(nom)).toUpperCase().slice(0, 24);
+
+function analyserTableau(lignes, marque) {
+  const textes = lignes.map(r => r.filter(Boolean).join(' ')).filter(Boolean);
+  const infos = infosEnTete(textes), versions = legendeVersions(textes);
+  const n = s => sansAccent(s);
+  const h = lignes.findIndex(r => r.some(c => /^(proprietaires?|coproprietaires?|nom( et adresse| prenom)?|nom du (proprietaire|coproprietaire)|residents?|occupants?)\b/.test(n(c))));
+  if (h < 0) return { ...infos, versions, appartements: [], erreur: 'colonne des propriétaires introuvable' };
+  const largeur = Math.max(...lignes.map(r => r.length));
+  const enTete = c => lignes.slice(Math.max(0, h - 4), h + 1).map(r => r[c] || '').join(' ');
+  const col = re => { for (let c = 0; c < largeur; c++) if (re.test(n(enTete(c)))) return c; return -1; };
+  const cNom = lignes[h].findIndex(c => /^(proprietaire|coproprietaire|nom|resident|occupant)/.test(n(c)));
+  const cLot = col(/\b(bat|batiment|lot|appt|appartement|porte|logement)\b/);
+  const cBadges = col(/vigik|badge/), cPlaque = col(/plaque/), cTel = col(/\btel|telephone|portable|mobile/), cMail = col(/mail/);
+  const pris = new Set([cNom, cLot, cBadges, cPlaque, cTel, cMail]);
+  const cModeles = [];
+  for (let c = 0; c < largeur; c++) { if (pris.has(c)) continue; const m = modeleDepuisTexte(enTete(c), marque); if (m) cModeles.push({ c, m }); }
+  const telParNom = {}, appartements = [];
+  let montee = '';
+  for (const r of lignes.slice(h + 1)) {
+    const nom = (r[cNom] || '').trim(), reste = r.filter((c, i) => i !== cNom && c);
+    const titre = r.filter(Boolean).join(' ').match(/^\s*(mont[ée]e|b[aâ]t(?:iment)?\.?|escalier|entr[ée]e)\s+([\w\-]+)\s*$/i);
+    if (titre) { montee = `${titre[1].replace(/\.$/, '')} ${titre[2]}`.replace(/^\w/, x => x.toUpperCase()); continue; }
+    const tel = nom.match(RE_TEL);
+    if (tel && !reste.length) { telParNom[n(nom.replace(RE_TEL, ''))] = telPropre(tel[1]); continue; } // bloc des téléphones sous le tableau
+    if (!nom && !(r[cLot] || '').trim()) continue;
+    if (/^version\s*\d+\s*:/i.test(nom) || /^(audio|video|pas de retour)$/i.test(n(nom))) continue;
+    let modele = '', choix = '';
+    const coche = cModeles.find(({ c }) => /^(x|oui|1|✓|✔)$/i.test(String(r[c] || '').trim()));
+    if (coche) { modele = coche.m; choix = enTete(coche.c).replace(/\s+/g, ' ').trim(); }
+    else {
+      const v = r.find(c => /version\s*\d|pas de retour/i.test(c || ''));
+      if (v) { choix = v.trim(); modele = modeleDuChoix(choix, versions, marque); }
+    }
+    const { batiment, porte } = lotEnPorte(r[cLot]);
+    const nb = parseInt(String(r[cBadges] ?? '').replace(',', '.'), 10);
+    appartements.push({ garder: true, batiment: batiment || montee, porte, etage: etageDePorte(porte), nom: nom || '(sans nom)',
+      tel: cTel >= 0 ? telPropre(r[cTel]) : '', email: cMail >= 0 ? (r[cMail] || '').trim() : '', modele, choix,
+      badges: Number.isFinite(nb) ? nb : null, plaque: cPlaque >= 0 && /^(x|oui|1|o)$/i.test(String(r[cPlaque] || '').trim()) });
+  }
+  for (const a of appartements) if (!a.tel) { const k = Object.keys(telParNom).find(k => k && (k.startsWith(n(a.nom)) || n(a.nom).startsWith(k))); if (k) a.tel = telParNom[k]; }
+  return { ...infos, versions, appartements };
+}
+// Texte reconnu sur un scan : « NOM Prénom  512  VERSION 4 », « MONTEE 125 », légende « Version 1 : … ».
+// La reconnaissance déforme parfois le texte : « VERSIONS » (5), « VERSIONA4 », « PASDERETOUR », traits parasites.
+function choixOcr(t) {
+  const c = t.replace(/[^A-Za-z0-9+ ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/pas\s*de\s*retour/i.test(c)) return 'PAS DE RETOUR';
+  const m = c.match(/version\s*[a-z]?\s*([0-9sSoOlIZ])(.*)$/i);
+  if (!m) return '';
+  const chiffre = { s: '5', S: '5', o: '0', O: '0', l: '1', I: '1', Z: '2' }[m[1]] || m[1];
+  return `VERSION ${chiffre}${m[2].match(/\+\s*\w+/) ? ' ' + m[2].match(/\+\s*\w+/)[0] : ''}`;
+}
+function analyserTexteOcr(texte, marque) {
+  const lignes = texte.split('\n').map(l => l.replace(/[|[\]{}“”‘’"_*°;]/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const infos = infosEnTete(lignes), versions = legendeVersions(lignes), appartements = [];
+  let montee = '';
+  for (const l of lignes) {
+    if (/^version\s*\d+\s*[:\-–]/i.test(l) || /nom et adresse|^(audio|video|pas de retour)$/i.test(l)) continue;
+    const titre = l.match(/(mont[ée]e|b[aâ]timent|escalier|entr[ée]e)\s*([0-9]{1,4}|[A-Z])\b/i);
+    if (titre && !/version/i.test(l)) { montee = `${titre[1].toLowerCase().startsWith('mont') ? 'Montée' : titre[1].charAt(0).toUpperCase() + titre[1].slice(1).toLowerCase()} ${titre[2]}`; continue; }
+    const m = l.match(/^(.*?)[\s:.,]*\b(\d{2,4})\b(.*)$/);
+    if (!m) continue;
+    // Nom : sans les petits morceaux parasites en tête (« LS », « 0 », « _L »).
+    const nom = m[1].split(' ').filter((w, i, t) => !(i === 0 && t.length > 1 && w.replace(/[^A-Za-zÀ-ÿ]/g, '').length < 2)).join(' ')
+      .replace(/^[^A-Za-zÀ-ÿ]+/, '').replace(/[\s:.,(-]+$/, s => s.includes('(') ? ' (' : '').trim();
+    const choix = choixOcr(m[3]);
+    const nomValide = nom.replace(/[^A-Za-zÀ-ÿ]/g, '').length >= 3;
+    if (!nomValide && !choix) continue;
+    appartements.push({ garder: true, batiment: montee, porte: m[2], etage: '', nom: nomValide ? nom : '(sans nom)', tel: '', email: '',
+      modele: modeleDuChoix(choix, versions, marque), choix, badges: null, plaque: false });
+  }
+  return { ...infos, versions, appartements, ocr: true };
+}
+
+async function lireListing(f, marque, avance) {
+  const nom = f.name.toLowerCase();
+  if (/\.(xlsx?|xlsm|ods|csv)$/.test(nom)) return analyserTableau(await lignesExcel(f), marque);
+  if (/\.docx$/.test(nom)) return analyserTableau(await lignesWord(f), marque);
+  if (/\.pdf$/.test(nom) || f.type === 'application/pdf') {
+    const r = await lignesPdf(f);
+    if (!r.scanne) return analyserTableau(r.lignes, marque);
+    avance?.('Document scanné : lecture du texte…');
+    return analyserTexteOcr(await texteOcr(await pagesEnImages(r.pdf), (i, t) => avance?.(`Lecture du texte, page ${i} / ${t}…`)), marque);
+  }
+  if (/^image\//.test(f.type)) { avance?.('Photo : lecture du texte…'); return analyserTexteOcr(await texteOcr([nettoyerScan(await imageEnCanvas(f))]), marque); }
+  if (/\.doc$/.test(nom)) throw new Error('ancien format Word (.doc) : enregistrez-le en .docx ou en PDF');
+  throw new Error('format non reconnu (Excel, Word .docx, PDF ou photo)');
+}
+
+/* Écran de vérification puis création du chantier */
+let listingLu = null;
+function rendreListing() {
+  const L = listingLu, marque = $('lst-marque').value, modeles = CATALOGUE[marque] ? CATALOGUE[marque].flatMap(g => g.items) : MODELES.flatMap(g => g.items);
+  const gardes = L.appartements.filter(a => a.garder).length;
+  // Numéro douteux (lecture d'un scan) : longueur différente de celle de la plupart des numéros.
+  const longueurs = {}; L.appartements.forEach(a => { if (a.porte) longueurs[a.porte.length] = (longueurs[a.porte.length] || 0) + 1; });
+  const habituelle = +Object.entries(longueurs).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const douteux = a => L.ocr && a.porte && a.porte.length !== habituelle;
+  $('lst-resume').textContent = `${gardes} appartement${gardes > 1 ? 's' : ''} du listing + « Stock syndic » + « Entreprise de nettoyage » = ${gardes + 2} appartements.`
+    + (L.ocr ? ' Document scanné : relisez bien les noms et les numéros.' : '');
+  $('lst-lignes').innerHTML = L.appartements.map((a, i) => `<tr class="${a.garder ? '' : 'ecarte'}">
+    <td><input type="checkbox" data-i="${i}" data-k="garder" ${a.garder ? 'checked' : ''} aria-label="Garder"></td>
+    <td><input data-i="${i}" data-k="batiment" value="${esc(a.batiment)}" size="8"></td>
+    <td><input data-i="${i}" data-k="porte" value="${esc(a.porte)}" size="4" ${douteux(a) ? 'class="doute" title="Numéro à vérifier"' : ''}></td>
+    <td><input data-i="${i}" data-k="etage" value="${esc(a.etage)}" size="3"></td>
+    <td><input data-i="${i}" data-k="nom" value="${a.nom === '(sans nom)' ? '' : esc(a.nom)}" placeholder="Nom à compléter" size="22" ${a.nom === '(sans nom)' ? 'class="doute"' : ''}></td>
+    <td><input data-i="${i}" data-k="tel" value="${esc(a.tel)}" size="12" inputmode="tel"></td>
+    <td><select data-i="${i}" data-k="modele"><option value="">— Aucun choix —</option>${[...new Set([...modeles, a.modele].filter(Boolean))].map(m => `<option ${m === a.modele ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+      ${a.choix ? `<div class="lu">lu : ${esc(a.choix)}</div>` : ''}</td>
+    <td><input data-i="${i}" data-k="badges" value="${a.badges ?? ''}" size="2" inputmode="numeric"></td>
+    <td><input type="checkbox" data-i="${i}" data-k="plaque" ${a.plaque ? 'checked' : ''} aria-label="Plaque"></td></tr>`).join('');
+  $('lst-lignes').querySelectorAll('[data-k]').forEach(el => el.addEventListener('change', () => {
+    const a = L.appartements[+el.dataset.i], k = el.dataset.k;
+    a[k] = el.type === 'checkbox' ? el.checked : k === 'badges' ? (el.value.trim() === '' ? null : Math.max(0, parseInt(el.value, 10) || 0)) : el.value.trim();
+    if (k === 'garder' || k === 'porte' || k === 'nom') rendreListing();
+  }));
+}
+async function ouvrirListing(f) {
+  const marque = $('nc-marque').value || 'Golmar';
+  $('depotListing').classList.add('lecture'); $('depotListingTexte').textContent = 'Lecture de « ' + f.name + ' »…';
+  try {
+    const r = await lireListing(f, marque, t => { $('depotListingTexte').textContent = t; });
+    if (!r.appartements.length) throw new Error(r.erreur || 'aucun propriétaire trouvé dans le document');
+    listingLu = { ...r, fichier: f.name };
+    $('lst-copropriete').value = r.copropriete || $('nc-client').value || '';
+    $('lst-adresse').value = r.adresse || ''; $('lst-reference').value = r.reference || '';
+    $('lst-marque').innerHTML = MARQUES.map(m => `<option ${m === marque ? 'selected' : ''}>${esc(m)}</option>`).join('');
+    $('lst-centrale').innerHTML = '<option value="">— Non précisée —</option>' + CENTRALES.map(m => `<option ${m === $('nc-centrale').value ? 'selected' : ''}>${esc(m)}</option>`).join('');
+    $('lst-fichier').textContent = f.name;
+    rendreListing(); $('dlgListing').showModal();
+  } catch (e) { toast('Lecture impossible : ' + e.message); }
+  finally { $('depotListing').classList.remove('lecture'); $('depotListingTexte').textContent = 'Déposez le listing du syndic'; }
+}
+$('lst-marque').addEventListener('change', () => {
+  // Nouvelle marque : les modèles sont relus à partir du texte d'origine (colonne cochée ou version).
+  for (const a of listingLu.appartements) if (a.choix) a.modele = modeleDuChoix(a.choix, listingLu.versions, $('lst-marque').value);
+  rendreListing();
+});
+const depotL = $('depotListing');
+depotL.onclick = () => $('fichierListing').click();
+depotL.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('fichierListing').click(); } };
+['dragenter', 'dragover'].forEach(t => depotL.addEventListener(t, e => { e.preventDefault(); depotL.classList.add('survol'); }));
+['dragleave', 'drop'].forEach(t => depotL.addEventListener(t, () => depotL.classList.remove('survol')));
+depotL.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) ouvrirListing(e.dataTransfer.files[0]); });
+$('fichierListing').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) ouvrirListing(f); });
+$('lst-annuler').onclick = () => $('dlgListing').close();
+$('lst-creer').onclick = async () => {
+  const L = listingLu, gardes = L.appartements.filter(a => a.garder && a.nom && a.nom !== '(sans nom)');
+  const sansNom = L.appartements.filter(a => a.garder && (!a.nom || a.nom === '(sans nom)')).length;
+  if (!gardes.length) return toast('Aucun appartement à créer.');
+  if (sansNom && !await demander('Lignes sans nom', `${sansNom} ligne${sansNom > 1 ? 's' : ''} sans propriétaire ne ser${sansNom > 1 ? 'ont' : 'a'} pas créée${sansNom > 1 ? 's' : ''}. Complétez le nom pour les garder.`, 'Créer sans elles')) return;
+  const copro = $('lst-copropriete').value.trim();
+  if (!copro) { $('lst-copropriete').focus(); return toast('Indiquez le nom de la copropriété.'); }
+  const c = clientNomme($('nc-client').value.trim());
+  clearTimeout(envoiEnAttente); await envoyerChantier();
+  etat = chantierVide({
+    residence: copro, copropriete: copro, adresse: $('lst-adresse').value.trim(), reference: $('lst-reference').value.trim(),
+    marque: $('lst-marque').value, centrale: $('lst-centrale').value,
+    donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null,
+    listingSyndic: L.fichier,
+  });
+  etat.logements = [
+    ...gardes.map(a => nouveauLogement({
+      batiment: a.batiment, etage: a.etage, porte: a.porte, nomAffiche: nomAfficheDe(a.nom), occupant: a.nom, nomListing: a.nom, tel: a.tel, email: a.email,
+      modele: a.modele, plaque: a.plaque, badgesPrevu: a.badges, badges: a.badges ? Array(a.badges).fill('') : [],
+      observations: a.choix && !a.modele ? `Choix sur le listing : ${a.choix}` : '',
+    })),
+    ...EXTRAS_LISTING.map(nom => nouveauLogement({ occupant: nom, nomListing: nom })),
+  ];
+  courantId = null; sauver(); rendreTout();
+  $('dlgListing').close(); $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = '';
+  toast(`Chantier créé : ${gardes.length} appartements + Stock syndic + Entreprise de nettoyage.`);
+  $('ouvrirChantier').click();
+};
 
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
 const PDFLIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';

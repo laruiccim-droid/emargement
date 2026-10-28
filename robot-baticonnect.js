@@ -12,7 +12,7 @@
 
   const SUPA = 'https://bqzebkobyfktemnwfwbt.supabase.co/rest/v1/emargements', CLE = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
   const ENTETES = { apikey: CLE, Authorization: 'Bearer ' + CLE };
-  const STOCK = 'Stock syndic', NETTOYAGE = 'Société de nettoyage';
+  const STOCK = 'Stock syndic', NETTOYAGE = 'Entreprise de nettoyage';
   const pause = ms => new Promise(r => setTimeout(r, ms));
   const visible = e => !!e && e.offsetParent !== null;
   const attendre = async (f, ms = 15000, quoi = 'la page') => {
@@ -33,15 +33,18 @@
     const badges = l => (l.badges || []).map(b => String(b).trim()).filter(Boolean);
     const apparts = reels.map(l => ({ nom: nomProp(l), badges: badges(l) })).filter(a => a.nom)
       .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-    // Badges des fiches sans logement : vers « Stock syndic » ou « Société de nettoyage » selon leur nom.
-    const stock = [], nettoyage = [];
-    for (const l of horsLogement) (/nettoy|menage|ménage|entretien/i.test(nomProp(l)) ? nettoyage : stock).push(...badges(l));
+    // Fiches sans logement (« Stock syndic », « Entreprise de nettoyage ») : leur nom et leurs badges ;
+    // à défaut, les deux appartements sont créés quand même avec les noms habituels.
+    const fiche = re => horsLogement.filter(l => re.test(nomProp(l)));
+    const nett = fiche(/nettoy|menage|ménage|entretien/i), stk = horsLogement.filter(l => !nett.includes(l));
+    const nettoyage = { nom: nett[0] ? nomProp(nett[0]) : NETTOYAGE, badges: nett.flatMap(badges) };
+    const stock = { nom: stk[0] ? nomProp(stk[0]) : STOCK, badges: stk.flatMap(badges) };
     return {
       site: (ch.copropriete || ch.residence || '').trim(), adresse, cp, ville,
       departement: /^\d{5}$/.test(cp) ? cp.slice(0, 2) : '73',
       batiment: (ch.batimentVigik || ch.residence || '').trim(),
       // 000 = Société de nettoyage, puis les propriétaires par ordre alphabétique, puis le stock du syndic.
-      apparts: [{ nom: NETTOYAGE, badges: nettoyage }, ...apparts, { nom: STOCK, badges: stock }],
+      apparts: [nettoyage, ...apparts, stock],
     };
   }
 
