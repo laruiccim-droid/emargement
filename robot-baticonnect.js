@@ -27,24 +27,24 @@
   function plan(ch) {
     const m = (ch.adresse || '').match(/^(.*?)[,\s]*(\d{5})\s+(.+)$/);
     const adresse = m ? m[1].trim() : (ch.adresse || '').trim(), cp = m ? m[2] : '', ville = m ? m[3].trim() : '';
-    const reels = ch.logements.filter(l => l.porte || l.etage);
-    const horsLogement = ch.logements.filter(l => !(l.porte || l.etage));
+    // Titulaires hors logement (Stock syndic, Entreprise de nettoyage, ascensoriste…) : un appartement chacun.
+    const horsLogement = l => !!l.horsLogement || (!l.porte && !l.etage && !(l.nomAffiche || '').trim()
+      && /stock|nettoy|syndic|agence|ascens|gardien|entretien|espaces? verts|pompier|maintenance/i.test(l.occupant || ''));
+    const reels = ch.logements.filter(l => !horsLogement(l)), titulaires = ch.logements.filter(horsLogement);
     const nomProp = l => (l.nomListing || l.proprietaire || l.occupant || l.nomAffiche || '').trim();
     const badges = l => (l.badges || []).map(b => String(b).trim()).filter(Boolean);
     const apparts = reels.map(l => ({ nom: nomProp(l), badges: badges(l) })).filter(a => a.nom)
       .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-    // Fiches sans logement (« Stock syndic », « Entreprise de nettoyage ») : leur nom et leurs badges ;
-    // à défaut, les deux appartements sont créés quand même avec les noms habituels.
-    const fiche = re => horsLogement.filter(l => re.test(nomProp(l)));
-    const nett = fiche(/nettoy|menage|ménage|entretien/i), stk = horsLogement.filter(l => !nett.includes(l));
-    const nettoyage = { nom: nett[0] ? nomProp(nett[0]) : NETTOYAGE, badges: nett.flatMap(badges) };
-    const stock = { nom: stk[0] ? nomProp(stk[0]) : STOCK, badges: stk.flatMap(badges) };
+    const t = titulaires.map(l => ({ nom: nomProp(l), badges: badges(l) })).filter(a => a.nom);
+    const estNett = a => /nettoy|menage|ménage|entretien/i.test(a.nom), estStock = a => /stock/i.test(a.nom);
+    const nettoyage = t.find(estNett) || { nom: NETTOYAGE, badges: [] }, stock = t.find(estStock) || { nom: STOCK, badges: [] };
+    const autres = t.filter(a => a !== nettoyage && a !== stock);
     return {
       site: (ch.copropriete || ch.residence || '').trim(), adresse, cp, ville,
       departement: /^\d{5}$/.test(cp) ? cp.slice(0, 2) : '73',
       batiment: (ch.batimentVigik || ch.residence || '').trim(),
-      // 000 = Société de nettoyage, puis les propriétaires par ordre alphabétique, puis le stock du syndic.
-      apparts: [nettoyage, ...apparts, stock],
+      // Entreprise de nettoyage en premier, puis les propriétaires, les autres intervenants et le stock du syndic.
+      apparts: [nettoyage, ...apparts, ...autres, stock],
     };
   }
 
