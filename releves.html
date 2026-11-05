@@ -529,6 +529,22 @@ $('exportPhotos').onclick = async () => {
   partagerOuTelecharger(fichiers);
 };
 
+// Le logo est clair (pensé pour le fond noir de l'app) : sur le papier blanc du rapport,
+// « HARMONIE » (blanc et gris) passe en noir, « ÉLECTRICITÉ » garde son or.
+async function logoPourPapier() {
+  const img = await chargerImage(LOGO_WORDMARK);
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4) {
+    if (!px[i + 3]) continue;
+    const r = px[i], v = px[i + 1], b = px[i + 2];
+    if (Math.max(r, v, b) - Math.min(r, v, b) < 30) { px[i] = px[i + 1] = px[i + 2] = 10; }
+  }
+  g.putImageData(d, 0, 0);
+  return c.toDataURL('image/png');
+}
+
 $('exportPdf').onclick = async () => {
   if (!window.jspdf) { toast('Module PDF non chargé : ouvrez la page une fois avec du réseau.'); return; }
   const btn = $('exportPdf'); btn.disabled = true; toast('Création du rapport…');
@@ -539,7 +555,7 @@ $('exportPdf').onclick = async () => {
     const tout = lignes(), faits = tout.filter(l => etatPlace(l.r) === 'fait').length;
 
     // Page 1 : récapitulatif
-    try { pdf.addImage(LOGO_WORDMARK, 'PNG', M, 12, 50, 17); } catch (e) {}
+    try { pdf.addImage(await logoPourPapier(), 'PNG', M, 12, 50, 17); } catch (e) {}
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(20);
     pdf.text('Relevé des compteurs des bornes de recharge', M, 40);
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(70);
@@ -576,27 +592,46 @@ $('exportPdf').onclick = async () => {
       y += h;
     });
 
-    // Pages suivantes : photos des compteurs, deux par page
-    const avec = tout.filter(l => l.r?.photo);
+    // Pages suivantes : une fiche par place relevée (photo et/ou remarque), deux par page
+    const avec = tout.filter(l => l.r?.photo || l.r?.note);
     for (let i = 0; i < avec.length; i++) {
       const { niv, place, r } = avec[i];
       if (i % 2 === 0) pdf.addPage();
-      const top = i % 2 === 0 ? M : H / 2 + 2, hauteur = H / 2 - M - 4;
+      const top = i % 2 === 0 ? M : H / 2 + 2, hauteur = H / 2 - M - 4, boiteW = W - 2 * M;
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(20);
       pdf.text(`Place ${place} — ${niv.nom}`, M, top + 4);
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(70);
       pdf.text(`${dateFr(r.date)}   ·   Index : ${r.index != null ? kwh(r.index) : 'non saisi'}${r.compteur ? '   ·   Compteur ' + r.compteur : ''}`, M, top + 9);
-      const src = await photoTamponnee(r.photo, niv.nom, place, r);
-      const img = await chargerImage(src);
-      const boiteW = W - 2 * M, boiteH = hauteur - 14;
-      const k = Math.min(boiteW / img.naturalWidth, boiteH / img.naturalHeight);
-      const iw = img.naturalWidth * k, ih = img.naturalHeight * k;
-      pdf.addImage(src, 'JPEG', M + (boiteW - iw) / 2, top + 12, iw, ih);
+      let y = top + 12;
+      if (r.note) {
+        // Remarque du technicien, dans un encadré sous l'en-tête de la fiche
+        pdf.setFontSize(9.5);
+        const texte = pdf.splitTextToSize(r.note, boiteW - 8).slice(0, 6);
+        const hNote = 8 + texte.length * 4.2;
+        pdf.setFillColor(244, 241, 234); pdf.rect(M, y, boiteW, hNote, 'F');
+        pdf.setFillColor(201, 168, 106); pdf.rect(M, y, 1.2, hNote, 'F');
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(140, 110, 55);
+        pdf.text('REMARQUE', M + 4, y + 4.5);
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(30);
+        pdf.text(texte, M + 4, y + 9);
+        y += hNote + 3;
+      }
+      if (r.photo) {
+        const src = await photoTamponnee(r.photo, niv.nom, place, r);
+        const img = await chargerImage(src);
+        const boiteH = top + hauteur - y;
+        const k = Math.min(boiteW / img.naturalWidth, boiteH / img.naturalHeight);
+        const iw = img.naturalWidth * k, ih = img.naturalHeight * k;
+        pdf.addImage(src, 'JPEG', M + (boiteW - iw) / 2, y, iw, ih);
+      } else {
+        pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9); pdf.setTextColor(120);
+        pdf.text('Pas de photo du compteur.', M, y + 4);
+      }
     }
 
     const n = pdf.getNumberOfPages();
     for (let p = 1; p <= n; p++) {
-      pdf.setPage(p); pdf.setFontSize(8); pdf.setTextColor(120);
+      pdf.setPage(p); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(120);
       pdf.text(`Harmonie Électricité — Relevé des bornes — ${config.residence || ''}`, M, H - 7);
       pdf.text(`${p} / ${n}`, W - M, H - 7, { align: 'right' });
     }
