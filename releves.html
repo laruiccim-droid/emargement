@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<title>Relevé des bornes</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icone-192.png">
+<link rel="apple-touch-icon" href="assets/icone-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
+<style>
+/* Relevé des compteurs des bornes de recharge : une carte par place de parking,
+   index + photo du compteur + date. Même design system que l'émargement. */
+:root {
+  color-scheme: dark;
+  --he-black: #0A0A0A; --he-gold: #C9A86A; --he-gold-light: #DFC28C; --he-gold-dark: #A8843F; --he-white: #F4F1EA;
+  --ink-800: #111111; --ink-700: #181818; --ink-600: #222222; --ink-500: #2C2C2C;
+  --grey-300: #A8A49A; --grey-400: #857F74; --grey-500: #635D52;
+  --text: #C8C4BA;
+  --border-hairline: rgba(201,168,106,0.12); --border-subtle: rgba(201,168,106,0.20); --border-strong: rgba(201,168,106,0.40);
+  --grad-gold: linear-gradient(135deg, #C9A86A 0%, #DFC28C 50%, #C9A86A 100%);
+  --grad-ink: linear-gradient(160deg, #111111 0%, #0A0A0A 60%, #0d0c09 100%);
+  --glow-gold-sm: 0 0 12px rgba(201,168,106,0.25), 0 0 4px rgba(201,168,106,0.15);
+  --glow-node: 0 0 8px rgba(201,168,106,0.60);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ok: #9DB07F; --attention: #D9A35B; --erreur: #C8705F;
+  --font: 'Jost', system-ui, 'Segoe UI', sans-serif;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 14px; --fs-lead: 15px; --fs-lg: 17px; --fs-xl: 20px; --fs-2xl: 26px;
+  --ls-wide: 0.10em; --ls-widest: 0.22em;
+  --r-sm: 4px; --r-md: 8px;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0; font-family: var(--font); font-size: var(--fs-base); color: var(--text);
+  background: var(--he-black); background-image: var(--grad-ink); background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 1.5px solid var(--he-gold); outline-offset: 2px; }
+[hidden] { display: none !important; }
+svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.entete {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(10,10,10,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-hairline);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+}
+.entete-haut { display: flex; align-items: center; gap: 12px; }
+.monogramme { width: 34px; height: 34px; flex: none; }
+.entete-titre { min-width: 0; flex: 1; }
+.sourcil { font-size: var(--fs-xs); letter-spacing: var(--ls-widest); text-transform: uppercase; color: var(--he-gold); font-weight: 500; }
+.entete h1 { margin: 2px 0 0; font-weight: 300; font-size: var(--fs-xl); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.progres { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+.barre { flex: 1; height: 2px; background: var(--ink-500); position: relative; border-radius: 2px; }
+.barre i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--he-gold); box-shadow: var(--glow-node); transition: width 700ms var(--ease); }
+.compte { font-size: var(--fs-sm); letter-spacing: var(--ls-wide); text-transform: uppercase; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.compte b { color: var(--he-white); font-weight: 500; font-size: var(--fs-lead); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); background: transparent; color: var(--he-white);
+  font-size: var(--fs-sm); font-weight: 500; letter-spacing: var(--ls-wide); text-transform: uppercase;
+  transition: 150ms var(--ease); text-decoration: none; white-space: nowrap;
+}
+.btn:hover { border-color: var(--he-gold); color: var(--he-gold-light); box-shadow: var(--glow-gold-sm); }
+.btn:active { transform: scale(0.98); }
+.btn-or { background: var(--grad-gold); border-color: transparent; color: var(--he-black); font-weight: 600; }
+.btn-or:hover { color: var(--he-black); filter: brightness(1.06); }
+.btn-discret { border-color: transparent; color: var(--grey-300); }
+.btn-carre { width: 44px; padding: 0; flex: none; }
+.btn-danger { color: var(--erreur); border-color: rgba(200,112,95,.45); }
+.btn:disabled { opacity: .45; pointer-events: none; }
+
+main { max-width: 980px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.consignes { border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: 12px 14px; background: rgba(17,17,17,.9); line-height: 1.5; }
+.consignes ul { margin: 6px 0 0; padding-left: 18px; }
+.consignes li { margin: 2px 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 4px; }
+.niveau { margin-top: 22px; }
+.niveau-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border-hairline); padding-bottom: 6px; }
+.niveau-tete h2 { margin: 0; font-weight: 300; font-size: var(--fs-lg); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white); }
+.niveau-tete span { font-size: var(--fs-sm); color: var(--grey-300); font-variant-numeric: tabular-nums; }
+.grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.place {
+  position: relative; text-align: left; border: 1px solid var(--border-subtle); border-radius: var(--r-md);
+  background: rgba(17,17,17,.9); padding: 10px; min-height: 96px; display: flex; gap: 10px; align-items: stretch;
+  transition: 150ms var(--ease); color: var(--text);
+}
+.place:hover { border-color: var(--he-gold); box-shadow: var(--glow-gold-sm); }
+.place .num { font-size: var(--fs-2xl); font-weight: 300; color: var(--he-white); line-height: 1; font-variant-numeric: tabular-nums; }
+.place .infos { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+.place .etat { font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-400); }
+.place .index { font-size: var(--fs-lead); color: var(--he-white); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.place .date { font-size: var(--fs-xs); color: var(--grey-300); }
+.place .vignette { width: 52px; flex: none; border-radius: var(--r-sm); background: var(--ink-600) center/cover no-repeat; border: 1px solid var(--border-hairline); display: grid; place-items: center; color: var(--grey-500); }
+.place.fait { border-color: rgba(157,176,127,.55); }
+.place.fait .etat { color: var(--ok); }
+.place.partiel .etat { color: var(--attention); }
+
+dialog { border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--ink-800); color: var(--text); padding: 0;
+  width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); }
+dialog::backdrop { background: rgba(0,0,0,.7); }
+.dlg { padding: 18px; }
+.dlg h3 { margin: 4px 0 12px; font-weight: 300; font-size: var(--fs-xl); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white); }
+.champ { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+.champ label { font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-300); }
+.champ input, .champ textarea, .champ select {
+  min-height: 44px; border: 1px solid var(--border-subtle); background: var(--ink-700); border-radius: var(--r-sm); padding: 8px 12px; width: 100%;
+}
+.champ input:focus, .champ textarea:focus { border-color: var(--he-gold); outline: none; }
+.champ input.gros { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--he-white); }
+.ligne { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ligne .champ { min-width: 0; }
+.aide { font-size: var(--fs-sm); color: var(--grey-400); margin: 6px 0 0; line-height: 1.45; }
+.photo-zone { margin-top: 12px; border: 1px dashed var(--border-strong); border-radius: var(--r-md); min-height: 120px; display: grid; place-items: center; overflow: hidden; background: var(--ink-700); }
+.photo-zone img { display: block; width: 100%; height: auto; }
+.photo-zone .vide { color: var(--grey-400); font-size: var(--fs-sm); padding: 20px; text-align: center; }
+.dlg-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.dlg-actions.gauche { justify-content: flex-start; }
+.dlg-actions .espace { flex: 1; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); opacity: 0;
+  background: var(--ink-600); border: 1px solid var(--border-strong); color: var(--he-white); padding: 10px 16px; border-radius: var(--r-sm);
+  transition: 250ms var(--ease); pointer-events: none; z-index: 50; max-width: calc(100vw - 32px); text-align: center; }
+.toast.vu { opacity: 1; transform: translateX(-50%) translateY(0); }
+.liste-places { font-variant-numeric: tabular-nums; }
+@media (max-width: 420px) {
+  .grille { grid-template-columns: 1fr 1fr; }
+  .ligne { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+</svg>
+
+<header class="entete">
+  <div class="entete-haut">
+    <a href="./" class="btn btn-carre btn-discret" title="Retour à l’émargement" aria-label="Retour"><svg class="ic"><use href="#i-back"/></svg></a>
+    <img class="monogramme" id="monogramme" alt="Harmonie Électricité">
+    <div class="entete-titre">
+      <div class="sourcil">Relevé des bornes de recharge</div>
+      <h1 id="titreResidence">Résidence</h1>
+    </div>
+    <button type="button" class="btn btn-carre" id="ouvrirReglages" title="Résidence et places" aria-label="Réglages"><svg class="ic"><use href="#i-settings"/></svg></button>
+  </div>
+  <div class="progres">
+    <div class="barre"><i id="barre" style="width:0"></i></div>
+    <div class="compte"><b id="nbFaits">0</b> / <span id="nbTotal">0</span> relevés</div>
+  </div>
+</header>
+
+<main>
+  <div class="consignes">
+    <div class="sourcil">Consignes</div>
+    <ul id="consignes"></ul>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn btn-or" id="exportPdf"><svg class="ic"><use href="#i-file"/></svg>Rapport PDF</button>
+    <button type="button" class="btn" id="exportCsv"><svg class="ic"><use href="#i-table"/></svg>Tableau CSV</button>
+    <button type="button" class="btn" id="exportPhotos"><svg class="ic"><use href="#i-image"/></svg>Photos</button>
+  </div>
+  <div id="niveaux"></div>
+</main>
+
+<!-- Saisie d'un relevé -->
+<dialog id="dlgReleve">
+  <form class="dlg" method="dialog" id="formReleve">
+    <div class="sourcil" id="rNiveau"></div>
+    <h3 id="rTitre">Place</h3>
+    <div class="champ"><label for="rIndex">Index relevé (kWh)</label>
+      <input type="text" id="rIndex" class="gros" inputmode="decimal" autocomplete="off" placeholder="ex. 1234,5"></div>
+    <div class="ligne">
+      <div class="champ"><label for="rDate">Date et heure du relevé</label><input type="datetime-local" id="rDate"></div>
+      <div class="champ"><label for="rCompteur">N° du compteur (facultatif)</label><input type="text" id="rCompteur" autocomplete="off"></div>
+    </div>
+    <div class="photo-zone" id="rPhotoZone"><div class="vide">Aucune photo du compteur</div></div>
+    <p class="aide">La place, le niveau, la date et l’index sont inscrits sur la photo.</p>
+    <div class="dlg-actions gauche">
+      <button type="button" class="btn" id="rPhotoCamera"><svg class="ic"><use href="#i-camera"/></svg>Photographier</button>
+      <button type="button" class="btn" id="rPhotoGalerie"><svg class="ic"><use href="#i-image"/></svg>Galerie</button>
+      <button type="button" class="btn btn-discret" id="rPhotoSuppr" hidden>Retirer la photo</button>
+    </div>
+    <div class="champ"><label for="rNote">Remarque</label><textarea id="rNote" rows="2" placeholder="Compteur illisible, borne absente…"></textarea></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-discret btn-danger" id="rEffacer">Effacer</button>
+      <span class="espace"></span>
+      <button type="button" class="btn" id="rAnnuler">Annuler</button>
+      <button type="submit" class="btn btn-or" id="rEnregistrer">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+<input type="file" id="fichierCamera" accept="image/*" capture="environment" hidden>
+<input type="file" id="fichierGalerie" accept="image/*" hidden>
+
+<!-- Réglages : résidence et liste des places -->
+<dialog id="dlgReglages">
+  <form class="dlg" method="dialog" id="formReglages">
+    <div class="sourcil">Relevé des bornes</div>
+    <h3>Résidence et places</h3>
+    <div class="champ"><label for="gResidence">Résidence</label><input type="text" id="gResidence"></div>
+    <div class="champ"><label for="gSyndic">Syndic (demandeur)</label><input type="text" id="gSyndic"></div>
+    <div class="champ"><label for="gConsignes">Consignes (une par ligne)</label><textarea id="gConsignes" rows="4"></textarea></div>
+    <div class="champ"><label for="gRdc">Places du rez-de-chaussée</label><input type="text" id="gRdc" class="liste-places"></div>
+    <div class="champ"><label for="gR1">Places du R+1</label><input type="text" id="gR1" class="liste-places"></div>
+    <p class="aide">Numéros séparés par des espaces ou des virgules ; « 84-89 » ajoute toutes les places de 84 à 89. Les relevés déjà faits sont conservés.</p>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-discret btn-danger" id="gToutEffacer">Nouvelle campagne</button>
+      <span class="espace"></span>
+      <button type="button" class="btn" id="gAnnuler">Annuler</button>
+      <button type="submit" class="btn btn-or">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="logos.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   Relevé des compteurs des bornes de recharge (véhicules électriques)
+   Une place = un relevé : index en kWh, date, photo du compteur.
+   Tout reste sur l'appareil (IndexedDB) : marche sans réseau au sous-sol.
+   ============================================================ */
+
+const CONFIG_DEFAUT = {
+  residence: 'Land’Art',
+  syndic: '',
+  consignes: [
+    'Relevé à faire après le 23 septembre 2026, à la demande du syndic.',
+    'Rez-de-chaussée et R+1 : compteurs à 3 m de haut, prévoir une échelle.',
+    'Clés disponibles à l’agence de Méry.',
+  ].join('\n'),
+  niveaux: [
+    { id: 'RDC', nom: 'Rez-de-chaussée', places: ['37','38','39','40','41','42','43','44','45','46','22','23','24','25','26'] },
+    { id: 'R1', nom: 'R+1', places: ['74','75','76','77','78','79','80','81','82','83','90','60','61','62','63','64'] },
+  ],
+};
+
+// ---------- Stockage (IndexedDB, avec repli localStorage) ----------
+const BASE = 'releves-bornes', MAG = 'donnees';
+let db = null;
+function ouvrirBase() {
+  return new Promise(resolve => {
+    try {
+      const req = indexedDB.open(BASE, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(MAG);
+      req.onsuccess = () => { db = req.result; resolve(); };
+      req.onerror = () => resolve();
+    } catch (e) { resolve(); }
+  });
+}
+function lire(cle) {
+  if (!db) { try { return Promise.resolve(JSON.parse(localStorage.getItem(BASE + ':' + cle))); } catch (e) { return Promise.resolve(null); } }
+  return new Promise(resolve => {
+    const r = db.transaction(MAG).objectStore(MAG).get(cle);
+    r.onsuccess = () => resolve(r.result ?? null); r.onerror = () => resolve(null);
+  });
+}
+function ecrire(cle, val) {
+  if (!db) { try { localStorage.setItem(BASE + ':' + cle, JSON.stringify(val)); return Promise.resolve(); } catch (e) { return Promise.reject(e); } }
+  return new Promise((resolve, reject) => {
+    const t = db.transaction(MAG, 'readwrite'); t.objectStore(MAG).put(val, cle);
+    t.oncomplete = () => resolve(); t.onerror = () => reject(t.error);
+  });
+}
+
+let config = null;        // résidence, consignes, niveaux et places
+let releves = {};         // clé "RDC-37" → { index, date, compteur, note, photo (dataURL) }
+
+const $ = id => document.getElementById(id);
+const cle = (niv, place) => niv + '-' + place;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('vu');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('vu'), 2600);
+}
+
+// ---------- Dates et nombres ----------
+const pad = n => String(n).padStart(2, '0');
+function versLocal(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function dateFr(iso, avecHeure = true) {
+  if (!iso) return '';
+  const d = new Date(iso); if (isNaN(d)) return '';
+  const j = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return avecHeure ? `${j} ${pad(d.getHours())}:${pad(d.getMinutes())}` : j;
+}
+function lireNombre(txt) {
+  const s = String(txt ?? '').replace(/\s/g, '').replace(',', '.');
+  if (!s) return null;
+  const n = Number(s); return isFinite(n) ? n : NaN;
+}
+// Espaces des milliers en espace simple : la police du PDF ne connaît pas l'espace fine insécable.
+const nombreFr = n => n.toLocaleString('fr-FR', { maximumFractionDigits: 3 }).replace(/[\u202f\u00a0]/g, ' ');
+const kwh = n => n == null ? '' : nombreFr(n) + ' kWh';
+
+// ---------- Liste des places ----------
+function lirePlaces(txt) {
+  const out = [];
+  for (const morceau of String(txt).split(/[\s,;]+/).filter(Boolean)) {
+    const m = morceau.match(/^(\d+)-(\d+)$/);
+    if (m && +m[2] >= +m[1] && +m[2] - +m[1] < 200) { for (let i = +m[1]; i <= +m[2]; i++) out.push(String(i)); }
+    else out.push(morceau);
+  }
+  return [...new Set(out)];
+}
+
+function etatPlace(r) {
+  if (!r) return 'afaire';
+  const aIndex = r.index != null, aPhoto = !!r.photo;
+  return aIndex && aPhoto ? 'fait' : (aIndex || aPhoto || r.note ? 'partiel' : 'afaire');
+}
+
+function rendre() {
+  $('titreResidence').textContent = config.residence || 'Résidence';
+  $('consignes').innerHTML = config.consignes.split('\n').filter(l => l.trim()).map(l => `<li>${esc(l)}</li>`).join('');
+  let total = 0, faits = 0;
+  $('niveaux').innerHTML = config.niveaux.map(niv => {
+    let nFaits = 0;
+    const cartes = niv.places.map(p => {
+      const r = releves[cle(niv.id, p)], etat = etatPlace(r);
+      total++; if (etat === 'fait') { faits++; nFaits++; }
+      const libEtat = etat === 'fait' ? 'Relevé' : etat === 'partiel' ? (r.index == null ? 'Index manquant' : r.photo ? 'À compléter' : 'Photo manquante') : 'À relever';
+      const vignette = r?.photo ? `<span class="vignette" style="background-image:url('${r.photo}')"></span>`
+        : `<span class="vignette"><svg class="ic"><use href="#i-camera"/></svg></span>`;
+      return `<button type="button" class="place ${etat === 'afaire' ? '' : etat}" data-niv="${esc(niv.id)}" data-place="${esc(p)}">
+        <span class="infos"><span class="num">${esc(p)}</span>
+          <span class="etat">${libEtat}</span>
+          ${r?.index != null ? `<span class="index">${esc(kwh(r.index))}</span>` : ''}
+          ${r?.date && etat !== 'afaire' ? `<span class="date">${esc(dateFr(r.date))}</span>` : ''}</span>
+        ${vignette}</button>`;
+    }).join('');
+    return `<section class="niveau"><div class="niveau-tete"><h2>${esc(niv.nom)}</h2><span>${nFaits} / ${niv.places.length}</span></div>
+      <div class="grille">${cartes}</div></section>`;
+  }).join('');
+  $('nbFaits').textContent = faits; $('nbTotal').textContent = total;
+  $('barre').style.width = total ? (100 * faits / total) + '%' : '0';
+}
+
+$('niveaux').addEventListener('click', e => {
+  const b = e.target.closest('.place'); if (b) ouvrirReleve(b.dataset.niv, b.dataset.place);
+});
+
+// ---------- Photo : réduction et inscription de la place / date / index ----------
+function chargerImage(src) {
+  return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = src; });
+}
+async function reduirePhoto(fichier, max = 1600) {
+  const url = URL.createObjectURL(fichier);
+  try {
+    const img = await chargerImage(url);
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85);
+  } finally { URL.revokeObjectURL(url); }
+}
+// La photo d'origine reste intacte ; le bandeau est ajouté à l'affichage et à l'export,
+// pour suivre l'index ou la date corrigés après la prise de vue.
+async function photoTamponnee(photo, niveauNom, place, r) {
+  const img = await chargerImage(photo);
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const fs = Math.max(16, Math.round(Math.min(w, h) * 0.045));
+  const bande = Math.round(fs * 3.1);
+  const c = document.createElement('canvas'); c.width = w; c.height = h + bande;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  g.fillStyle = '#0A0A0A'; g.fillRect(0, h, w, bande);
+  g.fillStyle = '#C9A86A'; g.fillRect(0, h, w, Math.max(2, Math.round(fs * 0.12)));
+  const marge = Math.round(fs * 0.7);
+  g.textBaseline = 'middle';
+  g.font = `600 ${fs}px Jost, system-ui, sans-serif`; g.fillStyle = '#F4F1EA';
+  g.fillText(`PLACE ${place} · ${niveauNom.toUpperCase()}`, marge, h + bande * 0.33, w - 2 * marge);
+  g.font = `400 ${Math.round(fs * 0.82)}px Jost, system-ui, sans-serif`; g.fillStyle = '#C9A86A';
+  const ligne2 = [dateFr(r.date) || 'date non saisie', r.index != null ? 'Index ' + kwh(r.index) : 'index non saisi', r.compteur ? 'Compteur ' + r.compteur : ''].filter(Boolean).join('  ·  ');
+  g.fillText(ligne2, marge, h + bande * 0.72, w - 2 * marge);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+
+// ---------- Saisie d'un relevé ----------
+let courant = null; // { niv, place, photo }
+function niveau(id) { return config.niveaux.find(n => n.id === id); }
+
+function ouvrirReleve(nivId, place) {
+  const r = releves[cle(nivId, place)] || {};
+  courant = { niv: nivId, place, photo: r.photo || null };
+  $('rNiveau').textContent = niveau(nivId).nom;
+  $('rTitre').textContent = 'Place ' + place;
+  $('rIndex').value = r.index != null ? String(r.index).replace('.', ',') : '';
+  $('rDate').value = versLocal(r.date ? new Date(r.date) : new Date());
+  $('rCompteur').value = r.compteur || '';
+  $('rNote').value = r.note || '';
+  $('rEffacer').hidden = !releves[cle(nivId, place)];
+  apercu();
+  $('dlgReleve').showModal();
+}
+function valeursSaisies() {
+  const d = $('rDate').value ? new Date($('rDate').value) : new Date();
+  return { index: lireNombre($('rIndex').value), date: d.toISOString(), compteur: $('rCompteur').value.trim(), note: $('rNote').value.trim() };
+}
+async function apercu() {
+  const zone = $('rPhotoZone');
+  $('rPhotoSuppr').hidden = !courant.photo;
+  if (!courant.photo) { zone.innerHTML = '<div class="vide">Aucune photo du compteur</div>'; return; }
+  const v = valeursSaisies(); if (Number.isNaN(v.index)) v.index = null;
+  const src = await photoTamponnee(courant.photo, niveau(courant.niv).nom, courant.place, v);
+  zone.innerHTML = `<img alt="Compteur de la place ${esc(courant.place)}" src="${src}">`;
+}
+let delaiApercu;
+for (const id of ['rIndex', 'rDate', 'rCompteur']) $(id).addEventListener('input', () => { clearTimeout(delaiApercu); delaiApercu = setTimeout(apercu, 300); });
+
+$('rPhotoCamera').onclick = () => $('fichierCamera').click();
+$('rPhotoGalerie').onclick = () => $('fichierGalerie').click();
+for (const id of ['fichierCamera', 'fichierGalerie']) {
+  $(id).addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f || !courant) return;
+    try { courant.photo = await reduirePhoto(f); await apercu(); }
+    catch (err) { toast('Photo illisible, réessayez.'); }
+  });
+}
+$('rPhotoSuppr').onclick = () => { courant.photo = null; apercu(); };
+$('rAnnuler').onclick = () => $('dlgReleve').close();
+$('rEffacer').onclick = async () => {
+  if (!confirm(`Effacer le relevé de la place ${courant.place} ?`)) return;
+  delete releves[cle(courant.niv, courant.place)];
+  await ecrire('releves', releves); $('dlgReleve').close(); rendre();
+};
+$('formReleve').addEventListener('submit', async e => {
+  e.preventDefault();
+  const v = valeursSaisies();
+  if (Number.isNaN(v.index)) { toast('Index invalide : chiffres uniquement, virgule pour les décimales.'); $('rIndex').focus(); return; }
+  const r = { ...v, photo: courant.photo };
+  if (r.index == null && !r.photo && !r.note && !r.compteur) { $('dlgReleve').close(); return; }
+  releves[cle(courant.niv, courant.place)] = r;
+  try { await ecrire('releves', releves); }
+  catch (err) { toast('Mémoire du téléphone pleine : relevé non enregistré.'); return; }
+  $('dlgReleve').close(); rendre();
+  toast(`Place ${courant.place} enregistrée`);
+});
+
+// ---------- Réglages ----------
+$('ouvrirReglages').onclick = () => {
+  $('gResidence').value = config.residence; $('gSyndic').value = config.syndic; $('gConsignes').value = config.consignes;
+  $('gRdc').value = config.niveaux[0].places.join(' '); $('gR1').value = config.niveaux[1].places.join(' ');
+  $('dlgReglages').showModal();
+};
+$('gAnnuler').onclick = () => $('dlgReglages').close();
+$('formReglages').addEventListener('submit', async e => {
+  e.preventDefault();
+  config.residence = $('gResidence').value.trim() || 'Résidence';
+  config.syndic = $('gSyndic').value.trim();
+  config.consignes = $('gConsignes').value;
+  config.niveaux[0].places = lirePlaces($('gRdc').value);
+  config.niveaux[1].places = lirePlaces($('gR1').value);
+  await ecrire('config', config); $('dlgReglages').close(); rendre();
+});
+$('gToutEffacer').onclick = async () => {
+  if (!confirm('Effacer tous les relevés et photos pour commencer une nouvelle campagne ? Pensez à exporter le rapport avant.')) return;
+  releves = {}; await ecrire('releves', releves); $('dlgReglages').close(); rendre(); toast('Relevés effacés');
+};
+
+// ---------- Exports ----------
+function lignes() {
+  const out = [];
+  for (const niv of config.niveaux) for (const p of niv.places) out.push({ niv, place: p, r: releves[cle(niv.id, p)] || null });
+  return out;
+}
+function nomFichier(ext) {
+  const base = ('Releve-bornes-' + (config.residence || '') + '-' + versLocal(new Date()).slice(0, 10)).replace(/[^\w\-]+/g, '-').replace(/-+/g, '-');
+  return base + '.' + ext;
+}
+async function partagerOuTelecharger(fichiers) {
+  if (navigator.canShare && navigator.canShare({ files: fichiers })) {
+    try { await navigator.share({ files: fichiers, title: 'Relevé des bornes de recharge' }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  for (const f of fichiers) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+$('exportCsv').onclick = () => {
+  const entete = ['Niveau', 'Place', 'Index (kWh)', 'Date du relevé', 'N° compteur', 'Photo', 'Remarque'];
+  const champ = v => /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  const corps = lignes().map(({ niv, place, r }) => [niv.nom, place, r?.index != null ? String(r.index).replace('.', ',') : '',
+    r ? dateFr(r.date) : '', r?.compteur || '', r?.photo ? 'oui' : 'non', r?.note || ''].map(v => champ(String(v))).join(';'));
+  const csv = '﻿' + [entete.join(';'), ...corps].join('\r\n');
+  partagerOuTelecharger([new File([csv], nomFichier('csv'), { type: 'text/csv' })]);
+};
+
+function dataUrlVersFichier(dataUrl, nom) {
+  const [tete, b64] = dataUrl.split(','), bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new File([u], nom, { type: tete.match(/:(.*?);/)[1] });
+}
+
+$('exportPhotos').onclick = async () => {
+  const avec = lignes().filter(l => l.r?.photo);
+  if (!avec.length) { toast('Aucune photo pour l’instant.'); return; }
+  toast('Préparation des photos…');
+  const fichiers = [];
+  for (const { niv, place, r } of avec) {
+    const src = await photoTamponnee(r.photo, niv.nom, place, r);
+    fichiers.push(dataUrlVersFichier(src, `Place-${place}_${niv.id}_${(r.date || '').slice(0, 10)}.jpg`));
+  }
+  partagerOuTelecharger(fichiers);
+};
+
+$('exportPdf').onclick = async () => {
+  if (!window.jspdf) { toast('Module PDF non chargé : ouvrez la page une fois avec du réseau.'); return; }
+  const btn = $('exportPdf'); btn.disabled = true; toast('Création du rapport…');
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, M = 15;
+    const tout = lignes(), faits = tout.filter(l => etatPlace(l.r) === 'fait').length;
+
+    // Page 1 : récapitulatif
+    try { pdf.addImage(LOGO_WORDMARK, 'PNG', M, 12, 50, 17); } catch (e) {}
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(20);
+    pdf.text('Relevé des compteurs des bornes de recharge', M, 40);
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(70);
+    const dates = tout.filter(l => l.r?.date && etatPlace(l.r) !== 'afaire').map(l => new Date(l.r.date)).sort((a, b) => a - b);
+    const infos = [
+      'Résidence : ' + (config.residence || ''),
+      config.syndic ? 'Syndic : ' + config.syndic : '',
+      dates.length ? 'Relevés effectués ' + (dateFr(dates[0], false) === dateFr(dates.at(-1), false) ? 'le ' + dateFr(dates[0], false) : 'du ' + dateFr(dates[0], false) + ' au ' + dateFr(dates.at(-1), false)) : '',
+      `${faits} place(s) relevée(s) sur ${tout.length}`,
+    ].filter(Boolean);
+    infos.forEach((t, i) => pdf.text(t, M, 48 + i * 5.5));
+
+    let y = 48 + infos.length * 5.5 + 6;
+    const cols = [{ t: 'Niveau', x: M, w: 34 }, { t: 'Place', x: M + 34, w: 16 }, { t: 'Index (kWh)', x: M + 50, w: 32 },
+      { t: 'Date du relevé', x: M + 82, w: 34 }, { t: 'Photo', x: M + 116, w: 14 }, { t: 'Remarque', x: M + 130, w: W - 2 * M - 130 }];
+    const entete = () => {
+      pdf.setFillColor(201, 168, 106); pdf.rect(M, y - 4.5, W - 2 * M, 7, 'F');
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(10);
+      cols.forEach(c => pdf.text(c.t, c.x + 1.5, y)); y += 7;
+      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(30);
+    };
+    entete();
+    tout.forEach(({ niv, place, r }, i) => {
+      const note = pdf.splitTextToSize(r?.note || '', cols[5].w - 3);
+      const h = Math.max(6, note.length * 4 + 2);
+      if (y + h > H - M) { pdf.addPage(); y = M + 5; entete(); }
+      if (i % 2) { pdf.setFillColor(244, 241, 234); pdf.rect(M, y - 4.2, W - 2 * M, h, 'F'); }
+      pdf.text(niv.nom, cols[0].x + 1.5, y);
+      pdf.text(String(place), cols[1].x + 1.5, y);
+      pdf.text(r?.index != null ? nombreFr(r.index) : '—', cols[2].x + 1.5, y);
+      pdf.text(r && etatPlace(r) !== 'afaire' ? dateFr(r.date) : '', cols[3].x + 1.5, y);
+      pdf.text(r?.photo ? 'oui' : '', cols[4].x + 1.5, y);
+      if (note.length) pdf.text(note, cols[5].x + 1.5, y);
+      y += h;
+    });
+
+    // Pages suivantes : photos des compteurs, deux par page
+    const avec = tout.filter(l => l.r?.photo);
+    for (let i = 0; i < avec.length; i++) {
+      const { niv, place, r } = avec[i];
+      if (i % 2 === 0) pdf.addPage();
+      const top = i % 2 === 0 ? M : H / 2 + 2, hauteur = H / 2 - M - 4;
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(20);
+      pdf.text(`Place ${place} — ${niv.nom}`, M, top + 4);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(70);
+      pdf.text(`${dateFr(r.date)}   ·   Index : ${r.index != null ? kwh(r.index) : 'non saisi'}${r.compteur ? '   ·   Compteur ' + r.compteur : ''}`, M, top + 9);
+      const src = await photoTamponnee(r.photo, niv.nom, place, r);
+      const img = await chargerImage(src);
+      const boiteW = W - 2 * M, boiteH = hauteur - 14;
+      const k = Math.min(boiteW / img.naturalWidth, boiteH / img.naturalHeight);
+      const iw = img.naturalWidth * k, ih = img.naturalHeight * k;
+      pdf.addImage(src, 'JPEG', M + (boiteW - iw) / 2, top + 12, iw, ih);
+    }
+
+    const n = pdf.getNumberOfPages();
+    for (let p = 1; p <= n; p++) {
+      pdf.setPage(p); pdf.setFontSize(8); pdf.setTextColor(120);
+      pdf.text(`Harmonie Électricité — Relevé des bornes — ${config.residence || ''}`, M, H - 7);
+      pdf.text(`${p} / ${n}`, W - M, H - 7, { align: 'right' });
+    }
+    await partagerOuTelecharger([new File([pdf.output('blob')], nomFichier('pdf'), { type: 'application/pdf' })]);
+  } catch (e) {
+    console.error(e); toast('Le rapport n’a pas pu être créé.');
+  } finally { btn.disabled = false; }
+};
+
+// ---------- Démarrage ----------
+(async () => {
+  try { $('monogramme').src = LOGO_MONOGRAMME; } catch (e) {}
+  await ouvrirBase();
+  config = (await lire('config')) || structuredClone(CONFIG_DEFAUT);
+  releves = (await lire('releves')) || {};
+  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  rendre();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

@@ -11,6 +11,7 @@ signature à distance par lien.
 |---|---|
 | `index.html` | L'app du technicien |
 | `signer.html` | Page publique où le client relit et signe son bon depuis le lien reçu |
+| `releves.html` | Relevé des compteurs des bornes de recharge : index, date et photo par place de parking, rapport PDF / CSV pour le syndic (données sur l’appareil) |
 | `logos.js`, `assets/` | Logos et icônes du design system Harmonie |
 | `manifest.webmanifest`, `sw.js` | App installable sur l'écran d'accueil, ouverture sans réseau |
 | `sql/emargements.sql` | Table Supabase à créer une fois |
