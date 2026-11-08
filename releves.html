@@ -62,6 +62,10 @@ svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-wid
 .barre { flex: 1; height: 2px; background: var(--ink-500); position: relative; border-radius: 2px; }
 .barre i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--he-gold); box-shadow: var(--glow-node); transition: width 700ms var(--ease); }
 .compte { font-size: var(--fs-sm); letter-spacing: var(--ls-wide); text-transform: uppercase; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sync { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 6px 0; min-height: 32px;
+  font-size: var(--fs-xs); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--grey-300); white-space: nowrap; }
+.sync i { width: 8px; height: 8px; border-radius: 50%; background: var(--grey-500); flex: none; }
+.sync.ok i { background: var(--ok); } .sync.attente i { background: var(--attention); } .sync.erreur i { background: var(--erreur); }
 .compte b { color: var(--he-white); font-weight: 500; font-size: var(--fs-lead); }
 
 .btn {
@@ -161,6 +165,7 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
   </div>
   <div class="progres">
     <div class="barre"><i id="barre" style="width:0"></i></div>
+    <button type="button" class="sync" id="etatSync" title="Synchroniser maintenant"><i></i><span>…</span></button>
     <div class="compte"><b id="nbFaits">0</b> / <span id="nbTotal">0</span> relevés</div>
   </div>
 </header>
@@ -237,10 +242,14 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
 /* ============================================================
    Relevé des compteurs des bornes de recharge (véhicules électriques)
    Une place = un relevé : index en kWh, date, photo du compteur.
-   Tout reste sur l'appareil (IndexedDB) : marche sans réseau au sous-sol.
+   Tout est d'abord enregistré sur l'appareil (IndexedDB) : marche sans réseau au sous-sol.
+   Puis synchronisé avec Supabase (table emargements, ligne RB_…) pour retrouver les relevés
+   sur tous les appareils : chaque place garde sa version la plus récente.
    ============================================================ */
 
 const CONFIG_DEFAUT = {
+  id: 'RB_LANDART',         // ligne Supabase partagée par tous les appareils
+  modifieLe: 0,
   residence: 'Land’Art',
   syndic: '',
   consignes: [
@@ -283,7 +292,9 @@ function ecrire(cle, val) {
 }
 
 let config = null;        // résidence, consignes, niveaux et places
-let releves = {};         // clé "RDC-37" → { index, date, compteur, note, photo (dataURL) }
+let releves = {};         // clé "RDC-37" → { index, date, compteur, note, photo (dataURL ou URL), photoUrl (en ligne), modifieLe }
+                          // une place effacée garde { supprime: true, modifieLe } pour que l'effacement se propage
+const rel = k => { const r = releves[k]; return r && !r.supprime ? r : null; };
 
 const $ = id => document.getElementById(id);
 const cle = (niv, place) => niv + '-' + place;
@@ -336,7 +347,7 @@ function rendre() {
   $('niveaux').innerHTML = config.niveaux.map(niv => {
     let nFaits = 0;
     const cartes = niv.places.map(p => {
-      const r = releves[cle(niv.id, p)], etat = etatPlace(r);
+      const r = rel(cle(niv.id, p)), etat = etatPlace(r);
       total++; if (etat === 'fait') { faits++; nFaits++; }
       const libEtat = etat === 'fait' ? 'Relevé' : etat === 'partiel' ? (r.index == null ? 'Index manquant' : r.photo ? 'À compléter' : 'Photo manquante') : 'À relever';
       const vignette = r?.photo ? `<span class="vignette" style="background-image:url('${r.photo}')"></span>`
@@ -361,7 +372,7 @@ $('niveaux').addEventListener('click', e => {
 
 // ---------- Photo : réduction et inscription de la place / date / index ----------
 function chargerImage(src) {
-  return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = src; });
+  return new Promise((resolve, reject) => { const img = new Image(); if (/^https?:/.test(src)) img.crossOrigin = 'anonymous'; img.onload = () => resolve(img); img.onerror = reject; img.src = src; });
 }
 async function reduirePhoto(fichier, max = 1600) {
   const url = URL.createObjectURL(fichier);
@@ -401,7 +412,7 @@ let courant = null; // { niv, place, photo }
 function niveau(id) { return config.niveaux.find(n => n.id === id); }
 
 function ouvrirReleve(nivId, place) {
-  const r = releves[cle(nivId, place)] || {};
+  const r = rel(cle(nivId, place)) || {};
   courant = { niv: nivId, place, photo: r.photo || null };
   $('rNiveau').textContent = niveau(nivId).nom;
   $('rTitre').textContent = 'Place ' + place;
@@ -409,7 +420,7 @@ function ouvrirReleve(nivId, place) {
   $('rDate').value = versLocal(r.date ? new Date(r.date) : new Date());
   $('rCompteur').value = r.compteur || '';
   $('rNote').value = r.note || '';
-  $('rEffacer').hidden = !releves[cle(nivId, place)];
+  $('rEffacer').hidden = !rel(cle(nivId, place));
   apercu();
   $('dlgReleve').showModal();
 }
@@ -442,19 +453,21 @@ $('rPhotoSuppr').onclick = () => { courant.photo = null; apercu(); };
 $('rAnnuler').onclick = () => $('dlgReleve').close();
 $('rEffacer').onclick = async () => {
   if (!confirm(`Effacer le relevé de la place ${courant.place} ?`)) return;
-  delete releves[cle(courant.niv, courant.place)];
-  await ecrire('releves', releves); $('dlgReleve').close(); rendre();
+  releves[cle(courant.niv, courant.place)] = { supprime: true, modifieLe: Date.now() };
+  await ecrire('releves', releves); $('dlgReleve').close(); rendre(); programmerSynchro(300);
 };
 $('formReleve').addEventListener('submit', async e => {
   e.preventDefault();
   const v = valeursSaisies();
   if (Number.isNaN(v.index)) { toast('Index invalide : chiffres uniquement, virgule pour les décimales.'); $('rIndex').focus(); return; }
-  const r = { ...v, photo: courant.photo };
+  const ancien = rel(cle(courant.niv, courant.place));
+  const r = { ...v, photo: courant.photo, modifieLe: Date.now() };
+  if (r.photo && ancien?.photoUrl && ancien.photo === r.photo) r.photoUrl = ancien.photoUrl; // photo inchangée : déjà en ligne
   if (r.index == null && !r.photo && !r.note && !r.compteur) { $('dlgReleve').close(); return; }
   releves[cle(courant.niv, courant.place)] = r;
   try { await ecrire('releves', releves); }
   catch (err) { toast('Mémoire du téléphone pleine : relevé non enregistré.'); return; }
-  $('dlgReleve').close(); rendre();
+  $('dlgReleve').close(); rendre(); programmerSynchro(300);
   toast(`Place ${courant.place} enregistrée`);
 });
 
@@ -472,17 +485,20 @@ $('formReglages').addEventListener('submit', async e => {
   config.consignes = $('gConsignes').value;
   config.niveaux[0].places = lirePlaces($('gRdc').value);
   config.niveaux[1].places = lirePlaces($('gR1').value);
-  await ecrire('config', config); $('dlgReglages').close(); rendre();
+  config.modifieLe = Date.now();
+  await ecrire('config', config); $('dlgReglages').close(); rendre(); programmerSynchro(300);
 });
 $('gToutEffacer').onclick = async () => {
-  if (!confirm('Effacer tous les relevés et photos pour commencer une nouvelle campagne ? Pensez à exporter le rapport avant.')) return;
-  releves = {}; await ecrire('releves', releves); $('dlgReglages').close(); rendre(); toast('Relevés effacés');
+  if (!confirm('Effacer tous les relevés et photos (sur tous les appareils) pour commencer une nouvelle campagne ? Pensez à exporter le rapport avant.')) return;
+  const t = Date.now();
+  for (const k of Object.keys(releves)) releves[k] = { supprime: true, modifieLe: t };
+  await ecrire('releves', releves); $('dlgReglages').close(); rendre(); programmerSynchro(300); toast('Relevés effacés');
 };
 
 // ---------- Exports ----------
 function lignes() {
   const out = [];
-  for (const niv of config.niveaux) for (const p of niv.places) out.push({ niv, place: p, r: releves[cle(niv.id, p)] || null });
+  for (const niv of config.niveaux) for (const p of niv.places) out.push({ niv, place: p, r: rel(cle(niv.id, p)) });
   return out;
 }
 function nomFichier(ext) {
@@ -502,7 +518,8 @@ async function partagerOuTelecharger(fichiers) {
   }
 }
 
-$('exportCsv').onclick = () => {
+$('exportCsv').onclick = async () => {
+  await synchroniser();
   const entete = ['Niveau', 'Place', 'Index (kWh)', 'Date du relevé', 'N° compteur', 'Photo', 'Remarque'];
   const champ = v => /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
   const corps = lignes().map(({ niv, place, r }) => [niv.nom, place, r?.index != null ? String(r.index).replace('.', ',') : '',
@@ -518,6 +535,7 @@ function dataUrlVersFichier(dataUrl, nom) {
 }
 
 $('exportPhotos').onclick = async () => {
+  await synchroniser();
   const avec = lignes().filter(l => l.r?.photo);
   if (!avec.length) { toast('Aucune photo pour l’instant.'); return; }
   toast('Préparation des photos…');
@@ -547,7 +565,8 @@ async function logoPourPapier() {
 
 $('exportPdf').onclick = async () => {
   if (!window.jspdf) { toast('Module PDF non chargé : ouvrez la page une fois avec du réseau.'); return; }
-  const btn = $('exportPdf'); btn.disabled = true; toast('Création du rapport…');
+  const btn = $('exportPdf'); btn.disabled = true;
+  await synchroniser(); toast('Création du rapport…');
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -641,14 +660,98 @@ $('exportPdf').onclick = async () => {
   } finally { btn.disabled = false; }
 };
 
+// ---------- Synchronisation entre appareils (Supabase) ----------
+const SUPA_URL = 'https://bqzebkobyfktemnwfwbt.supabase.co';
+const SUPA_KEY = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
+const SB = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY };
+const TABLE = 'emargements';
+
+function afficherSync(genre, texte, titre) {
+  const e = $('etatSync'); e.className = 'sync ' + genre;
+  e.querySelector('span').textContent = texte; e.title = (titre || texte) + ' — toucher pour synchroniser';
+}
+function blobVersDataUrl(b) {
+  return new Promise((resolve, reject) => { const f = new FileReader(); f.onload = () => resolve(f.result); f.onerror = reject; f.readAsDataURL(b); });
+}
+async function telechargerPhoto(url) {
+  try { const r = await fetch(url); return r.ok ? await blobVersDataUrl(await r.blob()) : null; } catch (e) { return null; }
+}
+let delaiSynchro, synchroEnCours = null, synchroARelancer = false;
+function programmerSynchro(delai = 1500) { clearTimeout(delaiSynchro); delaiSynchro = setTimeout(synchroniser, delai); }
+function synchroniser() {
+  if (synchroEnCours) { synchroARelancer = true; return synchroEnCours; }
+  synchroEnCours = synchro().finally(() => {
+    synchroEnCours = null;
+    if (synchroARelancer) { synchroARelancer = false; programmerSynchro(200); }
+  });
+  return synchroEnCours;
+}
+async function synchro() {
+  if (navigator.onLine === false) return afficherSync('', 'Hors ligne', 'Hors ligne : enregistré sur cet appareil, envoi au retour du réseau');
+  afficherSync('attente', 'Synchro…');
+  const id = config.id || CONFIG_DEFAUT.id;
+  try {
+    // 1. Photos prises sur cet appareil et pas encore en ligne
+    for (const [k, r] of Object.entries(releves)) {
+      if (r.supprime || r.photoUrl || !r.photo?.startsWith('data:')) continue;
+      const chemin = `emargement/releves-bornes/${id}/${k}-${r.modifieLe}.jpg`;
+      const rep = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, {
+        method: 'POST', headers: { ...SB, 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: dataUrlVersFichier(r.photo, k + '.jpg') });
+      if (!rep.ok) throw new Error('photo refusée (' + rep.status + ')');
+      r.photoUrl = `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`;
+      await ecrire('releves', releves);
+    }
+    // 2. Version en ligne, fusionnée place par place : la plus récente l'emporte
+    const g = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: SB });
+    if (!g.ok) throw new Error('lecture refusée (' + g.status + ')');
+    const distant = (await g.json())[0]?.payload || null, dr = distant?.releves || {};
+    let changeIci = false, aEnvoyer = !distant;
+    for (const k of new Set([...Object.keys(releves), ...Object.keys(dr)])) {
+      const l = releves[k], d = dr[k], tl = l?.modifieLe || 0, td = d?.modifieLe || 0;
+      if (d && (!l || td > tl)) {
+        const n = { ...d };
+        if (!d.supprime && d.photoUrl) n.photo = (l?.photoUrl === d.photoUrl && l.photo) || (await telechargerPhoto(d.photoUrl)) || d.photoUrl;
+        if (releves[k] !== l) continue; // modifié ici pendant le téléchargement : on garde la saisie
+        releves[k] = n; changeIci = true;
+      } else if (l && (!d || tl > td || (!l.supprime && l.photo && !d.photoUrl && l.photoUrl))) aEnvoyer = true;
+    }
+    const dc = distant?.config;
+    if (dc && (dc.modifieLe || 0) > (config.modifieLe || 0)) { config = { ...CONFIG_DEFAUT, ...dc }; await ecrire('config', config); changeIci = true; }
+    else if (!dc || (config.modifieLe || 0) > (dc.modifieLe || 0)) aEnvoyer = true;
+    if (changeIci) { await ecrire('releves', releves); rendre(); }
+    // 3. Envoi de la version fusionnée (sans les photos, qui sont dans le stockage)
+    if (aEnvoyer) {
+      const enLigne = {};
+      for (const [k, r] of Object.entries(releves)) { const { photo, ...reste } = r; enLigne[k] = reste; }
+      const faits = Object.values(releves).filter(r => etatPlace(r.supprime ? null : r) === 'fait').length;
+      const p = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, {
+        method: 'POST', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id, payload: { type: 'releves-bornes', modifieLe: Date.now(), config, resume: { faits }, releves: enLigne } }) });
+      if (!p.ok) throw new Error('envoi refusé (' + p.status + ')');
+    }
+    afficherSync('ok', 'Synchronisé', 'Synchronisé à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
+  } catch (e) {
+    console.error(e);
+    afficherSync('erreur', 'Non synchronisé', 'Non synchronisé (' + (e.message || 'réseau') + ') : les relevés restent sur cet appareil');
+  }
+}
+$('etatSync').onclick = () => synchroniser();
+window.addEventListener('online', () => synchroniser());
+window.addEventListener('offline', () => afficherSync('', 'Hors ligne'));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState) synchroniser(); });
+setInterval(() => { if (document.visibilityState === 'visible') synchroniser(); }, 30000);
+
 // ---------- Démarrage ----------
 (async () => {
   try { $('monogramme').src = LOGO_MONOGRAMME; } catch (e) {}
   await ouvrirBase();
-  config = (await lire('config')) || structuredClone(CONFIG_DEFAUT);
+  config = { ...structuredClone(CONFIG_DEFAUT), ...((await lire('config')) || {}) };
   releves = (await lire('releves')) || {};
+  // Relevés saisis avant la synchronisation : ils prennent la date du relevé comme version.
+  for (const r of Object.values(releves)) if (!r.modifieLe) r.modifieLe = Date.parse(r.date) || Date.now();
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   rendre();
+  synchroniser();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
