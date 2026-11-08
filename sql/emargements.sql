@@ -41,8 +41,11 @@ create policy "Allow anon all on emargements"
 --                "signature" (PNG data URL), "signataire", "signeLe" }   -- écrits par signer.html
 --
 -- 3. Un relevé des compteurs des bornes de recharge (releves.html) : id = 'RB_…' (ex. RB_LANDART)
---    payload = { "type": "releves-bornes", "modifieLe", "config": { "id", "residence", "syndic", "consignes", "niveaux", "modifieLe" },
---                "resume": { "faits" },
+--    payload = { "type": "releves-bornes", "modifieLe",
+--                "config": { "id", "residence", "adresse", "syndic", "syndicEmail", "clientId", "date", "consignes", "niveaux",
+--                            "prixKwh", "proprietaires": { "RDC-37": "MARTIN lot 12" }, "prochaine",
+--                            "precedente": { "id", "date", "index": { "RDC-37": 1234.5 } }, "modifieLe" },
+--                "resume": { "faits", "total" },
 --                "releves": { "RDC-37": { "index", "date", "compteur", "note", "photoUrl", "modifieLe" }
 --                             "R1-90": { "supprime": true, "modifieLe" } } }   -- place effacée
 --    Fusion place par place entre appareils : la version (modifieLe) la plus récente l'emporte.

@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<script src="auth.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0A0A0A">
 <title>Relevé des bornes</title>
@@ -140,6 +141,15 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
   .grille { grid-template-columns: 1fr 1fr; }
   .ligne { grid-template-columns: 1fr; }
 }
+.place .conso { font-size: var(--fs-xs); color: var(--he-gold-light); font-variant-numeric: tabular-nums; }
+.place .proprio { font-size: var(--fs-xs); color: var(--grey-300); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.infos-campagne { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: var(--fs-sm); color: var(--grey-300); }
+.infos-campagne b { color: var(--he-white); font-weight: 500; }
+.precedent { margin-top: 10px; padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--border-subtle); background: var(--ink-700); font-size: var(--fs-sm); line-height: 1.5; }
+.precedent b { color: var(--he-white); font-weight: 500; font-variant-numeric: tabular-nums; }
+.precedent.alerte { border-color: var(--erreur); color: var(--erreur); }
+.precedent.alerte b { color: var(--erreur); }
+.vide-campagne { text-align: center; padding: 40px 12px; color: var(--grey-400); border: 1px dashed var(--border-subtle); border-radius: var(--r-md); margin-top: 20px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -151,17 +161,19 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
   <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
 </svg>
 
 <header class="entete">
   <div class="entete-haut">
-    <a href="./" class="btn btn-carre btn-discret" title="Retour à l’émargement" aria-label="Retour"><svg class="ic"><use href="#i-back"/></svg></a>
+    <a href="./" class="btn btn-carre btn-discret" title="Accueil" aria-label="Accueil"><svg class="ic"><use href="#i-back"/></svg></a>
     <img class="monogramme" id="monogramme" alt="Harmonie Électricité">
     <div class="entete-titre">
       <div class="sourcil">Relevé des bornes de recharge</div>
       <h1 id="titreResidence">Résidence</h1>
     </div>
-    <button type="button" class="btn btn-carre" id="ouvrirReglages" title="Résidence et places" aria-label="Réglages"><svg class="ic"><use href="#i-settings"/></svg></button>
+    <button type="button" class="btn btn-carre" id="ouvrirReglages" title="Résidence, places, prix du kWh" aria-label="Réglages"><svg class="ic"><use href="#i-settings"/></svg></button>
   </div>
   <div class="progres">
     <div class="barre"><i id="barre" style="width:0"></i></div>
@@ -174,11 +186,14 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
   <div class="consignes">
     <div class="sourcil">Consignes</div>
     <ul id="consignes"></ul>
+    <div class="infos-campagne" id="infosCampagne"></div>
   </div>
   <div class="actions">
     <button type="button" class="btn btn-or" id="exportPdf"><svg class="ic"><use href="#i-file"/></svg>Rapport PDF</button>
     <button type="button" class="btn" id="exportCsv"><svg class="ic"><use href="#i-table"/></svg>Tableau CSV</button>
     <button type="button" class="btn" id="exportPhotos"><svg class="ic"><use href="#i-image"/></svg>Photos</button>
+    <button type="button" class="btn" id="nouvelleReleve"><svg class="ic"><use href="#i-repeat"/></svg>Nouvelle relève</button>
+    <button type="button" class="btn" id="prochaineReleve"><svg class="ic"><use href="#i-calendar"/></svg>Prochaine relève</button>
   </div>
   <div id="niveaux"></div>
 </main>
@@ -188,8 +203,10 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
   <form class="dlg" method="dialog" id="formReleve">
     <div class="sourcil" id="rNiveau"></div>
     <h3 id="rTitre">Place</h3>
+    <div class="champ"><label for="rProprio">Copropriétaire / n° de lot</label><input type="text" id="rProprio" autocomplete="off" placeholder="ex. MARTIN — lot 112"></div>
     <div class="champ"><label for="rIndex">Index relevé (kWh)</label>
       <input type="text" id="rIndex" class="gros" inputmode="decimal" autocomplete="off" placeholder="ex. 1234,5"></div>
+    <div class="precedent" id="rPrecedent" hidden></div>
     <div class="ligne">
       <div class="champ"><label for="rDate">Date et heure du relevé</label><input type="datetime-local" id="rDate"></div>
       <div class="champ"><label for="rCompteur">N° du compteur (facultatif)</label><input type="text" id="rCompteur" autocomplete="off"></div>
@@ -213,19 +230,28 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
 <input type="file" id="fichierCamera" accept="image/*" capture="environment" hidden>
 <input type="file" id="fichierGalerie" accept="image/*" hidden>
 
-<!-- Réglages : résidence et liste des places -->
+<!-- Réglages : résidence, places, copropriétaires, prix -->
 <dialog id="dlgReglages">
   <form class="dlg" method="dialog" id="formReglages">
     <div class="sourcil">Relevé des bornes</div>
     <h3>Résidence et places</h3>
     <div class="champ"><label for="gResidence">Résidence</label><input type="text" id="gResidence"></div>
-    <div class="champ"><label for="gSyndic">Syndic (demandeur)</label><input type="text" id="gSyndic"></div>
-    <div class="champ"><label for="gConsignes">Consignes (une par ligne)</label><textarea id="gConsignes" rows="4"></textarea></div>
-    <div class="champ"><label for="gRdc">Places du rez-de-chaussée</label><input type="text" id="gRdc" class="liste-places"></div>
-    <div class="champ"><label for="gR1">Places du R+1</label><input type="text" id="gR1" class="liste-places"></div>
-    <p class="aide">Numéros séparés par des espaces ou des virgules ; « 84-89 » ajoute toutes les places de 84 à 89. Les relevés déjà faits sont conservés.</p>
+    <div class="champ"><label for="gAdresse">Adresse</label><input type="text" id="gAdresse" placeholder="rue, code postal ville"></div>
+    <div class="ligne">
+      <div class="champ"><label for="gSyndic">Syndic (demandeur)</label><input type="text" id="gSyndic"></div>
+      <div class="champ"><label for="gSyndicEmail">E-mail du syndic</label><input type="email" id="gSyndicEmail" inputmode="email" placeholder="pour l’envoi du rapport"></div>
+    </div>
+    <div class="ligne">
+      <div class="champ"><label for="gDate">Date prévue du relevé</label><input type="date" id="gDate"></div>
+      <div class="champ"><label for="gPrix">Prix du kWh (€)</label><input type="text" id="gPrix" inputmode="decimal" placeholder="ex. 0,2516"></div>
+    </div>
+    <div class="champ"><label for="gConsignes">Consignes (une par ligne)</label><textarea id="gConsignes" rows="3"></textarea></div>
+    <div class="champ"><label for="gNiveaux">Niveaux et places (une ligne par niveau)</label><textarea id="gNiveaux" rows="3" class="liste-places" placeholder="Rez-de-chaussée : 37-46 22-26"></textarea></div>
+    <p class="aide">« Nom du niveau : places ». Places séparées par des espaces ; « 84-89 » ajoute toutes les places de 84 à 89. Les relevés déjà faits sont conservés.</p>
+    <div class="champ"><label for="gProprios">Copropriétaires (une ligne par place, facultatif)</label><textarea id="gProprios" rows="4" placeholder="37 ; MARTIN — lot 112&#10;38 ; DURAND — lot 113"></textarea></div>
+    <p class="aide">Collez la liste du syndic : numéro de place, point-virgule (ou tabulation), puis le nom et le lot.</p>
     <div class="dlg-actions">
-      <button type="button" class="btn btn-discret btn-danger" id="gToutEffacer">Nouvelle campagne</button>
+      <button type="button" class="btn btn-discret btn-danger" id="gToutEffacer">Tout effacer</button>
       <span class="espace"></span>
       <button type="button" class="btn" id="gAnnuler">Annuler</button>
       <button type="submit" class="btn btn-or">Enregistrer</button>
@@ -233,25 +259,70 @@ dialog::backdrop { background: rgba(0,0,0,.7); }
   </form>
 </dialog>
 
+<!-- Rapport prêt : envoi au syndic -->
+<dialog id="dlgRapport">
+  <form class="dlg" method="dialog" id="formRapport">
+    <div class="sourcil">Rapport PDF</div>
+    <h3>Rapport prêt</h3>
+    <p class="aide" id="rapResume"></p>
+    <div class="champ"><label for="rapDest">Envoyer au syndic</label><input type="email" id="rapDest" inputmode="email" placeholder="adresse e-mail"></div>
+    <p class="aide">Le PDF part depuis votre boîte Gmail. L’adresse est gardée pour les prochains rapports.</p>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-discret" id="rapFermer">Fermer</button>
+      <button type="button" class="btn" id="rapPartager">Télécharger / partager</button>
+      <button type="submit" class="btn btn-or" id="rapEnvoyer">Envoyer</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Prochaine relève : rappel dans l'agenda -->
+<dialog id="dlgProchaine">
+  <form class="dlg" method="dialog" id="formProchaine">
+    <div class="sourcil">Rappel</div>
+    <h3>Prochaine relève</h3>
+    <div class="champ"><label for="pDate">Date</label><input type="date" id="pDate"></div>
+    <p class="aide">La date s’affiche sur l’accueil (« Cette semaine ») et « Ajouter à l’agenda » ouvre Google Agenda avec le rappel prêt à enregistrer.</p>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-discret" id="pAnnuler">Annuler</button>
+      <button type="submit" class="btn btn-or">Enregistrer et ajouter à l’agenda</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Confirmation -->
+<dialog id="dlgQuestion">
+  <div class="dlg">
+    <h3 id="qTitre"></h3>
+    <p class="aide" id="qTexte" style="font-size:var(--fs-base)"></p>
+    <div class="dlg-actions"><button type="button" class="btn btn-discret" id="qNon">Annuler</button><button type="button" class="btn btn-or" id="qOui">Confirmer</button></div>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="logos.js"></script>
+<script src="commun.js"></script>
 <script>
 'use strict';
 /* ============================================================
    Relevé des compteurs des bornes de recharge (véhicules électriques)
-   Une place = un relevé : index en kWh, date, photo du compteur.
+   Une page par résidence et par relève : releves.html?c=RB_…  (sans paramètre : Land’Art, la première).
+   Une place = un relevé : index en kWh, date, photo du compteur, copropriétaire.
+   Avec la relève précédente : consommation et montant à refacturer.
    Tout est d'abord enregistré sur l'appareil (IndexedDB) : marche sans réseau au sous-sol.
-   Puis synchronisé avec Supabase (table emargements, ligne RB_…) pour retrouver les relevés
-   sur tous les appareils : chaque place garde sa version la plus récente.
+   Puis synchronisé avec Supabase (table emargements, ligne RB_…) : chaque place garde sa version la plus récente.
    ============================================================ */
 
-const CONFIG_DEFAUT = {
-  id: 'RB_LANDART',         // ligne Supabase partagée par tous les appareils
-  modifieLe: 0,
-  residence: 'Land’Art',
-  syndic: '',
+const ID_LANDART = 'RB_LANDART';
+const CAMPAGNE = new URLSearchParams(location.search).get('c') || ID_LANDART;
+const CONFIG_BASE = {
+  id: CAMPAGNE, modifieLe: 0, residence: '', adresse: '', syndic: '', syndicEmail: '', clientId: null, date: '',
+  consignes: '', niveaux: [], prixKwh: null, proprietaires: {}, precedente: null, prochaine: '',
+};
+// Land’Art, créé avant l'accueil : ses réglages d'origine servent de base.
+const CONFIG_LANDART = {
+  ...CONFIG_BASE, id: ID_LANDART, residence: 'Land’Art',
   consignes: [
     'Relevé à faire après le 23 septembre 2026, à la demande du syndic.',
     'Rez-de-chaussée et R+1 : compteurs à 3 m de haut, prévoir une échelle.',
@@ -262,9 +333,14 @@ const CONFIG_DEFAUT = {
     { id: 'R1', nom: 'R+1', places: ['74','75','76','77','78','79','80','81','82','83','90','60','61','62','63','64'] },
   ],
 };
+const configDefaut = () => structuredClone(CAMPAGNE === ID_LANDART ? CONFIG_LANDART : CONFIG_BASE);
 
 // ---------- Stockage (IndexedDB, avec repli localStorage) ----------
+// Land’Art garde ses clés d'origine (« config », « releves ») : rien n'est déplacé, rien ne se perd.
+// Les autres relèves : « config:RB_… » et « releves:RB_… ». « campagnes » liste celles de l'appareil (pour l'accueil).
 const BASE = 'releves-bornes', MAG = 'donnees';
+const CLE_CONFIG = CAMPAGNE === ID_LANDART ? 'config' : 'config:' + CAMPAGNE;
+const CLE_RELEVES = CAMPAGNE === ID_LANDART ? 'releves' : 'releves:' + CAMPAGNE;
 let db = null;
 function ouvrirBase() {
   return new Promise(resolve => {
@@ -290,8 +366,15 @@ function ecrire(cle, val) {
     t.oncomplete = () => resolve(); t.onerror = () => reject(t.error);
   });
 }
+const sauverConfig = () => { configSurAppareil = true; return ecrire(CLE_CONFIG, config); };
+const sauverReleves = () => ecrire(CLE_RELEVES, releves);
+async function noterCampagne(id) {
+  const l = (await lire('campagnes')) || [];
+  if (!l.includes(id)) { l.push(id); await ecrire('campagnes', l); }
+}
 
-let config = null;        // résidence, consignes, niveaux et places
+let configSurAppareil = false; // réglages déjà enregistrés sur cet appareil
+let config = null;        // résidence, consignes, niveaux et places, copropriétaires, prix, relève précédente
 let releves = {};         // clé "RDC-37" → { index, date, compteur, note, photo (dataURL ou URL), photoUrl (en ligne), modifieLe }
                           // une place effacée garde { supprime: true, modifieLe } pour que l'effacement se propage
 const rel = k => { const r = releves[k]; return r && !r.supprime ? r : null; };
@@ -302,7 +385,16 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.classList.add('vu');
-  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('vu'), 2600);
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('vu'), 3200);
+}
+// Confirmation dans la page (pas de confirm() du navigateur, refusé dans certaines vues)
+function demander(titre, texte, oui = 'Confirmer') {
+  return new Promise(ok => {
+    $('qTitre').textContent = titre; $('qTexte').textContent = texte; $('qOui').textContent = oui;
+    const fin = v => { $('dlgQuestion').close(); ok(v); };
+    $('qOui').onclick = () => fin(true); $('qNon').onclick = () => fin(false);
+    $('dlgQuestion').showModal();
+  });
 }
 
 // ---------- Dates et nombres ----------
@@ -310,9 +402,9 @@ const pad = n => String(n).padStart(2, '0');
 function versLocal(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function dateFr(iso, avecHeure = true) {
   if (!iso) return '';
-  const d = new Date(iso); if (isNaN(d)) return '';
+  const d = new Date(iso.length === 10 ? iso + 'T12:00' : iso); if (isNaN(d)) return '';
   const j = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-  return avecHeure ? `${j} ${pad(d.getHours())}:${pad(d.getMinutes())}` : j;
+  return avecHeure && iso.length > 10 ? `${j} ${pad(d.getHours())}:${pad(d.getMinutes())}` : j;
 }
 function lireNombre(txt) {
   const s = String(txt ?? '').replace(/\s/g, '').replace(',', '.');
@@ -320,48 +412,78 @@ function lireNombre(txt) {
   const n = Number(s); return isFinite(n) ? n : NaN;
 }
 // Espaces des milliers en espace simple : la police du PDF ne connaît pas l'espace fine insécable.
-const nombreFr = n => n.toLocaleString('fr-FR', { maximumFractionDigits: 3 }).replace(/[\u202f\u00a0]/g, ' ');
+const nombreFr = (n, dec = 3) => n.toLocaleString('fr-FR', { maximumFractionDigits: dec }).replace(/[  ]/g, ' ');
 const kwh = n => n == null ? '' : nombreFr(n) + ' kWh';
+const euros = n => n == null ? '' : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/[  ]/g, ' ') + ' €';
 
-// ---------- Liste des places ----------
+// ---------- Places, niveaux, consommation ----------
 function lirePlaces(txt) {
   const out = [];
   for (const morceau of String(txt).split(/[\s,;]+/).filter(Boolean)) {
     const m = morceau.match(/^(\d+)-(\d+)$/);
-    if (m && +m[2] >= +m[1] && +m[2] - +m[1] < 200) { for (let i = +m[1]; i <= +m[2]; i++) out.push(String(i)); }
+    if (m && +m[2] >= +m[1] && +m[2] - +m[1] < 300) { for (let i = +m[1]; i <= +m[2]; i++) out.push(String(i)); }
     else out.push(morceau);
   }
   return [...new Set(out)];
 }
-
 function etatPlace(r) {
   if (!r) return 'afaire';
-  const aIndex = r.index != null, aPhoto = !!r.photo;
+  const aIndex = r.index != null, aPhoto = !!r.photo || !!r.photoUrl;
   return aIndex && aPhoto ? 'fait' : (aIndex || aPhoto || r.note ? 'partiel' : 'afaire');
+}
+const proprio = k => config.proprietaires?.[k] || '';
+const indexPrecedent = k => config.precedente?.index?.[k] ?? null;
+// Consommation depuis la relève précédente ; null si on ne peut pas la calculer, NaN si l'index a baissé.
+function consommation(k, r) {
+  const p = indexPrecedent(k);
+  if (p == null || r?.index == null) return null;
+  return r.index < p ? NaN : Math.round((r.index - p) * 1000) / 1000;
+}
+const montant = c => c == null || Number.isNaN(c) || config.prixKwh == null ? null : Math.round(c * config.prixKwh * 100) / 100;
+function totalPlaces() { return config.niveaux.reduce((s, n) => s + n.places.length, 0); }
+function resume() {
+  let faits = 0;
+  for (const n of config.niveaux) for (const p of n.places) if (etatPlace(rel(cle(n.id, p))) === 'fait') faits++;
+  return { faits, total: totalPlaces() };
 }
 
 function rendre() {
+  document.title = 'Relevé — ' + (config.residence || 'bornes');
   $('titreResidence').textContent = config.residence || 'Résidence';
-  $('consignes').innerHTML = config.consignes.split('\n').filter(l => l.trim()).map(l => `<li>${esc(l)}</li>`).join('');
-  let total = 0, faits = 0;
-  $('niveaux').innerHTML = config.niveaux.map(niv => {
+  $('consignes').innerHTML = (config.consignes || '').split('\n').filter(l => l.trim()).map(l => `<li>${esc(l)}</li>`).join('') || '<li>Aucune consigne.</li>';
+  $('infosCampagne').innerHTML = [
+    config.adresse && `<span>${esc(config.adresse)}</span>`,
+    config.syndic && `<span>Syndic : <b>${esc(config.syndic)}</b></span>`,
+    config.date && `<span>Prévu le <b>${dateFr(config.date)}</b></span>`,
+    config.precedente && `<span>Relève précédente : <b>${dateFr(config.precedente.date) || '—'}</b></span>`,
+    config.prixKwh != null && `<span>Prix du kWh : <b>${nombreFr(config.prixKwh, 4)} €</b></span>`,
+    config.prochaine && `<span>Prochaine relève : <b>${dateFr(config.prochaine)}</b></span>`,
+  ].filter(Boolean).join('');
+  if (!config.niveaux.length) {
+    $('niveaux').innerHTML = `<div class="vide-campagne">Aucune place pour l’instant.<br>Ajoutez les niveaux et les places dans les réglages (roue dentée en haut à droite).</div>`;
+  } else $('niveaux').innerHTML = config.niveaux.map(niv => {
     let nFaits = 0;
     const cartes = niv.places.map(p => {
-      const r = rel(cle(niv.id, p)), etat = etatPlace(r);
-      total++; if (etat === 'fait') { faits++; nFaits++; }
-      const libEtat = etat === 'fait' ? 'Relevé' : etat === 'partiel' ? (r.index == null ? 'Index manquant' : r.photo ? 'À compléter' : 'Photo manquante') : 'À relever';
-      const vignette = r?.photo ? `<span class="vignette" style="background-image:url('${r.photo}')"></span>`
+      const k = cle(niv.id, p), r = rel(k), etat = etatPlace(r);
+      if (etat === 'fait') nFaits++;
+      const libEtat = etat === 'fait' ? 'Relevé' : etat === 'partiel' ? (r.index == null ? 'Index manquant' : (r.photo || r.photoUrl) ? 'À compléter' : 'Photo manquante') : 'À relever';
+      const photo = r?.photo || r?.photoUrl;
+      const vignette = photo ? `<span class="vignette" style="background-image:url('${photo}')"></span>`
         : `<span class="vignette"><svg class="ic"><use href="#i-camera"/></svg></span>`;
+      const c = consommation(k, r);
       return `<button type="button" class="place ${etat === 'afaire' ? '' : etat}" data-niv="${esc(niv.id)}" data-place="${esc(p)}">
         <span class="infos"><span class="num">${esc(p)}</span>
+          ${proprio(k) ? `<span class="proprio">${esc(proprio(k))}</span>` : ''}
           <span class="etat">${libEtat}</span>
           ${r?.index != null ? `<span class="index">${esc(kwh(r.index))}</span>` : ''}
+          ${c != null ? `<span class="conso">${Number.isNaN(c) ? '⚠ index en baisse' : '+ ' + esc(kwh(c)) + (montant(c) != null ? ' · ' + esc(euros(montant(c))) : '')}</span>` : ''}
           ${r?.date && etat !== 'afaire' ? `<span class="date">${esc(dateFr(r.date))}</span>` : ''}</span>
         ${vignette}</button>`;
     }).join('');
     return `<section class="niveau"><div class="niveau-tete"><h2>${esc(niv.nom)}</h2><span>${nFaits} / ${niv.places.length}</span></div>
       <div class="grille">${cartes}</div></section>`;
   }).join('');
+  const { faits, total } = resume();
   $('nbFaits').textContent = faits; $('nbTotal').textContent = total;
   $('barre').style.width = total ? (100 * faits / total) + '%' : '0';
 }
@@ -406,38 +528,52 @@ async function photoTamponnee(photo, niveauNom, place, r) {
   g.fillText(ligne2, marge, h + bande * 0.72, w - 2 * marge);
   return c.toDataURL('image/jpeg', 0.85);
 }
+const photoDe = r => r?.photo || r?.photoUrl || null;
 
 // ---------- Saisie d'un relevé ----------
-let courant = null; // { niv, place, photo }
+let courant = null; // { niv, place, photo, alerteVue }
 function niveau(id) { return config.niveaux.find(n => n.id === id); }
 
 function ouvrirReleve(nivId, place) {
-  const r = rel(cle(nivId, place)) || {};
-  courant = { niv: nivId, place, photo: r.photo || null };
+  const k = cle(nivId, place), r = rel(k) || {};
+  courant = { niv: nivId, place, photo: photoDe(r), alerteVue: false };
   $('rNiveau').textContent = niveau(nivId).nom;
   $('rTitre').textContent = 'Place ' + place;
+  $('rProprio').value = proprio(k);
   $('rIndex').value = r.index != null ? String(r.index).replace('.', ',') : '';
   $('rDate').value = versLocal(r.date ? new Date(r.date) : new Date());
   $('rCompteur').value = r.compteur || '';
   $('rNote').value = r.note || '';
-  $('rEffacer').hidden = !rel(cle(nivId, place));
-  apercu();
+  $('rEffacer').hidden = !rel(k);
+  majPrecedent(); apercu();
   $('dlgReleve').showModal();
 }
 function valeursSaisies() {
   const d = $('rDate').value ? new Date($('rDate').value) : new Date();
   return { index: lireNombre($('rIndex').value), date: d.toISOString(), compteur: $('rCompteur').value.trim(), note: $('rNote').value.trim() };
 }
+// Index précédent, consommation et montant, mis à jour pendant la saisie ; alerte si l'index a baissé.
+function majPrecedent() {
+  const k = cle(courant.niv, courant.place), p = indexPrecedent(k), z = $('rPrecedent');
+  if (p == null) { z.hidden = true; return; }
+  const v = valeursSaisies(), c = consommation(k, { index: Number.isNaN(v.index) ? null : v.index });
+  z.hidden = false; z.classList.toggle('alerte', Number.isNaN(c));
+  z.innerHTML = `Index précédent : <b>${esc(kwh(p))}</b> (${dateFr(config.precedente.date) || 'relève précédente'})`
+    + (c == null ? '' : Number.isNaN(c) ? '<br><b>L’index est plus petit que le précédent</b> : vérifiez la saisie (faute de frappe, compteur changé ?).'
+      : `<br>Consommation : <b>${esc(kwh(c))}</b>${montant(c) != null ? ` · <b>${esc(euros(montant(c)))}</b>` : ''}`);
+}
 async function apercu() {
   const zone = $('rPhotoZone');
   $('rPhotoSuppr').hidden = !courant.photo;
   if (!courant.photo) { zone.innerHTML = '<div class="vide">Aucune photo du compteur</div>'; return; }
   const v = valeursSaisies(); if (Number.isNaN(v.index)) v.index = null;
-  const src = await photoTamponnee(courant.photo, niveau(courant.niv).nom, courant.place, v);
-  zone.innerHTML = `<img alt="Compteur de la place ${esc(courant.place)}" src="${src}">`;
+  try {
+    const src = await photoTamponnee(courant.photo, niveau(courant.niv).nom, courant.place, v);
+    zone.innerHTML = `<img alt="Compteur de la place ${esc(courant.place)}" src="${src}">`;
+  } catch (e) { zone.innerHTML = `<img alt="Compteur de la place ${esc(courant.place)}" src="${esc(courant.photo)}">`; }
 }
 let delaiApercu;
-for (const id of ['rIndex', 'rDate', 'rCompteur']) $(id).addEventListener('input', () => { clearTimeout(delaiApercu); delaiApercu = setTimeout(apercu, 300); });
+for (const id of ['rIndex', 'rDate', 'rCompteur']) $(id).addEventListener('input', () => { majPrecedent(); clearTimeout(delaiApercu); delaiApercu = setTimeout(apercu, 300); });
 
 $('rPhotoCamera').onclick = () => $('fichierCamera').click();
 $('rPhotoGalerie').onclick = () => $('fichierGalerie').click();
@@ -452,53 +588,135 @@ for (const id of ['fichierCamera', 'fichierGalerie']) {
 $('rPhotoSuppr').onclick = () => { courant.photo = null; apercu(); };
 $('rAnnuler').onclick = () => $('dlgReleve').close();
 $('rEffacer').onclick = async () => {
-  if (!confirm(`Effacer le relevé de la place ${courant.place} ?`)) return;
+  $('dlgReleve').close();
+  if (!await demander('Effacer le relevé', `Effacer le relevé de la place ${courant.place} (index, photo, remarque) ?`, 'Effacer')) return $('dlgReleve').showModal();
   releves[cle(courant.niv, courant.place)] = { supprime: true, modifieLe: Date.now() };
-  await ecrire('releves', releves); $('dlgReleve').close(); rendre(); programmerSynchro(300);
+  await sauverReleves(); rendre(); programmerSynchro(300);
 };
 $('formReleve').addEventListener('submit', async e => {
   e.preventDefault();
-  const v = valeursSaisies();
+  const k = cle(courant.niv, courant.place), v = valeursSaisies();
   if (Number.isNaN(v.index)) { toast('Index invalide : chiffres uniquement, virgule pour les décimales.'); $('rIndex').focus(); return; }
-  const ancien = rel(cle(courant.niv, courant.place));
+  // Index en baisse : un second appui sur Enregistrer confirme.
+  if (Number.isNaN(consommation(k, { index: v.index })) && !courant.alerteVue) {
+    courant.alerteVue = true; $('rEnregistrer').textContent = 'Enregistrer quand même';
+    toast('Index plus petit que le précédent : vérifiez, puis appuyez à nouveau pour enregistrer.'); return;
+  }
+  $('rEnregistrer').textContent = 'Enregistrer';
+  // Copropriétaire : il appartient à la place (repris à la relève suivante), donc aux réglages.
+  const nouveauProprio = $('rProprio').value.trim();
+  if (nouveauProprio !== proprio(k)) {
+    config.proprietaires = { ...(config.proprietaires || {}), [k]: nouveauProprio };
+    if (!nouveauProprio) delete config.proprietaires[k];
+    config.modifieLe = Date.now(); await sauverConfig();
+  }
+  const ancien = rel(k);
   const r = { ...v, photo: courant.photo, modifieLe: Date.now() };
-  if (r.photo && ancien?.photoUrl && ancien.photo === r.photo) r.photoUrl = ancien.photoUrl; // photo inchangée : déjà en ligne
-  if (r.index == null && !r.photo && !r.note && !r.compteur) { $('dlgReleve').close(); return; }
-  releves[cle(courant.niv, courant.place)] = r;
-  try { await ecrire('releves', releves); }
+  if (r.photo && ancien?.photoUrl && photoDe(ancien) === r.photo) r.photoUrl = ancien.photoUrl; // photo inchangée : déjà en ligne
+  if (r.index == null && !r.photo && !r.note && !r.compteur) { $('dlgReleve').close(); rendre(); programmerSynchro(300); return; }
+  releves[k] = r;
+  try { await sauverReleves(); }
   catch (err) { toast('Mémoire du téléphone pleine : relevé non enregistré.'); return; }
   $('dlgReleve').close(); rendre(); programmerSynchro(300);
   toast(`Place ${courant.place} enregistrée`);
 });
+$('dlgReleve').addEventListener('close', () => { $('rEnregistrer').textContent = 'Enregistrer'; });
 
 // ---------- Réglages ----------
+const texteNiveaux = () => config.niveaux.map(n => `${n.nom} : ${n.places.join(' ')}`).join('\n');
+function lireNiveaux(txt) {
+  const out = [];
+  for (const ligne of txt.split('\n').map(l => l.trim()).filter(Boolean)) {
+    const i = ligne.indexOf(':');
+    const nom = (i >= 0 ? ligne.slice(0, i) : 'Niveau ' + (out.length + 1)).trim(), places = lirePlaces(i >= 0 ? ligne.slice(i + 1) : ligne);
+    // Un niveau qui garde son nom garde son identifiant : ses relevés restent attachés.
+    const existant = config.niveaux.find(n => sansAccent(n.nom) === sansAccent(nom) && !out.some(o => o.id === n.id));
+    let id = existant?.id;
+    if (!id) { id = sansAccent(nom).replace(/[^a-z0-9]+/g, '').toUpperCase().slice(0, 12) || 'N'; while (out.some(o => o.id === id) || config.niveaux.some(n => n.id === id && n !== existant)) id += '1'; }
+    out.push({ id, nom, places });
+  }
+  return out;
+}
+const texteProprios = () => config.niveaux.flatMap(n => n.places.filter(p => proprio(cle(n.id, p))).map(p => `${p} ; ${proprio(cle(n.id, p))}`)).join('\n');
+function lireProprios(txt, niveaux) {
+  const out = {}, inconnues = [];
+  for (const ligne of txt.split('\n').map(l => l.trim()).filter(Boolean)) {
+    const m = ligne.match(/^([^;\t]+?)\s*[;\t]\s*(.+)$/); if (!m) { inconnues.push(ligne); continue; }
+    const place = m[1].trim(), niv = niveaux.find(n => n.places.includes(place));
+    if (!niv) { inconnues.push(place); continue; }
+    out[cle(niv.id, place)] = m[2].trim();
+  }
+  return { out, inconnues };
+}
 $('ouvrirReglages').onclick = () => {
-  $('gResidence').value = config.residence; $('gSyndic').value = config.syndic; $('gConsignes').value = config.consignes;
-  $('gRdc').value = config.niveaux[0].places.join(' '); $('gR1').value = config.niveaux[1].places.join(' ');
+  $('gResidence').value = config.residence || ''; $('gAdresse').value = config.adresse || '';
+  $('gSyndic').value = config.syndic || ''; $('gSyndicEmail').value = config.syndicEmail || '';
+  $('gDate').value = config.date || ''; $('gPrix').value = config.prixKwh != null ? String(config.prixKwh).replace('.', ',') : '';
+  $('gConsignes').value = config.consignes || ''; $('gNiveaux').value = texteNiveaux(); $('gProprios').value = texteProprios();
   $('dlgReglages').showModal();
 };
 $('gAnnuler').onclick = () => $('dlgReglages').close();
 $('formReglages').addEventListener('submit', async e => {
   e.preventDefault();
+  const prix = lireNombre($('gPrix').value);
+  if (Number.isNaN(prix)) { $('gPrix').focus(); return toast('Prix du kWh invalide (ex. 0,2516).'); }
+  const niveaux = lireNiveaux($('gNiveaux').value);
+  const { out: proprietaires, inconnues } = lireProprios($('gProprios').value, niveaux);
   config.residence = $('gResidence').value.trim() || 'Résidence';
-  config.syndic = $('gSyndic').value.trim();
+  config.adresse = $('gAdresse').value.trim();
+  config.syndic = $('gSyndic').value.trim(); config.syndicEmail = $('gSyndicEmail').value.trim();
+  config.date = $('gDate').value; config.prixKwh = prix;
   config.consignes = $('gConsignes').value;
-  config.niveaux[0].places = lirePlaces($('gRdc').value);
-  config.niveaux[1].places = lirePlaces($('gR1').value);
+  config.niveaux = niveaux; config.proprietaires = proprietaires;
   config.modifieLe = Date.now();
-  await ecrire('config', config); $('dlgReglages').close(); rendre(); programmerSynchro(300);
+  await sauverConfig(); $('dlgReglages').close(); rendre(); programmerSynchro(300);
+  if (inconnues.length) toast(`Copropriétaires ignorés (place inconnue) : ${inconnues.slice(0, 6).join(', ')}${inconnues.length > 6 ? '…' : ''}`);
 });
 $('gToutEffacer').onclick = async () => {
-  if (!confirm('Effacer tous les relevés et photos (sur tous les appareils) pour commencer une nouvelle campagne ? Pensez à exporter le rapport avant.')) return;
+  $('dlgReglages').close();
+  if (!await demander('Tout effacer', 'Effacer tous les relevés et photos de cette relève, sur tous les appareils ? Pour la relève suivante, utilisez plutôt « Nouvelle relève » : celle-ci reste consultable.', 'Tout effacer')) return;
   const t = Date.now();
   for (const k of Object.keys(releves)) releves[k] = { supprime: true, modifieLe: t };
-  await ecrire('releves', releves); $('dlgReglages').close(); rendre(); programmerSynchro(300); toast('Relevés effacés');
+  await sauverReleves(); rendre(); programmerSynchro(300); toast('Relevés effacés');
 };
+
+// ---------- Nouvelle relève : mêmes places, index de celle-ci comme référence ----------
+$('nouvelleReleve').onclick = async () => {
+  const { faits } = resume();
+  if (!await demander('Nouvelle relève', `Créer la relève suivante de ${config.residence} ? Elle reprend les places, les copropriétaires et le prix du kWh ; les index de cette relève (${faits} place(s) relevée(s)) servent à calculer la consommation. Celle-ci reste consultable depuis l’accueil.`, 'Créer')) return;
+  await synchroniser();
+  const index = {}; let derniere = '';
+  for (const [k, r] of Object.entries(releves)) if (!r.supprime && r.index != null) { index[k] = r.index; if ((r.date || '') > derniere) derniere = r.date; }
+  const id = 'RB_' + Date.now().toString(36).toUpperCase();
+  const nouvelle = { ...structuredClone(config), id, modifieLe: Date.now(), date: config.prochaine || '', prochaine: '',
+    precedente: { id: config.id, date: (derniere || config.date || '').slice(0, 10), index } };
+  await ecrire('config:' + id, nouvelle); await ecrire('releves:' + id, {}); await noterCampagne(id);
+  location.href = 'releves.html?c=' + encodeURIComponent(id);
+};
+
+// ---------- Prochaine relève : rappel ----------
+$('prochaineReleve').onclick = () => {
+  const d = new Date(); d.setFullYear(d.getFullYear() + 1);
+  $('pDate').value = config.prochaine || d.toLocaleDateString('sv-SE');
+  $('dlgProchaine').showModal();
+};
+$('pAnnuler').onclick = () => $('dlgProchaine').close();
+$('formProchaine').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!$('pDate').value) return $('pDate').focus();
+  config.prochaine = $('pDate').value; config.modifieLe = Date.now();
+  await sauverConfig(); $('dlgProchaine').close(); rendre(); programmerSynchro(300);
+  window.open(lienAgenda({ titre: `Relève des bornes de recharge — ${config.residence}`, date: config.prochaine, lieu: config.adresse,
+    details: [`Relève des compteurs des bornes de recharge (${totalPlaces()} places).`, config.consignes, location.origin + location.pathname + '?c=' + config.id].filter(Boolean).join('\n\n') }), '_blank');
+});
 
 // ---------- Exports ----------
 function lignes() {
   const out = [];
-  for (const niv of config.niveaux) for (const p of niv.places) out.push({ niv, place: p, r: rel(cle(niv.id, p)) });
+  for (const niv of config.niveaux) for (const p of niv.places) {
+    const k = cle(niv.id, p), r = rel(k), c = consommation(k, r);
+    out.push({ niv, place: p, k, r, proprio: proprio(k), prec: indexPrecedent(k), conso: c, montant: montant(c) });
+  }
   return out;
 }
 function nomFichier(ext) {
@@ -517,13 +735,18 @@ async function partagerOuTelecharger(fichiers) {
     await new Promise(r => setTimeout(r, 300));
   }
 }
+const avecPrecedente = () => !!config.precedente;
+const avecPrix = () => avecPrecedente() && config.prixKwh != null;
 
 $('exportCsv').onclick = async () => {
   await synchroniser();
-  const entete = ['Niveau', 'Place', 'Index (kWh)', 'Date du relevé', 'N° compteur', 'Photo', 'Remarque'];
+  const entete = ['Niveau', 'Place', 'Copropriétaire', ...(avecPrecedente() ? ['Index précédent (kWh)'] : []), 'Index (kWh)',
+    ...(avecPrecedente() ? ['Consommation (kWh)'] : []), ...(avecPrix() ? ['Montant (€)'] : []), 'Date du relevé', 'N° compteur', 'Photo', 'Remarque'];
   const champ = v => /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-  const corps = lignes().map(({ niv, place, r }) => [niv.nom, place, r?.index != null ? String(r.index).replace('.', ',') : '',
-    r ? dateFr(r.date) : '', r?.compteur || '', r?.photo ? 'oui' : 'non', r?.note || ''].map(v => champ(String(v))).join(';'));
+  const virgule = n => n == null || Number.isNaN(n) ? '' : String(n).replace('.', ',');
+  const corps = lignes().map(l => [l.niv.nom, l.place, l.proprio, ...(avecPrecedente() ? [virgule(l.prec)] : []), virgule(l.r?.index),
+    ...(avecPrecedente() ? [Number.isNaN(l.conso) ? 'index en baisse' : virgule(l.conso)] : []), ...(avecPrix() ? [virgule(l.montant)] : []),
+    l.r ? dateFr(l.r.date) : '', l.r?.compteur || '', photoDe(l.r) ? 'oui' : 'non', l.r?.note || ''].map(v => champ(String(v))).join(';'));
   const csv = '﻿' + [entete.join(';'), ...corps].join('\r\n');
   partagerOuTelecharger([new File([csv], nomFichier('csv'), { type: 'text/csv' })]);
 };
@@ -536,12 +759,12 @@ function dataUrlVersFichier(dataUrl, nom) {
 
 $('exportPhotos').onclick = async () => {
   await synchroniser();
-  const avec = lignes().filter(l => l.r?.photo);
+  const avec = lignes().filter(l => photoDe(l.r));
   if (!avec.length) { toast('Aucune photo pour l’instant.'); return; }
   toast('Préparation des photos…');
   const fichiers = [];
   for (const { niv, place, r } of avec) {
-    const src = await photoTamponnee(r.photo, niv.nom, place, r);
+    const src = await photoTamponnee(photoDe(r), niv.nom, place, r);
     fichiers.push(dataUrlVersFichier(src, `Place-${place}_${niv.id}_${(r.date || '').slice(0, 10)}.jpg`));
   }
   partagerOuTelecharger(fichiers);
@@ -563,109 +786,169 @@ async function logoPourPapier() {
   return c.toDataURL('image/png');
 }
 
+// Rapport : tableau récapitulatif en paysage (copropriétaire, index, consommation, montant), puis une fiche par place.
+async function creerRapport() {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+  let W = 297, H = 210; const M = 14;
+  const tout = lignes(), faits = tout.filter(l => etatPlace(l.r) === 'fait').length;
+
+  try { pdf.addImage(await logoPourPapier(), 'PNG', M, 10, 44, 15); } catch (e) {}
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(20);
+  pdf.text('Relevé des compteurs des bornes de recharge', M, 34);
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(70);
+  const dates = tout.filter(l => l.r?.date && etatPlace(l.r) !== 'afaire').map(l => new Date(l.r.date)).sort((a, b) => a - b);
+  const jour = d => dateFr(d.toISOString(), false);
+  const infos = [
+    'Résidence : ' + (config.residence || '') + (config.adresse ? ' — ' + config.adresse : ''),
+    config.syndic ? 'Syndic : ' + config.syndic : '',
+    dates.length ? 'Relevés effectués ' + (jour(dates[0]) === jour(dates.at(-1)) ? 'le ' + jour(dates[0]) : 'du ' + jour(dates[0]) + ' au ' + jour(dates.at(-1))) : '',
+    config.precedente ? 'Consommation calculée depuis la relève du ' + (dateFr(config.precedente.date) || '—') + (config.prixKwh != null ? `, au prix de ${nombreFr(config.prixKwh, 4)} € le kWh` : '') : '',
+    `${faits} place(s) relevée(s) sur ${tout.length}`,
+  ].filter(Boolean);
+  infos.forEach((t, i) => pdf.text(t, M, 41 + i * 5.2));
+
+  let y = 41 + infos.length * 5.2 + 6;
+  const defs = [['Niveau', 28], ['Place', 13], ['Copropriétaire', 50]];
+  if (avecPrecedente()) defs.push(['Index préc.', 24]);
+  defs.push(['Index (kWh)', 24]);
+  if (avecPrecedente()) defs.push(['Conso. (kWh)', 24]);
+  if (avecPrix()) defs.push(['Montant', 22]);
+  defs.push(['Date du relevé', 29], ['Photo', 11]);
+  const largeur = W - 2 * M, reste = largeur - defs.reduce((s, d) => s + d[1], 0);
+  defs.push(['Remarque', Math.max(30, reste)]);
+  let x = M; const cols = defs.map(([t, w]) => { const c = { t, x, w }; x += w; return c; });
+  const col = t => cols.find(c => c.t === t);
+  const entete = () => {
+    pdf.setFillColor(201, 168, 106); pdf.rect(M, y - 4.5, largeur, 7, 'F');
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8.5); pdf.setTextColor(10);
+    cols.forEach(c => pdf.text(c.t, c.x + 1.5, y)); y += 7;
+    pdf.setFont('helvetica', 'normal'); pdf.setTextColor(30);
+  };
+  const cellule = (t, txt, opts = {}) => { const c = col(t); if (!c || txt == null || txt === '') return; pdf.text(String(txt), opts.droite ? c.x + c.w - 2 : c.x + 1.5, y, opts.droite ? { align: 'right' } : undefined); };
+  entete();
+  let totalConso = 0, totalMontant = 0;
+  tout.forEach((l, i) => {
+    pdf.setFontSize(8.5);
+    const note = pdf.splitTextToSize(l.r?.note || '', col('Remarque').w - 3);
+    const nomP = pdf.splitTextToSize(l.proprio || '', col('Copropriétaire').w - 3).slice(0, 2);
+    const h = Math.max(6, Math.max(note.length, nomP.length) * 3.8 + 2.2);
+    if (y + h > H - 14) { pdf.addPage('a4', 'landscape'); y = M + 5; entete(); pdf.setFontSize(8.5); }
+    if (i % 2) { pdf.setFillColor(244, 241, 234); pdf.rect(M, y - 4.2, largeur, h, 'F'); }
+    pdf.setTextColor(30);
+    cellule('Niveau', l.niv.nom); cellule('Place', l.place);
+    if (nomP.length) pdf.text(nomP, col('Copropriétaire').x + 1.5, y);
+    cellule('Index préc.', l.prec != null ? nombreFr(l.prec) : '—', { droite: true });
+    cellule('Index (kWh)', l.r?.index != null ? nombreFr(l.r.index) : '—', { droite: true });
+    if (Number.isNaN(l.conso)) { pdf.setTextColor(170, 60, 40); cellule('Conso. (kWh)', 'en baisse', { droite: true }); pdf.setTextColor(30); }
+    else if (l.conso != null) { totalConso += l.conso; cellule('Conso. (kWh)', nombreFr(l.conso), { droite: true }); }
+    if (l.montant != null) { totalMontant += l.montant; cellule('Montant', euros(l.montant), { droite: true }); }
+    cellule('Date du relevé', l.r && etatPlace(l.r) !== 'afaire' ? dateFr(l.r.date) : '');
+    cellule('Photo', photoDe(l.r) ? 'oui' : '');
+    if (note.length) pdf.text(note, col('Remarque').x + 1.5, y);
+    y += h;
+  });
+  if (avecPrecedente()) {
+    if (y + 8 > H - 14) { pdf.addPage('a4', 'landscape'); y = M + 5; }
+    pdf.setDrawColor(201, 168, 106); pdf.setLineWidth(0.4); pdf.line(M, y - 4.2, M + largeur, y - 4.2);
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(20);
+    pdf.text('Total', M + 1.5, y + 0.5); y += 0.5;
+    cellule('Conso. (kWh)', nombreFr(Math.round(totalConso * 1000) / 1000), { droite: true });
+    if (avecPrix()) cellule('Montant', euros(Math.round(totalMontant * 100) / 100), { droite: true });
+    pdf.setFont('helvetica', 'normal');
+  }
+
+  // Pages suivantes, en portrait : une fiche par place relevée (photo et/ou remarque), deux par page
+  W = 210; H = 297;
+  const avec = tout.filter(l => photoDe(l.r) || l.r?.note);
+  for (let i = 0; i < avec.length; i++) {
+    const { niv, place, r, proprio: nomP, conso, montant: m } = avec[i];
+    if (i % 2 === 0) pdf.addPage('a4', 'portrait');
+    const top = i % 2 === 0 ? 15 : H / 2 + 2, hauteur = H / 2 - 15 - 4, boiteW = W - 30, X = 15;
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(20);
+    pdf.text(`Place ${place} — ${niv.nom}${nomP ? ' — ' + nomP : ''}`, X, top + 4);
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(70);
+    pdf.text([dateFr(r.date), 'Index : ' + (r.index != null ? kwh(r.index) : 'non saisi'), r.compteur ? 'Compteur ' + r.compteur : '',
+      conso != null && !Number.isNaN(conso) ? 'Consommation : ' + kwh(conso) + (m != null ? ' (' + euros(m) + ')' : '') : ''].filter(Boolean).join('   ·   '), X, top + 9);
+    let yy = top + 12;
+    if (r.note) {
+      // Remarque du technicien, dans un encadré sous l'en-tête de la fiche
+      pdf.setFontSize(9.5);
+      const texte = pdf.splitTextToSize(r.note, boiteW - 8).slice(0, 6);
+      const hNote = 8 + texte.length * 4.2;
+      pdf.setFillColor(244, 241, 234); pdf.rect(X, yy, boiteW, hNote, 'F');
+      pdf.setFillColor(201, 168, 106); pdf.rect(X, yy, 1.2, hNote, 'F');
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(140, 110, 55);
+      pdf.text('REMARQUE', X + 4, yy + 4.5);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(30);
+      pdf.text(texte, X + 4, yy + 9);
+      yy += hNote + 3;
+    }
+    if (photoDe(r)) {
+      try {
+        const src = await photoTamponnee(photoDe(r), niv.nom, place, r);
+        const img = await chargerImage(src);
+        const boiteH = top + hauteur - yy;
+        const k = Math.min(boiteW / img.naturalWidth, boiteH / img.naturalHeight);
+        const iw = img.naturalWidth * k, ih = img.naturalHeight * k;
+        pdf.addImage(src, 'JPEG', X + (boiteW - iw) / 2, yy, iw, ih);
+      } catch (e) { pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9); pdf.setTextColor(120); pdf.text('Photo indisponible hors ligne.', X, yy + 4); }
+    } else {
+      pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9); pdf.setTextColor(120);
+      pdf.text('Pas de photo du compteur.', X, yy + 4);
+    }
+  }
+
+  const n = pdf.getNumberOfPages();
+  for (let p = 1; p <= n; p++) {
+    pdf.setPage(p);
+    const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(120);
+    pdf.text(`Harmonie Électricité — Relevé des bornes — ${config.residence || ''}`, 14, ph - 7);
+    pdf.text(`${p} / ${n}`, pw - 14, ph - 7, { align: 'right' });
+  }
+  return { blob: pdf.output('blob'), faits, total: tout.length, totalConso, totalMontant };
+}
+
+let rapport = null;
 $('exportPdf').onclick = async () => {
   if (!window.jspdf) { toast('Module PDF non chargé : ouvrez la page une fois avec du réseau.'); return; }
   const btn = $('exportPdf'); btn.disabled = true;
   await synchroniser(); toast('Création du rapport…');
   try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-    const W = 210, H = 297, M = 15;
-    const tout = lignes(), faits = tout.filter(l => etatPlace(l.r) === 'fait').length;
-
-    // Page 1 : récapitulatif
-    try { pdf.addImage(await logoPourPapier(), 'PNG', M, 12, 50, 17); } catch (e) {}
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(20);
-    pdf.text('Relevé des compteurs des bornes de recharge', M, 40);
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(70);
-    const dates = tout.filter(l => l.r?.date && etatPlace(l.r) !== 'afaire').map(l => new Date(l.r.date)).sort((a, b) => a - b);
-    const infos = [
-      'Résidence : ' + (config.residence || ''),
-      config.syndic ? 'Syndic : ' + config.syndic : '',
-      dates.length ? 'Relevés effectués ' + (dateFr(dates[0], false) === dateFr(dates.at(-1), false) ? 'le ' + dateFr(dates[0], false) : 'du ' + dateFr(dates[0], false) + ' au ' + dateFr(dates.at(-1), false)) : '',
-      `${faits} place(s) relevée(s) sur ${tout.length}`,
-    ].filter(Boolean);
-    infos.forEach((t, i) => pdf.text(t, M, 48 + i * 5.5));
-
-    let y = 48 + infos.length * 5.5 + 6;
-    const cols = [{ t: 'Niveau', x: M, w: 34 }, { t: 'Place', x: M + 34, w: 16 }, { t: 'Index (kWh)', x: M + 50, w: 32 },
-      { t: 'Date du relevé', x: M + 82, w: 34 }, { t: 'Photo', x: M + 116, w: 14 }, { t: 'Remarque', x: M + 130, w: W - 2 * M - 130 }];
-    const entete = () => {
-      pdf.setFillColor(201, 168, 106); pdf.rect(M, y - 4.5, W - 2 * M, 7, 'F');
-      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(10);
-      cols.forEach(c => pdf.text(c.t, c.x + 1.5, y)); y += 7;
-      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(30);
-    };
-    entete();
-    tout.forEach(({ niv, place, r }, i) => {
-      const note = pdf.splitTextToSize(r?.note || '', cols[5].w - 3);
-      const h = Math.max(6, note.length * 4 + 2);
-      if (y + h > H - M) { pdf.addPage(); y = M + 5; entete(); }
-      if (i % 2) { pdf.setFillColor(244, 241, 234); pdf.rect(M, y - 4.2, W - 2 * M, h, 'F'); }
-      pdf.text(niv.nom, cols[0].x + 1.5, y);
-      pdf.text(String(place), cols[1].x + 1.5, y);
-      pdf.text(r?.index != null ? nombreFr(r.index) : '—', cols[2].x + 1.5, y);
-      pdf.text(r && etatPlace(r) !== 'afaire' ? dateFr(r.date) : '', cols[3].x + 1.5, y);
-      pdf.text(r?.photo ? 'oui' : '', cols[4].x + 1.5, y);
-      if (note.length) pdf.text(note, cols[5].x + 1.5, y);
-      y += h;
-    });
-
-    // Pages suivantes : une fiche par place relevée (photo et/ou remarque), deux par page
-    const avec = tout.filter(l => l.r?.photo || l.r?.note);
-    for (let i = 0; i < avec.length; i++) {
-      const { niv, place, r } = avec[i];
-      if (i % 2 === 0) pdf.addPage();
-      const top = i % 2 === 0 ? M : H / 2 + 2, hauteur = H / 2 - M - 4, boiteW = W - 2 * M;
-      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(20);
-      pdf.text(`Place ${place} — ${niv.nom}`, M, top + 4);
-      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(70);
-      pdf.text(`${dateFr(r.date)}   ·   Index : ${r.index != null ? kwh(r.index) : 'non saisi'}${r.compteur ? '   ·   Compteur ' + r.compteur : ''}`, M, top + 9);
-      let y = top + 12;
-      if (r.note) {
-        // Remarque du technicien, dans un encadré sous l'en-tête de la fiche
-        pdf.setFontSize(9.5);
-        const texte = pdf.splitTextToSize(r.note, boiteW - 8).slice(0, 6);
-        const hNote = 8 + texte.length * 4.2;
-        pdf.setFillColor(244, 241, 234); pdf.rect(M, y, boiteW, hNote, 'F');
-        pdf.setFillColor(201, 168, 106); pdf.rect(M, y, 1.2, hNote, 'F');
-        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(140, 110, 55);
-        pdf.text('REMARQUE', M + 4, y + 4.5);
-        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(30);
-        pdf.text(texte, M + 4, y + 9);
-        y += hNote + 3;
-      }
-      if (r.photo) {
-        const src = await photoTamponnee(r.photo, niv.nom, place, r);
-        const img = await chargerImage(src);
-        const boiteH = top + hauteur - y;
-        const k = Math.min(boiteW / img.naturalWidth, boiteH / img.naturalHeight);
-        const iw = img.naturalWidth * k, ih = img.naturalHeight * k;
-        pdf.addImage(src, 'JPEG', M + (boiteW - iw) / 2, y, iw, ih);
-      } else {
-        pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9); pdf.setTextColor(120);
-        pdf.text('Pas de photo du compteur.', M, y + 4);
-      }
-    }
-
-    const n = pdf.getNumberOfPages();
-    for (let p = 1; p <= n; p++) {
-      pdf.setPage(p); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(120);
-      pdf.text(`Harmonie Électricité — Relevé des bornes — ${config.residence || ''}`, M, H - 7);
-      pdf.text(`${p} / ${n}`, W - M, H - 7, { align: 'right' });
-    }
-    await partagerOuTelecharger([new File([pdf.output('blob')], nomFichier('pdf'), { type: 'application/pdf' })]);
+    const r = await creerRapport();
+    rapport = { ...r, nom: nomFichier('pdf') };
+    $('rapResume').textContent = `${r.faits} place(s) relevée(s) sur ${r.total}` + (avecPrecedente() ? ` · ${kwh(Math.round(r.totalConso * 1000) / 1000)} consommés` : '')
+      + (avecPrix() ? ` · ${euros(Math.round(r.totalMontant * 100) / 100)}` : '') + '.';
+    $('rapDest').value = config.syndicEmail || '';
+    $('dlgRapport').showModal();
   } catch (e) {
     console.error(e); toast('Le rapport n’a pas pu être créé.');
   } finally { btn.disabled = false; }
 };
+$('rapFermer').onclick = () => $('dlgRapport').close();
+$('rapPartager').onclick = () => partagerOuTelecharger([new File([rapport.blob], rapport.nom, { type: 'application/pdf' })]);
+$('formRapport').addEventListener('submit', async e => {
+  e.preventDefault();
+  const dest = $('rapDest').value.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dest)) { $('rapDest').focus(); return toast('Indiquez une adresse e-mail valide.'); }
+  if (dest !== config.syndicEmail) { config.syndicEmail = dest; config.modifieLe = Date.now(); await sauverConfig(); programmerSynchro(); }
+  const btn = $('rapEnvoyer'); btn.disabled = true; toast('Envoi en cours…');
+  const objet = `Relevé des bornes de recharge — ${config.residence}`;
+  const texte = `Bonjour,\n\nVeuillez trouver ci-joint le relevé des compteurs des bornes de recharge de la résidence ${config.residence}`
+    + `${config.adresse ? ' (' + config.adresse + ')' : ''} : ${rapport.faits} place(s) relevée(s) sur ${rapport.total}`
+    + (avecPrecedente() ? `, ${kwh(Math.round(rapport.totalConso * 1000) / 1000)} consommés depuis la relève du ${dateFr(config.precedente.date)}` : '')
+    + (avecPrix() ? `, soit ${euros(Math.round(rapport.totalMontant * 100) / 100)} au prix de ${nombreFr(config.prixKwh, 4)} € le kWh` : '')
+    + `.\n\nLe détail par place et les photos des compteurs sont dans le PDF.\n\nCordialement,\nHarmonie Électricité`;
+  const erreur = await envoiGmail(dest, objet, texte, rapport.blob, rapport.nom);
+  btn.disabled = false;
+  if (!erreur) { toast('Rapport envoyé à ' + dest); $('dlgRapport').close(); return; }
+  toast(`Envoi Gmail impossible (${erreur}) : le PDF s’ouvre pour l’envoyer depuis votre messagerie.`);
+  navigator.clipboard?.writeText(dest).catch(() => {});
+  partagerOuTelecharger([new File([rapport.blob], rapport.nom, { type: 'application/pdf' })]);
+});
 
 // ---------- Synchronisation entre appareils (Supabase) ----------
-const SUPA_URL = 'https://bqzebkobyfktemnwfwbt.supabase.co';
-const SUPA_KEY = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
-const SB = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY };
-const TABLE = 'emargements';
-
 function afficherSync(genre, texte, titre) {
   const e = $('etatSync'); e.className = 'sync ' + genre;
   e.querySelector('span').textContent = texte; e.title = (titre || texte) + ' — toucher pour synchroniser';
@@ -675,6 +958,18 @@ function blobVersDataUrl(b) {
 }
 async function telechargerPhoto(url) {
   try { const r = await fetch(url); return r.ok ? await blobVersDataUrl(await r.blob()) : null; } catch (e) { return null; }
+}
+// Photos venues d'un autre appareil : téléchargées en arrière-plan pour rester visibles sans réseau.
+let photosEnCours = false;
+async function garderPhotosSurAppareil() {
+  if (photosEnCours) return; photosEnCours = true;
+  try {
+    for (const [k, r] of Object.entries(releves)) {
+      if (r.supprime || !/^https?:/.test(r.photo || '')) continue;
+      const data = await telechargerPhoto(r.photo);
+      if (data && releves[k] === r) { releves[k] = { ...r, photo: data }; await sauverReleves(); }
+    }
+  } finally { photosEnCours = false; }
 }
 let delaiSynchro, synchroEnCours = null, synchroARelancer = false;
 function programmerSynchro(delai = 1500) { clearTimeout(delaiSynchro); delaiSynchro = setTimeout(synchroniser, delai); }
@@ -689,7 +984,7 @@ function synchroniser() {
 async function synchro() {
   if (navigator.onLine === false) return afficherSync('', 'Hors ligne', 'Hors ligne : enregistré sur cet appareil, envoi au retour du réseau');
   afficherSync('attente', 'Synchro…');
-  const id = config.id || CONFIG_DEFAUT.id;
+  const id = config.id;
   try {
     // 1. Photos prises sur cet appareil et pas encore en ligne
     for (const [k, r] of Object.entries(releves)) {
@@ -699,36 +994,37 @@ async function synchro() {
         method: 'POST', headers: { ...SB, 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: dataUrlVersFichier(r.photo, k + '.jpg') });
       if (!rep.ok) throw new Error('photo refusée (' + rep.status + ')');
       r.photoUrl = `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`;
-      await ecrire('releves', releves);
+      await sauverReleves();
     }
     // 2. Version en ligne, fusionnée place par place : la plus récente l'emporte
     const g = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: SB });
     if (!g.ok) throw new Error('lecture refusée (' + g.status + ')');
     const distant = (await g.json())[0]?.payload || null, dr = distant?.releves || {};
-    let changeIci = false, aEnvoyer = !distant;
+    let changeIci = false, aEnvoyer = !distant && (!!config.modifieLe || CAMPAGNE === ID_LANDART); // une relève vide n'est jamais créée en ligne
     for (const k of new Set([...Object.keys(releves), ...Object.keys(dr)])) {
       const l = releves[k], d = dr[k], tl = l?.modifieLe || 0, td = d?.modifieLe || 0;
       if (d && (!l || td > tl)) {
         const n = { ...d };
-        if (!d.supprime && d.photoUrl) n.photo = (l?.photoUrl === d.photoUrl && l.photo) || (await telechargerPhoto(d.photoUrl)) || d.photoUrl;
-        if (releves[k] !== l) continue; // modifié ici pendant le téléchargement : on garde la saisie
+        // La photo s'affiche d'abord depuis son adresse en ligne ; elle est gardée sur l'appareil juste après.
+        if (!d.supprime && d.photoUrl) n.photo = (l?.photoUrl === d.photoUrl && l.photo) || d.photoUrl;
         releves[k] = n; changeIci = true;
       } else if (l && (!d || tl > td || (!l.supprime && l.photo && !d.photoUrl && l.photoUrl))) aEnvoyer = true;
     }
     const dc = distant?.config;
-    if (dc && (dc.modifieLe || 0) > (config.modifieLe || 0)) { config = { ...CONFIG_DEFAUT, ...dc }; await ecrire('config', config); changeIci = true; }
+    // Un appareil qui n'a jamais enregistré de réglages prend ceux en ligne, même sans date de version.
+    if (dc && ((dc.modifieLe || 0) > (config.modifieLe || 0) || !configSurAppareil)) { config = { ...configDefaut(), ...dc }; await sauverConfig(); configSurAppareil = true; changeIci = true; }
     else if (!dc || (config.modifieLe || 0) > (dc.modifieLe || 0)) aEnvoyer = true;
-    if (changeIci) { await ecrire('releves', releves); rendre(); }
+    if (changeIci) { await sauverReleves(); rendre(); }
     // 3. Envoi de la version fusionnée (sans les photos, qui sont dans le stockage)
     if (aEnvoyer) {
       const enLigne = {};
       for (const [k, r] of Object.entries(releves)) { const { photo, ...reste } = r; enLigne[k] = reste; }
-      const faits = Object.values(releves).filter(r => etatPlace(r.supprime ? null : r) === 'fait').length;
       const p = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, {
         method: 'POST', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ id, payload: { type: 'releves-bornes', modifieLe: Date.now(), config, resume: { faits }, releves: enLigne } }) });
+        body: JSON.stringify({ id, payload: { type: 'releves-bornes', modifieLe: Date.now(), config, resume: resume(), releves: enLigne } }) });
       if (!p.ok) throw new Error('envoi refusé (' + p.status + ')');
     }
+    garderPhotosSurAppareil();
     afficherSync('ok', 'Synchronisé', 'Synchronisé à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
     console.error(e);
@@ -738,20 +1034,30 @@ async function synchro() {
 $('etatSync').onclick = () => synchroniser();
 window.addEventListener('online', () => synchroniser());
 window.addEventListener('offline', () => afficherSync('', 'Hors ligne'));
-document.addEventListener('visibilitychange', () => { if (document.visibilityState) synchroniser(); });
+document.addEventListener('visibilitychange', () => synchroniser());
 setInterval(() => { if (document.visibilityState === 'visible') synchroniser(); }, 30000);
 
 // ---------- Démarrage ----------
 (async () => {
   try { $('monogramme').src = LOGO_MONOGRAMME; } catch (e) {}
   await ouvrirBase();
-  config = { ...structuredClone(CONFIG_DEFAUT), ...((await lire('config')) || {}) };
-  releves = (await lire('releves')) || {};
+  const local = await lire(CLE_CONFIG);
+  configSurAppareil = !!local;
+  config = { ...configDefaut(), ...(local || {}), id: CAMPAGNE };
+  if (!Array.isArray(config.niveaux)) config.niveaux = [];
+  releves = (await lire(CLE_RELEVES)) || {};
   // Relevés saisis avant la synchronisation : ils prennent la date du relevé comme version.
   for (const r of Object.values(releves)) if (!r.modifieLe) r.modifieLe = Date.parse(r.date) || Date.now();
+  if (local || CAMPAGNE === ID_LANDART) await noterCampagne(CAMPAGNE);
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   rendre();
-  synchroniser();
+  await synchroniser();
+  if (!local && CAMPAGNE !== ID_LANDART) {
+    // Relève ouverte depuis un autre appareil : elle est maintenant sur celui-ci.
+    if (config.modifieLe) { await sauverConfig(); await noterCampagne(CAMPAGNE); }
+    else { $('niveaux').innerHTML = '<div class="vide-campagne">Relève introuvable : vérifiez le réseau, puis rechargez la page.</div>'; }
+  }
+  if (location.hash === '#nouvelle') { history.replaceState(null, '', location.pathname + location.search); $('nouvelleReleve').click(); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>

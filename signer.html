@@ -126,9 +126,15 @@ const horodatage = ts => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', 
 
 async function charger() {
   if (!/^[0-9a-f]{32}$/.test(jeton)) return erreur('Ce lien est incomplet. Ouvrez-le à nouveau depuis le message reçu, ou contactez-nous au 06 31 13 47 01.');
+  // Fonction sécurisée (sql/securite-1-fonctions.sql) : le client ne voit que sa demande, sans accès aux tables.
+  // Repli sur la lecture directe tant que la fonction n'est pas installée.
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${idDemande}`, { headers: SB });
-    demande = r.ok ? (await r.json())[0]?.payload : null;
+    const f = await fetch(`${SUPA_URL}/rest/v1/rpc/emargement_signature_lire`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json' }, body: JSON.stringify({ jeton }) });
+    if (f.ok) demande = await f.json();
+    else {
+      const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${idDemande}`, { headers: SB });
+      demande = r.ok ? (await r.json())[0]?.payload : null;
+    }
   } catch { return erreur('Connexion impossible. Vérifiez votre réseau puis rouvrez le lien.'); }
   if (!demande) return erreur('Ce lien n’est plus valide : la demande a été annulée. Contactez-nous au 06 31 13 47 01.');
   if (demande.statut === 'signe') {
@@ -198,10 +204,16 @@ $('signer').onclick = async () => {
   $('signer').disabled = true; message('Envoi de la signature…');
   const signee = { ...demande, statut: 'signe', signature: pad.image(), signataire: $('nom').value.trim(), signeLe: Date.now(), navigateur: navigator.userAgent };
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?id=eq.${idDemande}`, {
-      method: 'PATCH', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ payload: signee }),
-    });
-    if (!r.ok) throw new Error();
+    const f = await fetch(`${SUPA_URL}/rest/v1/rpc/emargement_signature_signer`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jeton, signature: signee.signature, signataire: signee.signataire, navigateur: signee.navigateur }) });
+    let ok = f.ok && (await f.json()) === true;
+    if (!f.ok && f.status === 404) {
+      const r = await fetch(`${SUPA_URL}/rest/v1/emargements?id=eq.${idDemande}`, {
+        method: 'PATCH', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ payload: signee }),
+      });
+      ok = r.ok;
+    }
+    if (!ok) throw new Error();
     montrer('merci'); window.scrollTo({ top: 0 });
   } catch {
     $('signer').disabled = false;

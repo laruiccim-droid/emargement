@@ -1,7 +1,7 @@
 {
-  "name": "Émargement Harmonie Électricité",
-  "short_name": "Émargement",
-  "description": "Feuille d'émargement numérique : logements, badges, signatures et bons d'intervention.",
+  "name": "Harmonie Électricité",
+  "short_name": "Harmonie",
+  "description": "Relevés de consommation des bornes et émargement interphonie : chantiers, badges, signatures, rapports.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

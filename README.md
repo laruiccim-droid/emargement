@@ -1,6 +1,11 @@
-# Émargement Harmonie Électricité
+# Harmonie Électricité — relevés et émargement
 
-Feuille d'émargement numérique, indépendante de l'app métier : chantiers par résidence, fiche par logement
+L'accueil (`index.html`) donne accès à deux activités, chacune avec ses chantiers rangés par client (A → Z),
+une recherche et la création d'un nouveau chantier à partir des clients de l'app métier (ou d'un nouveau client) :
+
+- **Relevés de consommation** des bornes de recharge : index et photo par place, copropriétaire, relève suivante
+  avec consommation et montant à refacturer, rapport PDF envoyé au syndic, rappel de la prochaine relève.
+- **Émargement interphonie** : feuille d'émargement numérique, chantiers par résidence, fiche par logement
 (nom affiché, contact, rendez-vous, combiné ou moniteur, plaque, badges scannés à la caméra, photos avant / après,
 signatures), bons d'intervention, avis de passage et bon de livraison en PDF, rappels SMS depuis le téléphone,
 signature à distance par lien.
@@ -9,9 +14,11 @@ signature à distance par lien.
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | L'app du technicien |
+| `index.html` | Accueil : tuiles Relevés / Interphonie, listes par client, création, fiche client, « Cette semaine » |
+| `emargement.html` | L'émargement du technicien (`?chantier=CH_…` ouvre un chantier, `?listing=1&client=…` l'import du listing) |
+| `commun.js` | Outils partagés par l'accueil et les relevés : Supabase, clients de l'app métier, envoi Gmail, lien agenda |
 | `signer.html` | Page publique où le client relit et signe son bon depuis le lien reçu |
-| `releves.html` | Relevé des compteurs des bornes de recharge : index, date et photo par place de parking, rapport PDF / CSV pour le syndic, synchronisé entre appareils |
+| `releves.html` | Relevé des bornes de recharge, une page par relève (`?c=RB_…`, sans paramètre : Land’Art) : index, photo, copropriétaire, consommation et montant, rapport PDF / CSV, envoi au syndic, synchronisé entre appareils |
 | `logos.js`, `assets/` | Logos et icônes du design system Harmonie |
 | `manifest.webmanifest`, `sw.js` | App installable sur l'écran d'accueil, ouverture sans réseau |
 | `sql/emargements.sql` | Table Supabase à créer une fois |
@@ -43,3 +50,16 @@ en ouvrant le fichier directement depuis le PC.
 
 Chaque mise en ligne est un commit. Pour annuler la dernière : `git revert HEAD` puis `git push`.
 Penser à changer `VERSION` dans `sw.js` à chaque mise en ligne pour que les téléphones prennent la nouvelle version.
+
+## Clients
+
+La liste des clients vient de la table `clients` de l'app métier (lue en entier, par pages de 1000, gardée sur l'appareil
+pour travailler sans réseau). Un client créé depuis l'accueil y est ajouté comme un client créé à la main dans l'app métier
+(`id` = `C_<horodatage>`, champs `name`, `email`, `phone`, `address`, `addressChantier`, `createdAt`) ; hors ligne, il part au retour du réseau.
+Le nom du client pré-remplit la résidence : « Le saint François SC CHAMBÉRY SYNDIC » donne la résidence « Le saint François »
+et le syndic « CHAMBÉRY SYNDIC ».
+
+## Relevés : données sur l'appareil
+
+Land’Art garde ses clés d'origine dans IndexedDB (`releves-bornes` → `config`, `releves`) ; les autres relèves sont sous
+`config:RB_…` / `releves:RB_…`, et `campagnes` liste celles de l'appareil. Aucune donnée n'est déplacée lors des mises à jour.
