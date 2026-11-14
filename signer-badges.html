@@ -56,7 +56,7 @@
   <footer class="pied" id="pied">Portail réalisé par Harmonie Électricité</footer>
 </main>
 
-<script src="portail-commun.js?v=5"></script>
+<script src="portail-commun.js?v=6"></script>
 <script>
 'use strict';
 const { rpc, $, horodatage } = PS;
@@ -85,7 +85,7 @@ async function charger() {
     ['Résidence', [r.copro.nom, r.copro.adresse, [r.copro.cp, r.copro.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')],
     ['Bénéficiaire', r.proprietaire + ' (' + (PS.QUALITES[r.qualite] || r.qualite) + ')'],
     ['Logement', [r.batiment && 'Bât. ' + r.batiment, r.lot].filter(Boolean).join(' • ')],
-    ['Badges', String(n)], ['N° des badges', r.badges.join(' • ')], ['Commentaire', r.commentaire], ['Bon', r.numero],
+    ['Badges', String(n)], ['N° des badges', r.badges.map(b => b + (r.acces && r.acces[b] ? ' (' + r.acces[b] + ')' : '')).join(' • ')], ['Commentaire', r.commentaire], ['Bon', r.numero],
   ];
   for (const [k, v] of lignes) {
     if (!v) continue;

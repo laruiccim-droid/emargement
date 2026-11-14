@@ -200,7 +200,7 @@
 </form></dialog>
 
 <script src="logos.js"></script>
-<script src="portail-commun.js?v=5"></script>
+<script src="portail-commun.js?v=6"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -661,7 +661,7 @@ function rendreRemisesAdmin() {
     <td class="mono">${esc(r.numero)}<div class="aide">${dateCourte(r.signe_le || r.cree_le)}</div></td>
     <td>${esc(r.proprietaire)}<div class="aide">${esc(PS.QUALITES[r.qualite] || '')}${r.agent_nom ? ' • par ' + esc(r.agent_nom) : ''}</div></td>
     <td>${esc([r.batiment && 'Bât. ' + r.batiment, r.lot].filter(Boolean).join(' • '))}</td>
-    <td class="mono">${esc(r.badges.join(', '))}</td>
+    <td class="mono">${esc(r.badges.map(b => b + (r.acces && r.acces[b] ? ' (' + r.acces[b] + ')' : '')).join(', '))}</td>
     <td>${r.statut === 'signe' ? '<span class="pastille ok">Signée</span>' : r.statut === 'attente' ? '<span class="pastille attente">En attente</span>' : `<span class="pastille erreur">Annulée</span><div class="aide">${esc(r.annule_motif)}</div>`}</td>
     <td>${r.statut === 'signe' ? `<label class="case" style="margin:0"><input type="checkbox" data-controle="${r.id}" ${r.controle_acces ? 'checked' : ''}> ${r.controle_acces ? 'Fait le ' + dateCourte(r.controle_le) : 'À faire'}</label>` : ''}</td>
     <td>${r.statut !== 'annule' ? `<button type="button" class="btn btn-petit" data-pdf="${r.id}">PDF</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="7"><div class="vide">Aucune remise pour l’instant.</div></td></tr>';
@@ -676,15 +676,16 @@ $('btnExportCsv').onclick = () => {
   const rs = A.detail.remises.filter(r => r.statut === 'signe');
   if (!rs.length) return toast('Aucune remise signée à exporter.');
   const cel = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lignes = [['Bâtiment', 'Logement', 'Nom', 'Qualité', 'Nombre de badges', 'Badges', 'N° de bon', 'Signé le', 'Créé dans le contrôle d’accès'].map(cel).join(';'),
-    ...rs.map(r => [r.batiment, r.lot, r.proprietaire, PS.QUALITES[r.qualite] || r.qualite, r.badges.length, r.badges.join(' '), r.numero, dateCourte(r.signe_le), r.controle_acces ? 'oui' : 'non'].map(cel).join(';'))];
+  // Une ligne par badge, avec son droit d'accès : prête pour la création dans le logiciel de la centrale.
+  const lignes = [['Bâtiment', 'Logement', 'Nom', 'Qualité', 'N° de badge', 'Droit d’accès', 'N° de bon', 'Signé le', 'Créé dans le contrôle d’accès'].map(cel).join(';'),
+    ...rs.flatMap(r => r.badges.map(b => [r.batiment, r.lot, r.proprietaire, PS.QUALITES[r.qualite] || r.qualite, b, (r.acces || {})[b] || '', r.numero, dateCourte(r.signe_le), r.controle_acces ? 'oui' : 'non'].map(cel).join(';')))];
   PS.telecharger(new Blob(['﻿' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Remises badges - ${A.detail.copro.nom}.csv`);
 };
 function rendreBadgesAdmin() {
   const q = $('bdRecherche').value.trim().toUpperCase();
   const remises = Object.fromEntries(A.detail.remises.map(r => [r.id, r]));
   const bs = A.detail.badges.filter(b => !q || b.numero.includes(q));
-  $('listeBadges').innerHTML = bs.length ? bs.slice(0, 600).map(b => { const r = remises[b.remise_id]; return `<li><div class="principal"><b class="mono">${esc(b.numero)}</b><div class="sous">${r ? esc(r.proprietaire + (r.lot ? ' • ' + r.lot : '') + ' • ' + r.numero) : ''}</div></div>
+  $('listeBadges').innerHTML = bs.length ? bs.slice(0, 600).map(b => { const r = remises[b.remise_id]; return `<li><div class="principal"><b class="mono">${esc(b.numero)}</b><div class="sous">${r ? esc(r.proprietaire + (r.lot ? ' • ' + r.lot : '') + ' • ' + r.numero) : ''}${b.droit ? ' • ' + esc(b.droit) : ''}</div></div>
     <div class="droite"><span class="pastille ${b.statut === 'remis' ? 'ok' : b.statut === 'reserve' ? 'attente' : b.statut === 'stock' ? 'or' : 'erreur'}">${PS.STATUTS_BADGE[b.statut] || b.statut}</span>
     ${b.statut === 'stock' ? `<button type="button" class="btn btn-petit btn-discret" data-retirer="${esc(b.numero)}">Retirer</button>` : ''}</div></li>`; }).join('') : '<li><div class="vide" style="grid-column:1/-1">Aucun badge.</div></li>';
   document.querySelectorAll('[data-retirer]').forEach(b => b.onclick = async () => {

@@ -222,8 +222,13 @@ const PS = (() => {
     kv([['Nom', r.proprietaire], ['Qualité', QUALITES[r.qualite] || r.qualite], ['Logement', [r.batiment && 'Bât. ' + r.batiment, r.lot].filter(Boolean).join(' • ')],
       ['Téléphone', r.tel], ['E-mail', r.email]]);
     section(`Badges remis (${(r.badges || []).length})`);
-    const per = 4, cw = (W - 2 * M) / per;
-    (r.badges || []).forEach((b, i) => { const x = M + (i % per) * cw; T(`${i + 1}.`, x, y, { s: 8, c: GRIS }); T(b, x + 6, y, { s: 10.5, b: true }); if (i % per === per - 1 || i === r.badges.length - 1) y += 6; });
+    const acces = r.acces || {}, avecDroits = (r.badges || []).some(b => acces[b]);
+    const per = avecDroits ? 2 : 4, cw = (W - 2 * M) / per;
+    (r.badges || []).forEach((b, i) => {
+      const x = M + (i % per) * cw; T(`${i + 1}.`, x, y, { s: 8, c: GRIS }); T(b, x + 6, y, { s: 10.5, b: true });
+      if (acces[b]) T(acces[b], x + 6, y + 4.2, { s: 8, c: GRIS }); // droit d'accès Vigik
+      if (i % per === per - 1 || i === r.badges.length - 1) y += avecDroits ? 10 : 6;
+    });
     y += 1;
     if (r.commentaire) { section('Commentaire'); const l = doc.splitTextToSize(r.commentaire, W - 2 * M); doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...ENC); doc.text(l, M, y); y += l.length * 4.4 + 4; }
     if (y > 200) { doc.addPage(); y = 20; }
