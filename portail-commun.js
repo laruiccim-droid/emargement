@@ -195,10 +195,11 @@ const PS = (() => {
   // ---------- Avancement d'un chantier : étapes, étape en cours, pourcentage ----------
   // Chaque étape vaut de 0 à 1 (fraction pour les étapes « x sur n ») ; le pourcentage est la moyenne.
   function avancement(c) {
-    const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, etat = c.etat || 'commence';
+    const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, camp = c.campagne || {}, etat = c.etat || 'commence';
     const apres = (...e) => e.includes(etat);
-    const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0;
+    const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, ni = Math.max(c.nb_invites || 0, nc), nr = c.nb_rdv || 0;
     const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+    const pl = (x, mot) => `${x} ${mot}${x > 1 ? 's' : ''}`;
     const badges = { cle: 'badges', titre: 'Remise des badges', fait: k.livres > 0 && k.remis >= k.livres ? 1 : k.livres ? k.remis / k.livres : 0,
       enCours: `Remise des badges : ${k.remis || 0} / ${k.livres || 0} remis`, attente: 'En attente de la livraison des badges' };
     let E;
@@ -209,31 +210,40 @@ const PS = (() => {
         { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
       ];
     } else {
-      const commande = apres('commande', 'installation', 'reserves', 'termine');
+      const commande = apres('commande', 'installation', 'reserves', 'termine'), surSite = apres('installation', 'reserves', 'termine');
       E = [
-        { cle: 'etiquettes', titre: 'Étiquettes de numérotation', fait: rec.etiquettes_le ? 1 : 0, attente: 'En attente des étiquettes de numérotation des appartements' },
+        { cle: 'etiquettes', titre: 'Étiquettes de numérotation (validées par Harmonie)', fait: rec.etiquettes_le ? 1 : 0,
+          attente: 'En attente de la pose des étiquettes de numérotation des appartements (validation Harmonie)' },
         { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
-          enCours: `Création du fichier des copropriétaires par le syndic (${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
-        { cle: 'sondage', titre: 'Sondage envoyé', fait: so.ouvert_le ? 1 : 0, attente: 'Sondage à envoyer aux copropriétaires' },
+          enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')} saisi${n > 1 ? 's' : ''})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
+        { cle: 'sondage', titre: 'Sondage envoyé', fait: so.clos_le || (n && ni >= n) ? 1 : so.ouvert_le && n ? ni / n : 0,
+          enCours: `Envoi du sondage : ${ni} / ${n} copropriétaires invités`, attente: 'Sondage à envoyer aux copropriétaires' },
         { cle: 'reponses', titre: 'Réponses des copropriétaires', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
           enCours: `Sondage en cours : ${nc} / ${n} bons de commande signés`, attente: 'En attente des réponses au sondage' },
         { cle: 'commande', titre: 'Matériel commandé', fait: commande ? 1 : 0, attente: 'Commande du matériel' },
+        { cle: 'campagne', titre: 'Campagne d’information envoyée (date d’intervention, affichage)', fait: camp.envoyee_le || surSite ? 1 : 0,
+          attente: 'Envoi de la campagne d’information : date d’intervention et feuille d’affichage' },
+        { cle: 'rdv', titre: 'Rendez-vous validés par tous les appartements', fait: surSite || (n && nr >= n) ? 1 : n ? nr / n : 0,
+          enCours: `Rendez-vous : ${nr} / ${n} appartements`, attente: 'En attente des rendez-vous des appartements' },
         { cle: 'installation', titre: 'Installation', fait: apres('reserves', 'termine') ? 1 : etat === 'installation' ? 0.5 : 0,
           enCours: 'Installation en cours', attente: 'En attente de l’installation' },
       ];
-      if (vigik) E.push(badges);
+      // Les badges sont souvent remis avant l'intervention : étape en parallèle, comptée dans le pourcentage.
+      if (vigik) E.push({ ...badges, parallele: true });
       E.push({ cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: etat === 'reserves' ? 'Réserves à lever' : 'Clôture du chantier' });
     }
     E.forEach(e => { e.fait = Math.max(0, Math.min(1, +e.fait || 0)); });
-    const i = E.findIndex(e => e.fait < 1);
+    const suite = E.filter(e => !e.parallele), i = suite.findIndex(e => e.fait < 1), courante = i < 0 ? null : suite[i];
     const pc = Math.round(E.reduce((t, e) => t + e.fait, 0) / E.length * 100);
-    const courante = i < 0 ? null : E[i];
-    return { etapes: E, index: i, pc, libelle: !courante ? 'Chantier terminé' : courante.fait > 0 && courante.enCours ? courante.enCours : courante.attente };
+    const par = E.find(e => e.parallele && e.fait < 1 && k.livres > 0);
+    const libelle = (!courante ? 'Chantier terminé' : courante.fait > 0 && courante.enCours ? courante.enCours : courante.attente) + (par ? ' · ' + par.enCours : '');
+    return { etapes: E, suite, index: i, courante, pc, libelle };
   }
   function friseHtml(c) {
     const a = avancement(c);
-    return `<div class="frise" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${a.pc}" title="${esc(a.etapes.map((e, j) => (e.fait >= 1 ? '✓ ' : j === a.index ? '▸ ' : '· ') + e.titre).join('\n'))}"><i style="width:${a.pc}%"></i><span>${a.pc} %</span></div>
-      <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.etapes.length} · `}${esc(a.libelle)}</span></div>`;
+    const aide = a.etapes.map(e => (e.fait >= 1 ? '✓ ' : e === a.courante ? '▸ ' : e.parallele ? '∥ ' : '· ') + e.titre).join('\n');
+    return `<div class="frise" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${a.pc}" title="${esc(aide)}"><i style="width:${a.pc}%"></i><span>${a.pc} %</span></div>
+      <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.suite.length} · `}${esc(a.libelle)}</span></div>`;
   }
 
   const STATUTS_BADGE = { stock: 'En stock', reserve: 'Réservé', remis: 'Remis', perdu: 'Perdu', desactive: 'Désactivé' };

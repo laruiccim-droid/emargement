@@ -80,6 +80,8 @@
       <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p><p class="aide" id="dDevis"></p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
     </div>
+    <div id="dFrise"></div>
+    <div class="actions" id="dJalons"></div>
     <div class="tuiles" id="dTuiles"></div>
     <div class="bloc" id="dRecensement" hidden>
       <h2>Recensement et sondage (espace syndic)</h2>
@@ -229,7 +231,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=10"></script>
+<script src="portail-commun.js?v=11"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -634,6 +636,28 @@ $('formChantier').onsubmit = async e => {
   } catch {}
 };
 
+// Avancement du chantier et jalons validés par Harmonie (étiquettes posées, campagne d'information).
+function rendreAvancementAdmin(c, k) {
+  const e = A.etat.copros.find(x => x.id === c.id) || {};
+  $('dFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k, nb_logements_saisis: e.nb_logements_saisis, nb_invites: e.nb_invites, nb_commandes: e.nb_commandes, nb_rdv: e.nb_rdv });
+  if (c.type !== 'complet') { $('dJalons').innerHTML = ''; return; }
+  const rec = c.recensement || {}, camp = c.campagne || {};
+  const jalons = [
+    ['etiquettes', rec.etiquettes_le, 'Valider la pose des étiquettes', 'Étiquettes validées le '],
+    ['campagne', camp.envoyee_le, 'Campagne d’information envoyée', 'Campagne envoyée le '],
+  ];
+  $('dJalons').innerHTML = jalons.map(([j, le, oui, fait]) => le
+    ? `<button type="button" class="btn btn-petit btn-discret" data-jalon="${j}" data-fait="0" title="Annuler cette validation">✓ ${esc(fait + dateCourte(le))}</button>`
+    : `<button type="button" class="btn btn-petit" data-jalon="${j}" data-fait="1">${esc(oui)}</button>`).join('');
+  $('dJalons').querySelectorAll('[data-jalon]').forEach(b => b.onclick = async () => {
+    const fait = b.dataset.fait === '1';
+    if (!fait && !confirm('Annuler cette validation ?')) return;
+    b.disabled = true;
+    try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: b.dataset.jalon, p_fait: fait }); toast(fait ? 'Étape validée.' : 'Validation annulée.'); await charger(); ouvrirChantier(c.id); }
+    catch { b.disabled = false; }
+  });
+}
+
 // Recensement saisi par le gestionnaire (chantier complet) : lecture seule ici.
 async function rendreRecensementAdmin(c) {
   $('dRecensement').hidden = c.type !== 'complet';
@@ -677,7 +701,7 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c);
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));

@@ -216,9 +216,8 @@
     </div>
 
     <div class="bloc">
-      <h2 id="rcTitreFin">3 · Étiquettes et validation</h2>
-      <div class="rappel">Avant l’envoi du sondage, une <b>étiquette blanche numérotée</b> doit être collée sur l’huisserie de chaque porte palière, avec le même numéro que dans la liste ci-dessus. C’est ce numéro que les copropriétaires et les locataires indiqueront.</div>
-      <label class="case"><input type="checkbox" id="rcEtiquettes"> Les étiquettes de numérotation sont posées sur toutes les portes.</label>
+      <h2 id="rcTitreFin">3 · Validation</h2>
+      <div class="rappel">Avant l’envoi du sondage, une <b>étiquette blanche numérotée</b> doit être collée sur l’huisserie de chaque porte palière, avec le même numéro que dans la liste ci-dessus. C’est ce numéro que les copropriétaires et les locataires indiqueront. Harmonie Électricité valide la pose des étiquettes.</div>
       <div class="actions">
         <button type="button" class="btn" id="rcEnregistrer">Enregistrer le brouillon</button>
         <button type="button" class="btn btn-or" id="rcValider">Valider le recensement</button>
@@ -397,7 +396,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=10"></script>
+<script src="portail-commun.js?v=11"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -575,10 +574,10 @@ function rendreParcours() {
   if (c.type !== 'complet') return;
   const etiq = !!rec.etiquettes_le, pret = rec.etape === 'pret';
   const etapes = [
-    { fait: etiq, titre: 'Poser les étiquettes de numérotation',
-      texte: etiq ? `Étiquettes posées (confirmé le ${dateCourte(rec.etiquettes_le)}).`
-        : 'Collez une étiquette blanche numérotée (1, 2, 3…) sur l’huisserie de chaque porte palière. Ce numéro identifiera l’appartement dans le sondage, les rendez-vous et l’émargement.',
-      bouton: etiq ? '' : '<button type="button" class="btn btn-petit" data-parcours="etiquettes">Étiquettes posées</button>' },
+    { fait: etiq, titre: 'Étiquettes de numérotation',
+      texte: etiq ? `Pose des étiquettes validée par Harmonie Électricité le ${dateCourte(rec.etiquettes_le)}.`
+        : 'Une étiquette blanche numérotée (1, 2, 3…) doit être collée sur l’huisserie de chaque porte palière. Ce numéro identifiera l’appartement dans le sondage, les rendez-vous et l’émargement. Harmonie Électricité valide la pose avant l’envoi du sondage.',
+      bouton: '' },
     { fait: pret, titre: 'Recenser les appartements',
       texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
@@ -600,16 +599,19 @@ function rendreParcours() {
   $('coParcours').querySelectorAll('[data-parcours]').forEach(b => b.onclick = async () => {
     if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
     if (b.dataset.parcours === 'sondage') return ouvrirSondage();
-    b.disabled = true;
-    try { await appel('ps_syndic_recensement_enregistrer', { p_session: S.session, p_copro: S.copro, p: { etiquettes: true } }); toast('Étiquettes notées comme posées.'); }
-    catch { b.disabled = false; return; }
-    ouvrirCopro(S.copro);
   });
 }
 
 // ---------- Sondage ----------
 const SO = { d: null };
 const lienSondage = j => PS.urlPage('sondage.html') + '?j=' + j;
+const CANAUX = { email: 'e-mail', sms: 'SMS', qr: 'QR code' };
+// Note l'envoi du lien (étape « Sondage envoyé ») sans bloquer l'ouverture de la messagerie.
+function noterInvitation(l, canal) {
+  l.invite_le = new Date().toISOString(); l.invite_canal = canal;
+  rpc('ps_syndic_sondage_invite', { p_session: S.session, p_logement: l.id, p_canal: canal }).catch(() => {});
+  setTimeout(rendreSuiviSondage, 300);
+}
 const nomCabinet = () => S.etat?.syndic?.nom || '';
 const nomGest = () => S.etat?.user?.nom || '';
 function texteInvitation(l) {
@@ -640,9 +642,9 @@ $('soOuvrir').onclick = async () => {
   catch { $('soOuvrir').disabled = false; }
 };
 function rendreSuiviSondage() {
-  const d = SO.d, so = d.sondage || {}, lg = d.logements, signes = lg.filter(l => l.commande);
+  const d = SO.d, so = d.sondage || {}, lg = d.logements, signes = lg.filter(l => l.commande), invites = lg.filter(l => l.invite_le || l.commande);
   const total = signes.reduce((t, l) => t + (+l.commande.total_ttc || 0), 0);
-  $('soTuiles').innerHTML = [['Bons signés', `${signes.length} / ${lg.length}`, 'or'], ['Sans réponse', lg.length - signes.length], ['Total commandé TTC', PS.euros(total)],
+  $('soTuiles').innerHTML = [['Liens envoyés', `${invites.length} / ${lg.length}`], ['Bons signés', `${signes.length} / ${lg.length}`, 'or'], ['Sans réponse', lg.length - signes.length], ['Total commandé TTC', PS.euros(total)],
     ['Sondage', so.clos_le ? 'Clos le ' + dateCourte(so.clos_le) : 'Ouvert']].map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b style="font-size:20px">${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
   $('soClore').textContent = so.clos_le ? 'Rouvrir le sondage' : 'Clore le sondage';
   const q = $('soRecherche').value.trim().toLowerCase();
@@ -651,7 +653,7 @@ function rendreSuiviSondage() {
     const k = l.commande, choix = k ? k.lignes.map(x => `${x.qte} × ${x.nom}`).join(', ') : '';
     return `<li><div class="principal"><b>Appt ${esc(l.numero)} — ${esc(l.nom || 'sans nom')}</b>
       <div class="sous">${k ? `<span class="pastille ok">Signé le ${esc(dateCourte(k.signe_le))}</span> ${esc(PS.QUALITES_COMMANDE[k.qualite] || '')} • ${esc(choix)} • <b>${esc(PS.euros(k.total_ttc))}</b>`
-        : `<span class="pastille attente">Pas encore répondu</span> ${esc([(l.emails || []).join(', '), l.telephone].filter(Boolean).join(' • ') || 'aucune coordonnée')}`}</div></div>
+        : `<span class="pastille attente">${l.invite_le ? `Lien envoyé le ${esc(dateCourte(l.invite_le))} (${esc(CANAUX[l.invite_canal] || l.invite_canal)})` : 'Lien pas encore envoyé'}</span> ${esc([(l.emails || []).join(', '), l.telephone].filter(Boolean).join(' • ') || 'aucune coordonnée')}`}</div></div>
       <div class="droite">
         ${k ? `<button type="button" class="btn btn-petit" data-bon="${esc(k.id)}">Bon PDF</button>` : ''}
         ${(l.emails || []).length ? `<button type="button" class="btn btn-petit" data-mail="${esc(l.id)}">E-mail</button>` : ''}
@@ -661,14 +663,14 @@ function rendreSuiviSondage() {
   }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
   const parId = id => lg.find(l => l.id === id);
   $('soListe').querySelectorAll('[data-mail]').forEach(b => b.onclick = () => {
-    const l = parId(b.dataset.mail);
+    const l = parId(b.dataset.mail); noterInvitation(l, 'email');
     location.href = `mailto:${l.emails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Votre nouvel interphone — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteInvitation(l))}`;
   });
-  $('soListe').querySelectorAll('[data-sms]').forEach(b => b.onclick = () => { const l = parId(b.dataset.sms); location.href = PS.lienSms(l.telephone, texteInvitation(l)); });
+  $('soListe').querySelectorAll('[data-sms]').forEach(b => b.onclick = () => { const l = parId(b.dataset.sms); noterInvitation(l, 'sms'); location.href = PS.lienSms(l.telephone, texteInvitation(l)); });
   $('soListe').querySelectorAll('[data-qr]').forEach(b => b.onclick = async () => {
     const l = parId(b.dataset.qr), lien = lienSondage(l.jeton);
     $('qsAppt').textContent = `Appartement ${l.numero} — ${l.nom || ''}`; $('qsLien').textContent = lien; $('qsQr').innerHTML = await PS.qrSvg(lien, 240);
-    $('qsCopier').onclick = () => PS.copier(lien); $('dlgQrSondage').showModal();
+    $('qsCopier').onclick = () => PS.copier(lien); $('dlgQrSondage').showModal(); noterInvitation(l, 'qr');
   });
   $('soListe').querySelectorAll('[data-bon]').forEach(b => b.onclick = async () => {
     b.disabled = true;
@@ -706,9 +708,8 @@ async function ouvrirRecensement() {
   $('rcNbAide').textContent = R.copro.appartements_devis ? `Le devis prévoit ${R.copro.appartements_devis} appartements.` : '';
   if (nb && R.logements.length < nb) ajusterLignes(+nb);
   $('rcHorsBloc').hidden = !avecVigik(R.copro);
-  $('rcTitreFin').textContent = (avecVigik(R.copro) ? '4' : '3') + ' · Étiquettes et validation';
+  $('rcTitreFin').textContent = (avecVigik(R.copro) ? '4' : '3') + ' · Validation';
   $('rcStock').value = R.stock ? R.stock.badges : '';
-  $('rcEtiquettes').checked = !!R.rec.etiquettes_le;
   message('rcMessage', ''); message('rcImport', '');
   rendreLignes(); rendreIntervenants();
   montrer('vRecensement');
@@ -809,13 +810,12 @@ async function enregistrerRecensement(valider) {
     if (manquants) return message('rcMessage', `${manquants} appartement${manquants > 1 ? 's' : ''} sans n° d’étiquette ou sans propriétaire (cases orangées).`);
     const nums = lg.map(l => l.numero.toLowerCase()), double = nums.find((n, i) => nums.indexOf(n) !== i);
     if (double) return message('rcMessage', `Le n° d’appartement « ${double} » est utilisé deux fois.`);
-    if (!$('rcEtiquettes').checked) return message('rcMessage', 'Confirmez que les étiquettes de numérotation sont posées (case ci-dessus), ou « Enregistrer le brouillon ».');
   }
   const hors = avecVigik(R.copro) ? [
     { id: R.stock?.id || '', type: 'stock', nom: 'Stock syndic', badges: parseInt($('rcStock').value, 10) || 0 },
     ...R.intervenants.filter(h => (h.nom || '').trim()).map(h => ({ id: h.id || '', type: 'intervenant', nom: h.nom.trim(), badges: parseInt(h.badges, 10) || 0 })),
   ] : [];
-  const p = { etape: valider ? 'pret' : 'saisie', nb_logements: lg.length, etiquettes: $('rcEtiquettes').checked, logements: [...lg, ...hors] };
+  const p = { etape: valider ? 'pret' : 'saisie', nb_logements: lg.length, logements: [...lg, ...hors] };
   ['rcEnregistrer', 'rcValider'].forEach(id => $(id).disabled = true);
   message('rcMessage', 'Enregistrement…', false);
   try {
