@@ -232,8 +232,7 @@ const PS = (() => {
   }
   function friseHtml(c) {
     const a = avancement(c);
-    const seg = a.etapes.map((e, j) => `<i class="${e.fait >= 1 ? 'fait' : e.fait > 0 ? 'partiel' : ''}${j === a.index ? ' courante' : ''}" style="--p:${Math.round(e.fait * 100)}%" title="${esc(e.titre)}${e.fait >= 1 ? ' : fait' : ''}"></i>`).join('');
-    return `<div class="frise" role="img" aria-label="Avancement ${a.pc} %">${seg}</div>
+    return `<div class="frise" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${a.pc}" title="${esc(a.etapes.map((e, j) => (e.fait >= 1 ? '✓ ' : j === a.index ? '▸ ' : '· ') + e.titre).join('\n'))}"><i style="width:${a.pc}%"></i></div>
       <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.etapes.length} · `}${esc(a.libelle)}</span><b>${a.pc} %</b></div>`;
   }
 
