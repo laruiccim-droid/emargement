@@ -1445,13 +1445,13 @@ const ENTREPRISE = 'Harmonie Électricité • 225 chemin des Bochets, 73170 Yen
 
 function entetePdf(doc, titre, sousTitre) {
   const W = doc.internal.pageSize.getWidth();
-  doc.setFillColor(...NOIR); doc.rect(0, 0, W, 30, 'F');
-  doc.addImage(LOGO_WORDMARK, 'PNG', 14, 7, 48, 48 * 418 / 1232, 'logo', 'FAST');
+  // Logo officiel noir et or sur fond blanc.
+  doc.addImage(LOGO_NOIR_OR, 'PNG', 14, 8, 50, 50 * LOGO_NOIR_OR_RATIO, 'logo', 'FAST');
   doc.setTextColor(...OR); doc.setFont('helvetica', 'normal'); doc.setFontSize(15);
   // jsPDF ne compte pas l'espacement des lettres dans l'alignement à droite : on place le titre à la main.
   const t = titre.toUpperCase(), largeur = doc.getTextWidth(t) + 0.8 * (t.length - 1);
   doc.text(t, W - 14 - largeur, 14, { charSpace: 0.8 });
-  doc.setTextColor(232, 229, 222); doc.setFontSize(9);
+  doc.setTextColor(...GRIS); doc.setFontSize(9);
   doc.text(sousTitre, W - 14, 21, { align: 'right' });
   // Tracé de circuit : ligne or terminée par des nœuds
   doc.setDrawColor(...OR); doc.setLineWidth(0.35);
@@ -3625,8 +3625,7 @@ async function pdfGarde(sommaire) {
   const doc = new jsPDF({ compress: true, unit: 'mm', format: 'a4' });
   const W = 210, H = 297, M = 14, t = totaux();
   // Couverture
-  doc.setFillColor(...NOIR); doc.rect(0, 0, W, 64, 'F');
-  doc.addImage(LOGO_WORDMARK, 'PNG', M, 14, 62, 62 * 418 / 1232, 'logo', 'FAST');
+  doc.addImage(LOGO_NOIR_OR, 'PNG', M, 18, 70, 70 * LOGO_NOIR_OR_RATIO, 'logo', 'FAST');
   doc.setTextColor(...OR); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
   const sur = 'DOSSIER DE FIN DE CHANTIER', lsur = doc.getTextWidth(sur) + 0.9 * (sur.length - 1);
   doc.text(sur, W - M - lsur, 50, { charSpace: 0.9 });
@@ -3799,12 +3798,12 @@ async function outilsWord(ch) {
   const vide = (colonnes, hauteur) => new TableRow({ height: { value: hauteur, rule: HeightRule.EXACT }, children: colonnes.map(w => cellule(w, para(''), { margins: {} })) });
 
   const bandeau = titre => {
-    const moitie = LARGEUR / 2, fond = { type: ShadingType.CLEAR, color: 'auto', fill: C.noir };
+    const moitie = LARGEUR / 2, fond = { type: ShadingType.CLEAR, color: 'auto', fill: 'FFFFFF' };
     return tableau([moitie, moitie], [new TableRow({ height: { value: 1250, rule: HeightRule.ATLEAST }, children: [
-      cellule(moitie, para(new ImageRun({ type: 'png', data: octetsDataUrl(LOGO_WORDMARK), transformation: { width: 170, height: Math.round(170 * 418 / 1232) } })),
+      cellule(moitie, para(new ImageRun({ type: 'png', data: octetsDataUrl(LOGO_NOIR_OR), transformation: { width: 170, height: Math.round(170 * LOGO_NOIR_OR_RATIO) } })),
         { shading: fond, margins: { left: 300, top: 160, bottom: 160 } }),
       cellule(moitie, [para(texte(titre, { color: C.or, size: 30, characterSpacing: 60 }), { alignment: AlignmentType.RIGHT }),
-        para(texte(ch.reference ? 'Réf. ' + ch.reference : '', { color: 'E8E5DE', size: 18 }), { alignment: AlignmentType.RIGHT })], { shading: fond, margins: { right: 300 } }),
+        para(texte(ch.reference ? 'Réf. ' + ch.reference : '', { color: C.gris, size: 18 }), { alignment: AlignmentType.RIGHT })], { shading: fond, margins: { right: 300 } }),
     ] })]);
   };
   const entete = (titre, sousTitre) => [

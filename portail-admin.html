@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=1">
+<link rel="stylesheet" href="portail.css?v=2">
 </head>
 <body>
 <main>
@@ -85,6 +85,7 @@
         <h2>1 · Listing des badges livrés à l’agence</h2>
         <p class="aide">Collez une colonne copiée depuis Excel, des n° séparés par des espaces, ou une plage « 10001-10080 ». Vous pouvez aussi importer un fichier ou reprendre les badges d’un chantier de l’app d’émargement.</p>
         <textarea id="lvTexte" rows="6" placeholder="10001&#10;10002&#10;…" class="mono"></textarea>
+        <p class="compte-badges" id="lvCompte" hidden></p>
         <div class="actions">
           <label class="btn" for="lvFichier" style="margin:0">Importer un fichier (Excel, CSV)</label>
           <input type="file" id="lvFichier" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt" hidden>
@@ -174,7 +175,7 @@
 </form></dialog>
 
 <script src="logos.js"></script>
-<script src="portail-commun.js?v=1"></script>
+<script src="portail-commun.js?v=2"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -396,6 +397,9 @@ function majApercu() {
   const existants = new Set((A.detail?.badges || []).map(b => b.numero));
   const uniques = [...vus], nouveaux = uniques.filter(n => !existants.has(n)), deja = uniques.filter(n => existants.has(n));
   A.apercu = nouveaux;
+  // Nombre de badges de la liste, affiché dès l'import ou la saisie.
+  $('lvCompte').hidden = !uniques.length;
+  $('lvCompte').innerHTML = `<b>${uniques.length}</b> n° de badge dans la liste${deja.length ? ` • <b>${nouveaux.length}</b> nouveau${nouveaux.length > 1 ? 'x' : ''} à livrer` : ''}`;
   $('lvApercu').innerHTML = uniques.length ? `<p style="margin:0"><b style="color:var(--he-white);font-size:18px">${nouveaux.length}</b> badge${nouveaux.length > 1 ? 's' : ''} à livrer
       ${doublons.size ? ` • <span class="pastille attente">${doublons.size} en double dans la liste (comptés une fois)</span>` : ''}
       ${deja.length ? ` • <span class="pastille erreur">${deja.length} déjà dans ce chantier (ignorés)</span>` : ''}</p>
@@ -440,7 +444,8 @@ $('lvFichier').onchange = async e => {
     $('lvColonne').innerHTML = Array.from({ length: nbCol }, (_, c) => `<option value="${c}">Colonne ${lettre(c)} — ${esc(String(lignes.find(l => String(l[c] ?? '').trim())?.[c] ?? '').slice(0, 30))}</option>`).join('');
     $('lvColonne').value = meilleure; $('lvColonneBloc').hidden = false;
     A.fichierLignes = lignes; appliquerColonne();
-    toast(`Fichier lu : ${lignes.length} lignes. Vérifiez la colonne choisie.`);
+    const nb = new Set(PS.analyserNumeros($('lvTexte').value)).size;
+    toast(`${nb} badge${nb > 1 ? 's' : ''} importé${nb > 1 ? 's' : ''} (colonne ${lettre(meilleure)}). Vérifiez la colonne choisie.`, 4500);
   } catch (err) { toast('Fichier illisible : ' + err.message, 5000); }
 };
 // N° de badge : lettres et chiffres (numéros de série hexadécimaux compris, ex. 7DA7C117), au moins 3 chiffres.
@@ -450,7 +455,7 @@ function appliquerColonne() {
   const vals = A.fichierLignes.map(l => String(l[c] ?? '').trim()).filter(ressembleNumero);
   $('lvTexte').value = vals.join('\n'); majApercu();
 }
-$('lvColonne').onchange = appliquerColonne;
+$('lvColonne').onchange = () => { appliquerColonne(); const nb = new Set(PS.analyserNumeros($('lvTexte').value)).size; toast(`${nb} badge${nb > 1 ? 's' : ''} dans cette colonne.`); };
 $('lvLivrer').onclick = async () => {
   if (!A.apercu.length) return;
   if (!A.detail.syndic && !confirm('Ce chantier n’est lié à aucun syndic : les badges ne seront visibles par personne côté syndic. Livrer quand même ?')) return;
@@ -476,7 +481,7 @@ async function pdfLivraison(l) {
   const W = 210, M = 15, ENC = [23, 24, 28], GRIS = [107, 102, 88], OR = [168, 132, 63], FILET = [217, 212, 200];
   const c = A.detail.copro, s = A.detail.syndic || {}, E = PS.ENTREPRISE;
   const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 10); doc.setTextColor(...(o.c || ENC)); doc.text(String(t ?? ''), x, y, o.al ? { align: o.al } : undefined); };
-  try { doc.addImage(LOGO_WORDMARK, 'PNG', M, 10, 48, 48 * 418 / 1232); } catch { T(E.nom, M, 18, { s: 15, b: true }); }
+  try { doc.addImage(LOGO_NOIR_OR, 'PNG', M, 9, 50, 50 * LOGO_NOIR_OR_RATIO); } catch { T(E.nom, M, 18, { s: 15, b: true }); }
   T(`${E.adresse} • ${E.tel} • ${E.email}`, M, 29, { s: 8, c: GRIS });
   T('BON DE LIVRAISON DE BADGES', W - M, 15, { s: 9, c: OR, al: 'right' });
   T('Le ' + dateCourte(l.cree_le), W - M, 21, { s: 11, b: true, al: 'right' });

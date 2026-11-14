@@ -266,7 +266,10 @@ const PS = (() => {
     for (let p = 1; p <= n; p++) {
       doc.setPage(p);
       doc.setDrawColor(...FILET); doc.setLineWidth(0.2); doc.line(M, 284, W - M, 284);
-      T(`${s.nom || ''} • Bon ${r.numero || ''} • Installation et gestion des accès : ${ENTREPRISE.nom}, ${ENTREPRISE.tel}`, M, 289, { s: 7, c: GRIS });
+      // Logo Harmonie Électricité (noir et or) en pied de page, quand logos.js est chargé.
+      let xt = M;
+      if (typeof LOGO_NOIR_OR !== 'undefined') { try { doc.addImage(LOGO_NOIR_OR, 'PNG', M, 285.6, 20, 20 * LOGO_NOIR_OR_RATIO); xt = M + 24; } catch {} }
+      T(`${s.nom || ''} • Bon ${r.numero || ''} • Accès installés par ${ENTREPRISE.nom}, ${ENTREPRISE.tel}`, xt, 289, { s: 7, c: GRIS });
       T(`Page ${p} / ${n}`, W - M, 289, { s: 7, c: GRIS, al: 'right' });
     }
     return doc.output('blob');

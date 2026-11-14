@@ -550,6 +550,7 @@ $('exportPhotos').onclick = async () => {
 // Le logo est clair (pensé pour le fond noir de l'app) : sur le papier blanc du rapport,
 // « HARMONIE » (blanc et gris) passe en noir, « ÉLECTRICITÉ » garde son or.
 async function logoPourPapier() {
+  if (typeof LOGO_NOIR_OR !== 'undefined') return LOGO_NOIR_OR; // logo officiel noir et or
   const img = await chargerImage(LOGO_WORDMARK);
   const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
   const g = c.getContext('2d'); g.drawImage(img, 0, 0);
@@ -574,7 +575,7 @@ $('exportPdf').onclick = async () => {
     const tout = lignes(), faits = tout.filter(l => etatPlace(l.r) === 'fait').length;
 
     // Page 1 : récapitulatif
-    try { pdf.addImage(await logoPourPapier(), 'PNG', M, 12, 50, 17); } catch (e) {}
+    try { pdf.addImage(await logoPourPapier(), 'PNG', M, 12, 50, typeof LOGO_NOIR_OR_RATIO !== 'undefined' ? 50 * LOGO_NOIR_OR_RATIO : 17); } catch (e) {}
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.setTextColor(20);
     pdf.text('Relevé des compteurs des bornes de recharge', M, 40);
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(70);
