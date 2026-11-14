@@ -503,11 +503,24 @@ async function lireDevis(octets) {
   const coord = [], blocClient = [];
   for (const l of droite) (/^(t[ée]l|e-?mail|fax|port)/i.test(l.t) ? coord : blocClient).push(l.t);
   const estCp = t => /^\d{5}\s+\S/.test(t);
-  const res = { client: blocClient[0] || '' };
+  // Nom écrit en capitales (« LE COMTE DE BOIGNE ») → « Le Comte de Boigne ».
+  const casse = t => t !== t.toUpperCase() ? t : t.toLowerCase().replace(/\p{L}+/gu, (w, i) =>
+    i > 0 && /^(de|du|des|la|le|les|et|d|l|sur|sous|en|aux?)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1));
+  const res = { client: casse(blocClient[0] || '') };
   // Groupes d'adresse : lignes jusqu'à « CP Ville ».
+  // « S/C Chambéry Syndic » (sous couvert) : c'est le syndic, pas une ligne d'adresse.
+  res.sousCouvert = (blocClient.find(t => /^(s\/c|c\/o|chez)\b/i.test(t)) || '').replace(/^(s\/c|c\/o|chez)\s*/i, '').trim();
   const groupes = []; let g = [];
-  for (const t of blocClient.slice(1)) { g.push(t); if (estCp(t)) { groupes.push(g); g = []; } }
-  const adr = groupes.length > 1 ? groupes[groupes.length - 1] : groupes[0];
+  for (const t of blocClient.slice(1)) { if (/^(s\/c|c\/o|chez)\b/i.test(t)) continue; g.push(t); if (estCp(t)) { groupes.push(g); g = []; } }
+  let adr = groupes.length > 1 ? groupes[groupes.length - 1] : groupes[0];
+  // Bloc « Adresse Livraison/Chantier » à gauche sous les coordonnées d'Harmonie : prioritaire.
+  // Le bloc de droite est alors l'adresse de facturation (le syndic).
+  const etiquette = p1.find(i => /adresse\s+(de\s+)?(livraison|chantier)/i.test(i.t));
+  if (etiquette) {
+    const gauche = lignes(p1.filter(i => i.x < 290 && i.y > etiquette.y + 2 && i.y < etiquette.y + 60)).map(l => l.t);
+    const k = gauche.findIndex(estCp);
+    if (k >= 0) { adr = gauche.slice(0, k + 1); res.adresseSyndic = groupes[groupes.length - 1]?.join(', ') || ''; }
+  }
   if (adr) {
     const m = adr[adr.length - 1].match(/^(\d{5})\s+(.+)$/);
     res.adresse = adr.slice(0, -1).filter(t => !/^(c\/o|chez|syndic)/i.test(t)).join(', ');
@@ -526,8 +539,9 @@ async function lireDevis(octets) {
   return res;
 }
 // Syndic retrouvé par l'e-mail d'un gestionnaire, sinon par le domaine (foncia.com → Foncia…).
-function syndicDuDevis(emails) {
+function syndicDuDevis(emails, sousCouvert) {
   const nrm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (sousCouvert) { const s = A.etat.syndics.find(s => nrm(s.nom) && (nrm(s.nom).includes(nrm(sousCouvert)) || nrm(sousCouvert).includes(nrm(s.nom)))); if (s) return s.id; }
   for (const e of emails) for (const s of A.etat.syndics) if ((s.users || []).some(u => (u.email || '').toLowerCase() === e.toLowerCase())) return s.id;
   for (const e of emails) {
     const dom = nrm(e.split('@')[1].split('.')[0]);
@@ -540,14 +554,14 @@ function syndicDuDevis(emails) {
 function preremplirDepuisDevis(d, tout) {
   const mettre = (id, v) => { if (v && (tout || !$(id).value.trim())) $(id).value = v; };
   mettre('chNom', d.client.replace(/^syndicat des copropri[ée]taires\s+(de\s+|du\s+|des\s+)?/i, '').trim()); mettre('chAdresse', d.adresse); mettre('chCp', d.cp); mettre('chVille', d.ville); mettre('chReference', d.numero);
-  const sid = syndicDuDevis(d.emails); if (sid && (tout || !$('chSyndic').value)) $('chSyndic').value = sid;
+  const sid = syndicDuDevis(d.emails, d.sousCouvert); if (sid && (tout || !$('chSyndic').value)) $('chSyndic').value = sid;
   if (tout || !A.edition) {
     $('chTravaux').value = d.interphone && d.vigik ? 'interphone_vigik' : d.vigik && !d.interphone ? 'vigik' : 'interphone';
     if (MARQUES_INTERPHONE.includes(d.marque) && d.interphone) $('chMarqueInterphone').value = d.marque;
     if (MARQUES_VIGIK.includes(d.marque) && d.vigik) $('chMarqueVigik').value = d.marque;
     rendreAccesPortail();
   }
-  const vus = [d.client && 'copropriété « ' + d.client + ' »', d.adresse && 'adresse ' + [d.adresse, d.cp, d.ville].join(' '), d.numero && 'devis ' + d.numero,
+  const vus = [d.client && 'copropriété « ' + d.client + ' »', d.sousCouvert && 'S/C ' + d.sousCouvert, d.adresse && 'adresse ' + [d.adresse, d.cp, d.ville].join(' '), d.numero && 'devis ' + d.numero,
     d.appartements && d.appartements + ' appartements', d.marque && 'marque ' + d.marque, sid ? 'syndic ' + nomSyndic(sid) : d.emails.length && 'syndic non reconnu (' + d.emails.join(', ') + ')'].filter(Boolean);
   $('chDevisLu').className = 'message'; $('chDevisLu').textContent = vus.length ? 'Repris du devis : ' + vus.join(' • ') + '. Vérifiez avant d’enregistrer.' : 'Rien n’a pu être lu dans ce devis : complétez à la main.';
 }
