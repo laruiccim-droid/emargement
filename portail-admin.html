@@ -178,13 +178,10 @@
     <div><label for="chSyndic">Syndic</label><select id="chSyndic"></select></div>
     <div><label for="chType">Type de chantier</label><select id="chType"><option value="badges">Badges seuls</option><option value="complet">Complet (recensement, pose, badges)</option></select></div>
     <div><label for="chEtat">État du dossier</label><select id="chEtat"></select></div>
-    <div style="grid-column:1/-1"><label for="chLien">Chantier lié dans l’app d’émargement</label><select id="chLien"><option value="">— Aucun —</option></select></div>
-    <div style="grid-column:1/-1"><label for="chNotes">Notes internes</label><textarea id="chNotes" rows="3"></textarea></div>
     <div style="grid-column:1/-1"><label for="chTravaux">Travaux</label><select id="chTravaux">
       <option value="interphone">Interphone</option><option value="interphone_vigik">Interphone + Vigik</option><option value="vigik">Vigik seul</option></select></div>
-  </div>
-  <div id="chVigik" hidden>
-    <h2 style="margin-top:16px">Accès Vigik</h2>
+    <div id="chVigik" style="grid-column:1/-1" hidden>
+    <h2 style="margin-top:6px">Accès Vigik</h2>
     <div class="grille-2" style="margin-top:6px">
       <div><label for="chNbPortes">Portes équipées de Vigik</label><input type="number" id="chNbPortes" min="1" max="20" inputmode="numeric"></div>
       <div><label for="chNbDroits">Droits d’accès à créer</label><input type="number" id="chNbDroits" min="0" max="30" inputmode="numeric"></div>
@@ -194,6 +191,9 @@
     <ul class="liste" id="chDroits"></ul>
     <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-petit" id="chAjouterDroit">+ Ajouter un droit</button><button type="button" class="btn btn-petit btn-discret" id="chProposerDroits">Proposer : une par porte + toutes</button></div>
     <p class="aide">Ex. Saint-Antoine : 2 portes → « Porte d’entrée », « Porte de garage », « Porte d’entrée + porte de garage ». Touchez les portes ouvertes par chaque droit ; sans nom saisi, il prend le nom de ses portes.</p>
+  </div>
+    <div style="grid-column:1/-1"><label for="chLien">Chantier lié dans l’app d’émargement</label><select id="chLien"><option value="">— Aucun —</option></select></div>
+    <div style="grid-column:1/-1"><label for="chNotes">Notes internes</label><textarea id="chNotes" rows="3"></textarea></div>
   </div>
   <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Enregistrer</button></div>
   <p class="message" id="chMessage"></p>
