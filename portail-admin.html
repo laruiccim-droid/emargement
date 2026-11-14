@@ -9,6 +9,14 @@
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
 <link rel="stylesheet" href="portail.css?v=2">
+<style>
+  .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
+  .depot-devis.survol { background: rgba(201,168,106,.08); }
+  .depot-devis .nom { overflow-wrap: anywhere; min-width: 0; flex: 1 1 200px; }
+  .depot-devis .nom small { display: block; color: var(--grey-300, #A8A49A); font-size: 12px; margin-top: 2px; }
+  .depot-devis .boutons { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
 </head>
 <body>
 <main>
@@ -69,7 +77,7 @@
   <section id="vChantier" hidden>
     <button type="button" class="btn btn-discret btn-petit" data-aller="chantiers">‹ Chantiers</button>
     <div class="titre-ligne" style="margin-top:8px">
-      <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p></div>
+      <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p><p class="aide" id="dDevis"></p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
     </div>
     <div class="tuiles" id="dTuiles"></div>
@@ -194,6 +202,19 @@
     <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-petit" id="chAjouterDroit">+ Ajouter un droit</button><button type="button" class="btn btn-petit btn-discret" id="chProposerDroits">Proposer : une par porte + toutes</button></div>
     <p class="aide">Ex. Saint-Antoine : 2 portes → « Porte d’entrée », « Porte de garage », « Porte d’entrée + porte de garage ». Touchez les portes ouvertes par chaque droit ; sans nom saisi, il prend le nom de ses portes.</p>
   </div>
+    <div style="grid-column:1/-1">
+      <label for="chDevisChoisir">Devis (PDF)</label>
+      <div class="depot-devis" id="chDevisZone">
+        <div class="nom" id="chDevisNom"></div>
+        <div class="boutons">
+          <a class="btn btn-petit" id="chDevisOuvrir" target="_blank" rel="noopener" hidden>Ouvrir</a>
+          <button type="button" class="btn btn-petit btn-or" id="chDevisChoisir">Déposer le devis</button>
+          <button type="button" class="btn btn-petit btn-discret" id="chDevisRetirer" hidden>Retirer</button>
+        </div>
+      </div>
+      <input type="file" id="chDevis" accept="application/pdf,.pdf" hidden>
+      <p class="aide">Glissez le PDF ici ou touchez « Déposer le devis ». Il reste attaché au chantier : ses prix serviront au sondage des copropriétaires et aux bons de commande.</p>
+    </div>
     <div style="grid-column:1/-1"><label for="chLien">Chantier lié dans l’app d’émargement</label><select id="chLien"><option value="">— Aucun —</option></select></div>
     <div style="grid-column:1/-1"><label for="chNotes">Notes internes</label><textarea id="chNotes" rows="3"></textarea></div>
   </div>
@@ -442,6 +463,42 @@ $('chProposerDroits').onclick = () => {
   A.vigik.autorisations = propositionsDroits(A.vigik.portes.length).map(portes => ({ nom: '', portes })); rendreDroits();
 };
 
+// ---------- Devis du chantier : PDF déposé dans le stockage, adresse gardée sur le chantier ----------
+const tailleLisible = o => o > 1048576 ? (o / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(o / 1024)) + ' Ko';
+function rendreDevis() {
+  const d = A.devis || {};
+  $('chDevisNom').innerHTML = d.url ? `${esc(d.nom || 'devis.pdf')}<small>${[d.taille && tailleLisible(d.taille), d.depose_le && 'déposé le ' + PS.dateCourte(d.depose_le)].filter(Boolean).join(' • ')}</small>`
+    : 'Aucun devis déposé<small>PDF du devis accepté par le syndic</small>';
+  $('chDevisOuvrir').hidden = !d.url; if (d.url) $('chDevisOuvrir').href = d.url;
+  $('chDevisRetirer').hidden = !d.url;
+  $('chDevisChoisir').textContent = d.url ? 'Remplacer' : 'Déposer le devis';
+}
+async function deposerDevis(f) {
+  if (!f) return;
+  if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') return msg('chMessage', 'Le devis doit être un PDF.', true);
+  if (f.size > 20 * 1048576) return msg('chMessage', 'PDF trop lourd (20 Mo au plus).', true);
+  const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+  const chemin = `emargement/devis/${cle}.pdf`;
+  $('chDevisChoisir').disabled = true; msg('chMessage', 'Envoi du devis…', false);
+  try {
+    const rep = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST',
+      headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/pdf' }, body: f });
+    if (!rep.ok) throw new Error();
+    A.devis = { url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, nom: f.name, taille: f.size, depose_le: new Date().toISOString() };
+    rendreDevis(); msg('chMessage', 'Devis déposé : pensez à « Enregistrer ».', false);
+  } catch { msg('chMessage', 'Le devis n’a pas pu être envoyé. Vérifiez la connexion puis réessayez.', true); }
+  finally { $('chDevisChoisir').disabled = false; $('chDevis').value = ''; }
+}
+$('chDevisChoisir').onclick = () => $('chDevis').click();
+$('chDevis').onchange = e => deposerDevis(e.target.files[0]);
+$('chDevisRetirer').onclick = () => { A.devis = {}; rendreDevis(); msg('chMessage', 'Devis retiré : pensez à « Enregistrer ».', false); };
+{
+  const z = $('chDevisZone');
+  ['dragenter', 'dragover'].forEach(t => z.addEventListener(t, e => { e.preventDefault(); z.classList.add('survol'); }));
+  ['dragleave', 'drop'].forEach(t => z.addEventListener(t, () => z.classList.remove('survol')));
+  z.addEventListener('drop', e => { e.preventDefault(); deposerDevis(e.dataTransfer.files[0]); });
+}
+
 async function ouvrirFormChantier(c) {
   A.edition = c;
   $('chTitre').textContent = c ? c.nom : 'Nouveau chantier';
@@ -453,6 +510,7 @@ async function ouvrirFormChantier(c) {
   $('chMarqueInterphone').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_INTERPHONE.map(m => `<option>${m}</option>`).join('');
   $('chMarqueVigik').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_VIGIK.map(m => `<option>${m}</option>`).join('');
   $('chMarqueInterphone').value = c?.marque_interphone || ''; $('chMarqueVigik').value = c?.marque_vigik || '';
+  A.devis = c?.devis?.url ? { ...c.devis } : {}; rendreDevis();
   A.vigik = JSON.parse(JSON.stringify(c?.vigik?.portes?.length ? c.vigik : { portes: ['Porte d’entrée'], autorisations: [{ nom: '', portes: [0] }] }));
   rendreAccesPortail();
   await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';
@@ -462,6 +520,7 @@ $('formChantier').onsubmit = async e => {
   e.preventDefault();
   const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
     reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
+    devis: A.devis || {},
     marque_interphone: $('chTravaux').value === 'vigik' ? '' : $('chMarqueInterphone').value,
     marque_vigik: $('chTravaux').value === 'interphone' ? '' : $('chMarqueVigik').value,
     travaux: $('chTravaux').value, vigik: $('chTravaux').value === 'interphone' ? { portes: [], autorisations: [] }
@@ -481,6 +540,9 @@ async function ouvrirChantier(id, onglet) {
   $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference,
     s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet'),
     TRAVAUX[c.travaux] && TRAVAUX[c.travaux] + ([c.marque_interphone && 'interphone ' + c.marque_interphone, c.marque_vigik && 'Vigik ' + c.marque_vigik].filter(Boolean).map(x => ' — ' + x).join('')) + (c.travaux !== 'interphone' && c.vigik?.portes?.length ? ` (${c.vigik.portes.length} porte${c.vigik.portes.length > 1 ? 's' : ''} : ${(c.vigik.autorisations || []).map(a => a.nom).join(', ') || 'aucun droit d’accès'})` : '')].filter(Boolean).join(' • ');
+  $('dDevis').innerHTML = c.devis?.url
+    ? `Devis : <a href="${esc(c.devis.url)}" target="_blank" rel="noopener">${esc(c.devis.nom || 'devis.pdf')}</a>${c.devis.depose_le ? ' — déposé le ' + PS.dateCourte(c.devis.depose_le) : ''}`
+    : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu();
