@@ -1,6 +1,6 @@
 // Mode hors-ligne : l'app s'ouvre même sans réseau (les chantiers restent enregistrés sur l'appareil
 // et partent dans Supabase au retour du réseau). Changer VERSION à chaque mise en ligne.
-const VERSION = 'emargement-v25';
+const VERSION = 'emargement-v26';
 const FICHIERS = [
   './', './index.html', './releves.html', './logos.js', './manifest.webmanifest', './vendor/docx-9.5.1.umd.js',
   './assets/logo-wordmark.png', './assets/monogram.png', './assets/icone-192.png', './assets/icone-512.png',
@@ -25,8 +25,9 @@ self.addEventListener('fetch', e => {
   const memorisable = url.origin === location.origin || url.hostname === 'cdnjs.cloudflare.com' || url.hostname.endsWith('gstatic.com') || url.hostname.endsWith('googleapis.com');
   if (!memorisable) return;
   if (req.mode === 'navigate') {
-    // Page de l'app : la version en ligne d'abord, celle de l'appareil si pas de réseau.
-    e.respondWith(fetch(req).then(r => { const copie = r.clone(); caches.open(VERSION).then(c => c.put(req, copie)); return r; })
+    // Page de l'app : la version en ligne d'abord (sans la copie de 10 min que garde le navigateur),
+    // celle de l'appareil si pas de réseau.
+    e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(r => { const copie = r.clone(); caches.open(VERSION).then(c => c.put(req, copie)); return r; })
       .catch(() => caches.match(req).then(r => r || caches.match('./index.html'))));
     return;
   }
