@@ -49,6 +49,36 @@ button { cursor: pointer; }
 [hidden] { display: none !important; }
 svg.ic { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
+/* ---------- Accueil ---------- */
+.accueil {
+  position: fixed; inset: 0; z-index: 40; overflow-y: auto;
+  background: var(--he-black); background-image: var(--grad-ink);
+  padding: calc(28px + env(safe-area-inset-top, 0px)) 16px calc(28px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; align-items: center;
+}
+body.sur-accueil { overflow: hidden; }
+.accueil-in { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 22px; margin: auto 0; }
+.accueil-logo { width: min(260px, 70%); height: auto; align-self: center; }
+.accueil-titre { text-align: center; }
+.accueil-titre .sourcil { justify-content: center; }
+.accueil-titre h2 { margin: 6px 0 0; font-weight: 300; font-size: var(--fs-2xl); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white); }
+.acc-tuiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.acc-tuile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 150px; padding: 18px 16px;
+  background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--r-md);
+  color: var(--text); text-align: left; text-decoration: none;
+  transition: border-color .2s var(--ease), transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.acc-tuile:hover, .acc-tuile:focus-visible { border-color: var(--border-strong); box-shadow: var(--glow-gold-sm); }
+.acc-tuile:active { transform: scale(.98); }
+.acc-tuile .ic { width: 30px; height: 30px; color: var(--he-gold); stroke-width: 1.3; }
+.acc-tuile b { font-weight: 500; font-size: var(--fs-lg); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--he-white); }
+.acc-tuile span { font-size: var(--fs-sm); color: var(--grey-300); line-height: 1.4; overflow-wrap: anywhere; }
+.acc-tuile.large { grid-column: 1 / -1; min-height: 0; }
+.acc-tuile.principale { grid-column: 1 / -1; min-height: 120px; border-color: var(--border-strong); }
+.acc-tuile.principale b { color: var(--he-gold-light); }
+@media (max-width: 360px) { .acc-tuiles { grid-template-columns: 1fr; } .acc-tuile { min-height: 0; } }
+
 /* ---------- En-tête ---------- */
 .entete {
   position: sticky; top: 0; z-index: 20;
@@ -395,12 +425,28 @@ dialog.scan:not([open]) { display: none; }
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
   <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
 </svg>
 
+<section class="accueil" id="accueil" aria-label="Accueil">
+  <div class="accueil-in">
+    <img class="accueil-logo" id="accueilLogo" alt="Harmonie Électricité">
+    <div class="accueil-titre"><div class="sourcil">Espace technicien</div><h2>Que voulez-vous faire ?</h2></div>
+    <div class="acc-tuiles">
+      <button type="button" class="acc-tuile principale" id="tuileEmargement"><svg class="ic"><use href="#i-pen"/></svg><b>Émargement</b><span id="tuileEmargementTexte">Reprendre le chantier en cours</span></button>
+      <button type="button" class="acc-tuile" id="tuileChantiers"><svg class="ic"><use href="#i-list"/></svg><b>Chantiers</b><span>Ouvrir, créer ou importer un chantier</span></button>
+      <a class="acc-tuile" href="releves.html"><svg class="ic"><use href="#i-bolt"/></svg><b>Relevé compteurs</b><span>Bornes de recharge</span></a>
+      <a class="acc-tuile large" href="portail-admin.html"><svg class="ic"><use href="#i-link"/></svg><b>Portail syndic</b><span>Syndics, chantiers, livraisons et remises de badges</span></a>
+    </div>
+  </div>
+</section>
+
 <header class="entete" id="entete">
   <div class="entete-haut">
+    <button type="button" class="btn btn-carre btn-chantier" id="ouvrirAccueil" title="Accueil" aria-label="Accueil"><svg class="ic"><use href="#i-home"/></svg></button>
     <img class="monogramme" id="monogramme" alt="Harmonie Électricité">
     <div class="entete-titre">
       <div class="sourcil" id="enteteRef">Feuille d’émargement</div>
@@ -1016,6 +1062,7 @@ function creerPad(canvas, { valeur = '', onChange = () => {} } = {}) {
 
 /* ---------- En-tête et tracé ---------- */
 $('monogramme').src = LOGO_MONOGRAMME;
+$('accueilLogo').src = LOGO_WORDMARK;
 let courantId = null, filtre = 'tous';
 const courant = () => etat.logements.find(l => l.id === courantId);
 
@@ -4156,19 +4203,35 @@ $('formCle').onsubmit = async e => {
 };
 const controleCle = verifierCle().then(ok => { if (ok === false) ouvrirCle(); return ok; });
 
-if (!stock.lire(CLE_COURANT)) ouvrirChantiers();
-else if (!etat.exemple) (async () => {
+// ---------- Accueil : affiché à chaque ouverture de l'app ----------
+function ouvrirAccueil() {
+  const enCours = stock.lire(CLE_COURANT) && !etat.exemple && etat.logements.length;
+  $('tuileEmargementTexte').textContent = enCours
+    ? `Reprendre : ${etat.residence || 'chantier en cours'} — ${etat.logements.filter(l => l.statut === 'signe').length} / ${etat.logements.length} signés`
+    : 'Aucun chantier ouvert : choisissez-en un';
+  $('accueil').hidden = false; document.body.classList.add('sur-accueil');
+}
+function fermerAccueil() { $('accueil').hidden = true; document.body.classList.remove('sur-accueil'); }
+$('ouvrirAccueil').onclick = ouvrirAccueil;
+$('tuileEmargement').onclick = () => {
+  fermerAccueil();
+  if (!stock.lire(CLE_COURANT) || !etat.logements.length) ouvrirChantiers();
+};
+$('tuileChantiers').onclick = () => { fermerAccueil(); ouvrirChantiers(); };
+ouvrirAccueil();
+
+if (stock.lire(CLE_COURANT) && !etat.exemple) (async () => {
   if (await controleCle !== true) return; // hors ligne ou sans code : on garde tout tel quel
   if (!etat.aEnvoyer && await supprimeEnLigne(etat.id)) {
     // Le chantier ouvert a été supprimé (depuis un autre appareil) : on l'oublie et on propose la liste.
     oublierChantier(etat.id); etat = chantierVide(); courantId = null; rendreTout();
     toast('Ce chantier a été supprimé : choisissez un chantier dans la liste.');
+    if (!$('accueil').hidden) return ouvrirAccueil();
     return ouvrirChantiers();
   }
   const c = await chargerChantier(etat.id);
   // Reprend une version plus récente saisie sur un autre appareil.
-  if (c && (c.modifieLe || 0) > (etat.modifieLe || 0)) { etat = c; rendreTout(); }
-  if (!etat.logements.length) ouvrirChantiers(); // chantier vide : la liste aide à retrouver le bon
+  if (c && (c.modifieLe || 0) > (etat.modifieLe || 0)) { etat = c; rendreTout(); if (!$('accueil').hidden) ouvrirAccueil(); }
   verifierSignaturesDistance(true);
 })();
 setInterval(() => { if (document.visibilityState === 'visible') verifierSignaturesDistance(true); }, 30000);
