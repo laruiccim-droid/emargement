@@ -431,9 +431,11 @@ $('lvFichier').onchange = async e => {
     }
     lignes = lignes.filter(l => l.some(v => String(v).trim()));
     const nbCol = Math.max(...lignes.map(l => l.length));
-    const ressemble = v => /^[A-Za-z]{0,3}\d{3,}[A-Za-z0-9]*$/.test(String(v).trim());
+    // Colonne devinée : d'abord par son titre (« N° de série », « Badge »…), sinon celle qui contient le plus de n°.
     let meilleure = 0, score = -1;
-    for (let c = 0; c < nbCol; c++) { const s = lignes.filter(l => ressemble(l[c] ?? '')).length; if (s > score) { score = s; meilleure = c; } }
+    for (let c = 0; c < nbCol; c++) { const s = lignes.filter(l => ressembleNumero(l[c] ?? '')).length; if (s > score) { score = s; meilleure = c; } }
+    const parTitre = lignes[0].findIndex(v => /s[ée]rie|badge|num[ée]ro|n°|code/i.test(String(v)));
+    if (parTitre >= 0 && lignes.filter(l => ressembleNumero(l[parTitre] ?? '')).length >= score / 2) meilleure = parTitre;
     const lettre = c => String.fromCharCode(65 + (c % 26));
     $('lvColonne').innerHTML = Array.from({ length: nbCol }, (_, c) => `<option value="${c}">Colonne ${lettre(c)} — ${esc(String(lignes.find(l => String(l[c] ?? '').trim())?.[c] ?? '').slice(0, 30))}</option>`).join('');
     $('lvColonne').value = meilleure; $('lvColonneBloc').hidden = false;
@@ -441,9 +443,11 @@ $('lvFichier').onchange = async e => {
     toast(`Fichier lu : ${lignes.length} lignes. Vérifiez la colonne choisie.`);
   } catch (err) { toast('Fichier illisible : ' + err.message, 5000); }
 };
+// N° de badge : lettres et chiffres (numéros de série hexadécimaux compris, ex. 7DA7C117), au moins 3 chiffres.
+const ressembleNumero = v => { const t = String(v).trim(); return /^[A-Za-z0-9-]{4,24}$/.test(t) && (t.match(/\d/g) || []).length >= 3; };
 function appliquerColonne() {
   const c = +$('lvColonne').value;
-  const vals = A.fichierLignes.map(l => String(l[c] ?? '').trim()).filter(v => /^[A-Za-z]{0,3}\d{3,}[A-Za-z0-9]*$/.test(v));
+  const vals = A.fichierLignes.map(l => String(l[c] ?? '').trim()).filter(ressembleNumero);
   $('lvTexte').value = vals.join('\n'); majApercu();
 }
 $('lvColonne').onchange = appliquerColonne;
