@@ -19,18 +19,19 @@
   .parcours h3 { margin: 4px 0 2px; font-size: 15px; font-weight: 500; color: var(--he-white); letter-spacing: .02em; text-transform: none; }
   .parcours p { margin: 0; color: var(--grey-300); font-size: 13.5px; line-height: 1.45; }
   .parcours .actions { margin-top: 10px; }
-  .lg-tete, .lg { display: grid; grid-template-columns: 74px 84px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.6fr) 40px; gap: 6px; align-items: center; }
+  .lg-tete, .lg { display: grid; grid-template-columns: 90px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.6fr) 40px; gap: 6px; align-items: center; }
   .lg-tete { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey-400); padding: 0 2px 4px; }
   .lg { padding: 6px 0; border-top: 1px solid var(--border-hairline); }
   .lg input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
   .lg .suppr { min-height: 40px; padding: 0; width: 40px; }
-  .lg.incomplet input[data-k="numero"]:placeholder-shown, .lg.incomplet input[data-k="nom"]:placeholder-shown { border-color: rgba(217,163,91,.7); }
+  .lg.incomplet input[data-k="nom"]:placeholder-shown { border-color: rgba(217,163,91,.7); }
   .hl { display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border-hairline); }
   .hl input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
   .rappel { border-left: 3px solid var(--he-gold); padding: 10px 12px; background: rgba(201,168,106,.06); border-radius: 0 6px 6px 0; margin-top: 12px; color: var(--text); font-size: 14px; line-height: 1.45; }
   @media (max-width: 720px) {
     .lg-tete { display: none; }
     .lg { grid-template-columns: 1fr 1fr 40px; padding: 10px 0; }
+    .lg input[data-k="lot"] { grid-column: 1 / 3; }
     .lg input[data-k="nom"], .lg input[data-k="telephone"], .lg input[data-k="emails"] { grid-column: 1 / 3; }
     .lg .suppr { grid-row: 1; grid-column: 3; }
   }
@@ -184,7 +185,7 @@
     <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
     <div class="sourcil" style="margin-top:8px" id="rcCopro"></div>
     <h1>Recensement des logements</h1>
-    <p class="intro">Listez chaque appartement avec le numéro de son étiquette blanche, le n° de lot et les coordonnées du propriétaire. Ces informations serviront au sondage des copropriétaires, aux rendez-vous et à l’émargement.</p>
+    <p class="intro">Listez chaque appartement avec son n° de lot et les coordonnées du propriétaire (le numéro d’appartement sera donné par le copropriétaire dans sa réponse au sondage). Ces informations serviront au sondage des copropriétaires, aux rendez-vous et à l’émargement.</p>
 
     <div class="bloc">
       <h2>1 · Nombre d’appartements</h2>
@@ -200,9 +201,9 @@
         <button type="button" class="btn" id="rcImporter">Importer un fichier Excel ou CSV</button>
         <input type="file" id="rcFichier" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt" hidden>
       </div>
-      <p class="aide">Colonnes reconnues : appartement (n° d’étiquette), lot, nom, prénom, téléphone, e-mail. Plusieurs e-mails par appartement : séparez-les par une virgule.</p>
+      <p class="aide">Colonnes reconnues : lot, nom, prénom, téléphone, e-mail. Plusieurs e-mails par appartement : séparez-les par une virgule. Le numéro d’appartement n’est pas demandé : chaque copropriétaire l’indiquera dans sa réponse au sondage (étiquette blanche sur sa porte).</p>
       <p class="message" id="rcImport"></p>
-      <div class="lg-tete" style="margin-top:12px"><span>N° appt</span><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span></span></div>
+      <div class="lg-tete" style="margin-top:12px"><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span></span></div>
       <div id="rcLogements"></div>
       <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouter">+ Ajouter un appartement</button></div>
     </div>
@@ -434,7 +435,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=14"></script>
+<script src="portail-commun.js?v=15"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -658,7 +659,7 @@ function joursTexte(camp) {
 }
 function texteRdv(l) {
   const d = CA.d, c = d.copro;
-  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nHarmonie Électricité installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexte(d.campagne)}.\nMerci de choisir votre créneau de rendez-vous pour l’appartement n° ${l.numero} :\n${lienRdv(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
+  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nHarmonie Électricité installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexte(d.campagne)}.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdv(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
 }
 async function ouvrirCampagne() {
   try { CA.d = await appel('ps_syndic_campagne', { p_session: S.session, p_copro: S.copro }); } catch { return; }
@@ -681,7 +682,7 @@ function rendreCampagne() {
       : l.rdv ? `<span class="pastille ok">Rendez-vous ${esc(fmtJourCourt(l.rdv.debut))} à ${esc(fmtH(l.rdv.debut))}</span> ${esc(l.rdv.prenom + ' ' + l.rdv.nom)}${l.rdv.qualite === 'locataire' ? ' (locataire)' : ''}`
       : bailleur ? '<span class="pastille">Bailleur : le locataire prend rendez-vous par l’affiche</span>'
       : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé le ${esc(dateCourte(l.rdv_invite_le))} (${esc(CAN[l.rdv_invite_canal] || l.rdv_invite_canal)})` : 'Lien pas encore envoyé'}</span>`;
-    return `<li><div class="principal"><b>Appt ${esc(l.numero)} — ${esc(l.nom || '')}</b><div class="sous">${etat}</div></div>
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${etat}</div></div>
       <div class="droite">${bailleur || !l.jeton ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-camail="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-casms="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-caqr="${esc(l.id)}">QR / lien</button>`}</div></li>`;
   }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
   const parId = id => lg.find(l => l.id === id);
@@ -698,7 +699,7 @@ function rendreCampagne() {
   });
   // Rendez-vous de locataires dont le numéro n'a pas été reconnu.
   $('caRattacherBloc').hidden = !d.a_rattacher.length;
-  const options = '<option value="">— Appartement —</option>' + lg.map(l => `<option value="${esc(l.id)}">Appt ${esc(l.numero)} — ${esc(l.nom || '')}</option>`).join('');
+  const options = '<option value="">— Appartement —</option>' + lg.map(l => `<option value="${esc(l.id)}">${esc(PS.appt(l))} — ${esc(l.nom || '')}</option>`).join('');
   $('caRattacher').innerHTML = d.a_rattacher.map(r => `<li><div class="principal"><b>${esc(r.prenom + ' ' + r.nom)} — « appt ${esc(r.numero_appt)} »</b>
     <div class="sous">${esc(fmtJourCourt(r.debut))} à ${esc(fmtH(r.debut))} • ${esc([r.telephone, r.email].filter(Boolean).join(' • '))}</div></div>
     <div class="droite"><select data-ratt="${esc(r.id)}" style="min-height:38px;width:auto">${options}</select></div></li>`).join('');
@@ -740,7 +741,7 @@ const nomCabinet = () => S.etat?.syndic?.nom || '';
 const nomGest = () => S.etat?.user?.nom || '';
 function texteInvitation(l) {
   const c = SO.d.copro;
-  return `Bonjour${l.nom ? ' ' + l.nom : ''},\n\nSuite à la validation du devis pour le remplacement de l’interphone de la résidence ${c.nom}, merci de choisir le poste qui sera installé dans votre appartement (n° ${l.numero}) et de signer votre bon de commande en ligne. Cela prend deux minutes :\n${lienSondage(l.jeton)}\n\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
+  return `Bonjour${l.nom ? ' ' + l.nom : ''},\n\nSuite à la validation du devis pour le remplacement de l’interphone de la résidence ${c.nom}, merci de choisir le poste qui sera installé dans votre appartement${l.lot ? ' (lot ' + l.lot + ')' : ''} et de signer votre bon de commande en ligne. Cela prend deux minutes :\n${lienSondage(l.jeton)}\n\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
 }
 async function ouvrirSondage() {
   try { SO.d = await appel('ps_syndic_sondage', { p_session: S.session, p_copro: S.copro }); } catch { return; }
@@ -775,7 +776,7 @@ function rendreSuiviSondage() {
   const vis = lg.filter(l => !q || [l.numero, l.lot, l.nom, ...(l.emails || [])].join(' ').toLowerCase().includes(q));
   $('soListe').innerHTML = vis.map(l => {
     const k = l.commande, choix = k ? k.lignes.map(x => `${x.qte} × ${x.nom}`).join(', ') : '';
-    return `<li><div class="principal"><b>Appt ${esc(l.numero)} — ${esc(l.nom || 'sans nom')}</b>
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || 'sans nom')}</b>
       <div class="sous">${k ? `<span class="pastille ok">Signé le ${esc(dateCourte(k.signe_le))}</span> ${esc(PS.QUALITES_COMMANDE[k.qualite] || '')} • ${esc(choix)} • <b>${esc(PS.euros(k.total_ttc))}</b>`
         : `<span class="pastille attente">${l.invite_le ? `Lien envoyé le ${esc(dateCourte(l.invite_le))} (${esc(CANAUX[l.invite_canal] || l.invite_canal)})` : 'Lien pas encore envoyé'}</span> ${esc([(l.emails || []).join(', '), l.telephone].filter(Boolean).join(' • ') || 'aucune coordonnée')}`}</div></div>
       <div class="droite">
@@ -804,7 +805,7 @@ function rendreSuiviSondage() {
 }
 document.querySelector('[data-fermer-qs]').onclick = () => $('dlgQrSondage').close();
 $('soRecherche').oninput = () => rendreSuiviSondage();
-$('soCopierTous').onclick = () => PS.copier(SO.d.logements.map(l => `Appt ${l.numero} — ${l.nom || ''} : ${lienSondage(l.jeton)}`).join('\n')).then(() => toast('Liens copiés.'));
+$('soCopierTous').onclick = () => PS.copier(SO.d.logements.map(l => `${PS.appt(l)} — ${l.nom || ''} : ${lienSondage(l.jeton)}`).join('\n')).then(() => toast('Liens copiés.'));
 $('soClore').onclick = async () => {
   const clos = !!SO.d.sondage?.clos_le;
   if (!clos && !confirm('Clore le sondage ? Les copropriétaires ne pourront plus répondre ni modifier leur choix avec leur lien.')) return;
@@ -840,13 +841,12 @@ async function ouvrirRecensement() {
 }
 // Ajoute des lignes vides numérotées à la suite, ou retire seulement les lignes vides de la fin.
 function ajusterLignes(n) {
-  while (R.logements.length < n) { const l = ligneVide(); l.numero = String(R.logements.length + 1); R.logements.push(l); }
+  while (R.logements.length < n) R.logements.push(ligneVide());
   while (R.logements.length > n) { const l = R.logements[R.logements.length - 1]; if (l.nom || l.lot || l.telephone || l.emails.length) break; R.logements.pop(); }
 }
 const estVideLg = l => !l.nom && !l.lot && !l.telephone && !l.emails.length;
 function rendreLignes() {
-  $('rcLogements').innerHTML = R.logements.map((l, i) => `<div class="lg${!l.numero || !l.nom ? ' incomplet' : ''}" data-i="${i}">
-    <input type="text" data-k="numero" value="${esc(l.numero)}" placeholder="N° appt" aria-label="N° d’appartement (étiquette)">
+  $('rcLogements').innerHTML = R.logements.map((l, i) => `<div class="lg${!l.nom ? ' incomplet' : ''}" data-i="${i}">
     <input type="text" data-k="lot" value="${esc(l.lot)}" placeholder="N° lot" aria-label="N° de lot">
     <input type="text" data-k="nom" value="${esc(l.nom)}" placeholder="Nom du propriétaire" aria-label="Propriétaire">
     <input type="tel" data-k="telephone" value="${esc(l.telephone)}" placeholder="Téléphone" aria-label="Téléphone">
@@ -856,11 +856,11 @@ function rendreLignes() {
   $('rcLogements').querySelectorAll('.lg input').forEach(inp => inp.oninput = () => {
     const l = R.logements[+inp.closest('.lg').dataset.i], k = inp.dataset.k;
     l[k] = k === 'emails' ? inp.value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean) : inp.value;
-    inp.closest('.lg').classList.toggle('incomplet', !l.numero.trim() || !l.nom.trim());
+    inp.closest('.lg').classList.toggle('incomplet', !l.nom.trim());
   });
   $('rcLogements').querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => {
     const l = R.logements[+b.dataset.suppr];
-    if (!estVideLg(l) && !confirm(`Retirer l’appartement ${l.numero || ''} ${l.nom ? '(' + l.nom + ')' : ''} ?`)) return;
+    if (!estVideLg(l) && !confirm(`Retirer ${PS.appt(l).toLowerCase()}${l.nom ? ' (' + l.nom + ')' : ''} ?`)) return;
     R.logements.splice(+b.dataset.suppr, 1); $('rcNb').value = R.logements.length; rendreLignes();
   });
 }
@@ -873,7 +873,7 @@ function rendreIntervenants() {
   $('rcIntervenants').querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => { R.intervenants.splice(+b.dataset.suppr, 1); rendreIntervenants(); });
 }
 $('rcNb').oninput = () => { const n = parseInt($('rcNb').value, 10); if (n > 0 && n <= 2000) { ajusterLignes(n); rendreLignes(); } };
-$('rcAjouter').onclick = () => { const l = ligneVide(); l.numero = String(R.logements.length + 1); R.logements.push(l); $('rcNb').value = R.logements.length; rendreLignes();
+$('rcAjouter').onclick = () => { const l = ligneVide(); R.logements.push(l); $('rcNb').value = R.logements.length; rendreLignes();
   $('rcLogements').lastElementChild?.querySelector('[data-k="nom"]')?.focus(); };
 $('rcAjouterIntervenant').onclick = () => { R.intervenants.push({ id: '', type: 'intervenant', nom: '', badges: '' }); rendreIntervenants(); };
 
@@ -889,12 +889,12 @@ $('rcFichier').onchange = async e => {
     if (!res.length) return message('rcImport', 'Aucun appartement reconnu dans ce fichier.');
     const remplis = R.logements.filter(l => !estVideLg(l)).length;
     if (remplis && !confirm(`Remplacer les ${remplis} appartements déjà saisis par les ${res.length} du fichier ?`)) return;
-    // On garde les identifiants des appartements déjà enregistrés portant le même n°.
-    const parNum = new Map(R.logements.filter(l => l.id).map(l => [l.numero, l.id]));
-    R.logements = res.map(l => ({ ...ligneVide(), ...l, id: parNum.get(l.numero) || '' }));
+    // On garde les identifiants (et les n° déjà donnés au sondage) des appartements enregistrés avec le même lot.
+    const parLot = new Map(R.logements.filter(l => l.id && l.lot).map(l => [l.lot.trim().toLowerCase(), l]));
+    R.logements = res.map(l => { const ex = parLot.get((l.lot || '').trim().toLowerCase()); return { ...ligneVide(), ...l, numero: ex?.numero || '', id: ex?.id || '' }; });
     $('rcNb').value = R.logements.length; rendreLignes();
-    const sansNum = R.logements.filter(l => !l.numero).length;
-    message('rcImport', `${res.length} appartements importés.` + (sansNum ? ` ${sansNum} sans n° d’appartement : complétez-les (n° de l’étiquette).` : ''), !!sansNum);
+    const sansNom = R.logements.filter(l => !l.nom).length;
+    message('rcImport', `${res.length} appartements importés.` + (sansNom ? ` ${sansNom} sans propriétaire : complétez-les.` : ''), !!sansNom);
   } catch { message('rcImport', 'Lecture du fichier impossible (Excel .xlsx/.xls, .ods ou .csv).'); }
 };
 function analyserListe(lignes) {
@@ -927,13 +927,13 @@ function analyserListe(lignes) {
 }
 
 async function enregistrerRecensement(valider) {
-  const lg = R.logements.map(l => ({ ...l, numero: l.numero.trim(), nom: l.nom.trim() }));
+  const lg = R.logements.map(l => ({ ...l, numero: (l.numero || '').trim(), lot: (l.lot || '').trim(), nom: l.nom.trim() }));
   if (valider) {
-    const manquants = lg.filter(l => !l.numero || !l.nom).length;
+    const manquants = lg.filter(l => !l.nom).length;
     if (!lg.length) return message('rcMessage', 'Ajoutez au moins un appartement.');
-    if (manquants) return message('rcMessage', `${manquants} appartement${manquants > 1 ? 's' : ''} sans n° d’étiquette ou sans propriétaire (cases orangées).`);
-    const nums = lg.map(l => l.numero.toLowerCase()), double = nums.find((n, i) => nums.indexOf(n) !== i);
-    if (double) return message('rcMessage', `Le n° d’appartement « ${double} » est utilisé deux fois.`);
+    if (manquants) return message('rcMessage', `${manquants} appartement${manquants > 1 ? 's' : ''} sans propriétaire (cases orangées).`);
+    const lots = lg.map(l => l.lot.toLowerCase()).filter(Boolean), double = lots.find((n, i) => lots.indexOf(n) !== i);
+    if (double) return message('rcMessage', `Le n° de lot « ${double} » est utilisé deux fois.`);
   }
   const hors = avecVigik(R.copro) ? [
     { id: R.stock?.id || '', type: 'stock', nom: 'Stock syndic', badges: parseInt($('rcStock').value, 10) || 0 },

@@ -276,7 +276,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=14"></script>
+<script src="portail-commun.js?v=15"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -931,7 +931,7 @@ function rendreSuiviCampagneAdmin() {
   $('caResume').textContent = (d.campagne.jours || []).length
     ? `${avec} / ${lg.length} appartements ont rendez-vous • ${libres} place${libres > 1 ? 's' : ''} libre${libres > 1 ? 's' : ''}${d.campagne.envoyee_le ? ' • campagne envoyée le ' + dateCourte(d.campagne.envoyee_le) : ' • campagne pas encore envoyée'}`
     : '';
-  const options = '<option value="">— Rattacher à —</option>' + lg.map(l => `<option value="${esc(l.id)}">Appt ${esc(l.numero)} — ${esc(l.nom || '')}</option>`).join('');
+  const options = '<option value="">— Rattacher à —</option>' + lg.map(l => `<option value="${esc(l.id)}">${esc(PS.appt(l))} — ${esc(l.nom || '')}</option>`).join('');
   $('caRattacherAdmin').innerHTML = d.a_rattacher.map(r => `<li><div class="principal"><b>À rattacher : ${esc(r.prenom + ' ' + r.nom)} — « appt ${esc(r.numero_appt)} »</b>
     <div class="sous">${esc(fmtJ(r.debut))} à ${esc(fmtHh(r.debut))} • ${esc([r.telephone, r.email].filter(Boolean).join(' • '))}</div></div>
     <div class="droite"><select data-rattadm="${esc(r.id)}" style="min-height:38px;width:auto">${options}</select></div></li>`).join('');
@@ -997,7 +997,7 @@ async function rendreRecensementAdmin(c) {
     rec.etiquettes_le ? 'étiquettes posées le ' + dateCourte(rec.etiquettes_le) : 'étiquettes non posées',
     rec.enregistre_le && 'mis à jour le ' + dateCourte(rec.enregistre_le) + (rec.par ? ' par ' + rec.par : ''),
     so?.sondage?.ouvert_le && `sondage ${so.sondage.clos_le ? 'clos' : 'ouvert'} : ${bons.size} / ${lg.length} bons signés, ${PS.euros([...bons.values()].reduce((t, k) => t + (+k.total_ttc || 0), 0))} TTC`].filter(Boolean).join(' • ');
-  $('dRecListe').innerHTML = [...lg.map(l => { const k = bons.get(l.id); return `<li><div class="principal"><b>Appt ${esc(l.numero || '?')}${l.lot ? ' — lot ' + esc(l.lot) : ''} — ${esc(l.nom || 'sans nom')}</b>
+  $('dRecListe').innerHTML = [...lg.map(l => { const k = bons.get(l.id); return `<li><div class="principal"><b>${esc(PS.appt(l))}${l.lot && l.numero ? ' — lot ' + esc(l.lot) : ''} — ${esc(l.nom || 'sans nom')}</b>
       <div class="sous">${esc([l.telephone, (l.emails || []).join(', ')].filter(Boolean).join(' • ') || 'Aucune coordonnée')}</div>
       ${k ? `<div class="sous">${esc(k.lignes.map(x => x.qte + ' × ' + x.nom).join(', '))} • <b>${esc(PS.euros(k.total_ttc))}</b> • signé le ${esc(dateCourte(k.signe_le))}</div>` : ''}</div>
       <div class="droite">${k ? `<button type="button" class="btn btn-petit" data-bon-admin="${esc(k.id)}">Bon ${esc(k.numero)}</button>` : so?.sondage?.ouvert_le ? '<span class="pastille attente">Sans réponse</span>' : ''}</div></li>`; }),

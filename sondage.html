@@ -176,7 +176,7 @@
 </main>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=14"></script>
+<script src="portail-commun.js?v=15"></script>
 <script>
 'use strict';
 const { rpc, $, esc, dateCourte, euros } = PS;
@@ -202,7 +202,7 @@ async function charger() {
   $('enteteSyndic').textContent = d.syndic?.nom ? 'Pour ' + d.syndic.nom : '';
   $('titre').textContent = c.nom;
   $('adresse').textContent = [c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-  $('appt').textContent = ['Appartement n° ' + (l.numero || '?'), l.lot && 'lot ' + l.lot].filter(Boolean).join(' • ');
+  $('appt').textContent = [l.numero && 'Appartement n° ' + l.numero, l.lot && 'Lot n° ' + l.lot].filter(Boolean).join(' • ') || 'Votre appartement';
   $('texte').textContent = d.texte || (avecInterphone()
     ? `Suite à la validation du devis pour le remplacement du système d’interphone de la résidence, veuillez choisir le poste qui sera installé dans votre appartement.`
     : `Suite à la validation du devis pour l’installation du contrôle d’accès Vigik de la résidence, veuillez indiquer le nombre de badges souhaités pour votre appartement.`);
