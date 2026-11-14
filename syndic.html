@@ -227,6 +227,38 @@
     </div>
   </section>
 
+  <!-- Sondage des copropriétaires -->
+  <section id="vSondage" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
+    <div class="sourcil" style="margin-top:8px" id="soCopro"></div>
+    <h1>Sondage des copropriétaires</h1>
+
+    <div class="bloc" id="soPreparer" hidden>
+      <h2>Avant l’envoi</h2>
+      <p class="aide" style="margin-top:0">Chaque copropriétaire reçoit un lien personnel : il choisit son poste, la plaque de propreté et ses badges, donne ses coordonnées et signe son bon de commande. Les prix affichés sont ceux du devis.</p>
+      <label for="soTexte">Message d’accueil du sondage</label>
+      <textarea id="soTexte" rows="4"></textarea>
+      <label>Matériel proposé</label>
+      <ul class="liste" id="soArticles"></ul>
+      <div class="actions"><button type="button" class="btn btn-or" id="soOuvrir">Ouvrir le sondage</button></div>
+      <p class="message" id="soMessage" role="status"></p>
+    </div>
+
+    <div id="soSuivi" hidden>
+      <div class="tuiles" id="soTuiles" style="margin-top:14px"></div>
+      <div class="bloc">
+        <h2>Envoyer les liens</h2>
+        <p class="aide" style="margin-top:0">Envoyez à chacun son lien depuis votre messagerie ou par SMS, ou montrez le QR code. Le propriétaire peut modifier son choix avec le même lien tant que le sondage est ouvert.</p>
+        <div class="actions">
+          <button type="button" class="btn btn-petit" id="soCopierTous">Copier tous les liens</button>
+          <button type="button" class="btn btn-petit" id="soClore"></button>
+        </div>
+        <input type="search" id="soRecherche" placeholder="Rechercher un appartement, un nom…" style="margin-top:12px">
+        <ul class="liste" id="soListe"></ul>
+      </div>
+    </div>
+  </section>
+
   <!-- Nouvelle remise -->
   <section id="vRemise" hidden>
     <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
@@ -350,6 +382,13 @@
 </div>
 
 <!-- Annulation -->
+<dialog id="dlgQrSondage"><div class="dlg">
+  <div class="sourcil" id="qsAppt"></div><h3>Lien personnel du sondage</h3>
+  <div class="qr" id="qsQr"></div>
+  <p class="lien" id="qsLien"></p>
+  <div class="actions"><button type="button" class="btn" id="qsCopier">Copier le lien</button><button type="button" class="btn btn-or" data-fermer-qs>Fermer</button></div>
+</div></dialog>
+
 <dialog id="dlgAnnuler"><div class="dlg">
   <div class="sourcil">Annuler une remise</div><h3 id="anTitre"></h3>
   <p class="aide">Rien n’est effacé : la remise reste visible comme « annulée » et ses badges reviennent en stock.</p>
@@ -357,8 +396,8 @@
   <div class="actions"><button type="button" class="btn btn-discret" id="anFermer">Retour</button><button type="button" class="btn btn-danger" id="anValider">Annuler la remise</button></div>
 </div></dialog>
 
-<script src="logos.js"></script>
-<script src="portail-commun.js?v=6"></script>
+<script src="logos.js?v=2"></script>
+<script src="portail-commun.js?v=7"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -367,7 +406,7 @@ const S = { session: null, etat: null, copro: null, detail: null, remise: null, 
 let padProfil = null, padSigne = null;
 let tamponCourant = '';
 
-const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRecensement', 'vRemise', 'vSigner', 'vFin'];
+const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRecensement', 'vSondage', 'vRemise', 'vSigner', 'vFin'];
 function montrer(v) {
   vues.forEach(x => { $(x).hidden = x !== v; });
   $('barreRemise').hidden = v !== 'vRemise';
@@ -545,22 +584,110 @@ function rendreParcours() {
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
         : 'Indiquez le nombre d’appartements, puis pour chacun : n° d’étiquette, n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
       bouton: `<button type="button" class="btn btn-petit ${pret ? '' : 'btn-or'}" data-parcours="recensement">${pret ? 'Modifier le recensement' : n ? 'Reprendre le recensement' : 'Lancer le recensement'}</button>` },
-    { fait: false, titre: 'Envoyer le sondage aux copropriétaires',
-      texte: pret && etiq ? 'Le recensement est prêt. L’envoi du sondage (choix du matériel, signature) arrive dans la prochaine version du portail.'
-        : 'Disponible une fois les étiquettes posées et le recensement validé.',
-      bouton: '<button type="button" class="btn btn-petit" disabled>Envoyer le sondage</button>' },
+    (() => {
+      const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0;
+      return { fait: clos, titre: 'Sondage des copropriétaires',
+        texte: clos ? `Sondage clos le ${dateCourte(so.clos_le)} : ${nc} / ${n} bons de commande signés.`
+          : ouvert ? `Sondage ouvert depuis le ${dateCourte(so.ouvert_le)} : ${nc} / ${n} bons de commande signés.`
+          : pret && etiq ? 'Tout est prêt : ouvrez le sondage, puis envoyez à chaque copropriétaire son lien personnel (e-mail, SMS ou QR code).'
+          : 'Disponible une fois les étiquettes posées et le recensement validé.',
+        bouton: `<button type="button" class="btn btn-petit ${ouvert && !clos ? '' : 'btn-or'}" data-parcours="sondage" ${pret && etiq ? '' : 'disabled'}>${ouvert ? 'Suivre le sondage' : 'Préparer le sondage'}</button>` };
+    })(),
   ];
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
     <span class="num">${e.fait ? '✓' : i + 1}</span><div><h3>${esc(e.titre)}</h3><p>${esc(e.texte)}</p>${e.bouton ? `<div class="actions">${e.bouton}</div>` : ''}</div></li>`).join('');
   $('coParcours').querySelectorAll('[data-parcours]').forEach(b => b.onclick = async () => {
     if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
+    if (b.dataset.parcours === 'sondage') return ouvrirSondage();
     b.disabled = true;
     try { await appel('ps_syndic_recensement_enregistrer', { p_session: S.session, p_copro: S.copro, p: { etiquettes: true } }); toast('Étiquettes notées comme posées.'); }
     catch { b.disabled = false; return; }
     ouvrirCopro(S.copro);
   });
 }
+
+// ---------- Sondage ----------
+const SO = { d: null };
+const lienSondage = j => PS.urlPage('sondage.html') + '?j=' + j;
+const nomCabinet = () => S.etat?.syndic?.nom || '';
+const nomGest = () => S.etat?.user?.nom || '';
+function texteInvitation(l) {
+  const c = SO.d.copro;
+  return `Bonjour${l.nom ? ' ' + l.nom : ''},\n\nSuite à la validation du devis pour le remplacement de l’interphone de la résidence ${c.nom}, merci de choisir le poste qui sera installé dans votre appartement (n° ${l.numero}) et de signer votre bon de commande en ligne. Cela prend deux minutes :\n${lienSondage(l.jeton)}\n\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
+}
+async function ouvrirSondage() {
+  try { SO.d = await appel('ps_syndic_sondage', { p_session: S.session, p_copro: S.copro }); } catch { return; }
+  const d = SO.d, so = d.sondage || {}, c = d.copro;
+  $('soCopro').textContent = c.nom;
+  const ouvert = !!so.ouvert_le;
+  $('soPreparer').hidden = ouvert; $('soSuivi').hidden = !ouvert;
+  if (!ouvert) {
+    $('soTexte').value = so.texte || (c.travaux === 'vigik'
+      ? `Suite à la validation du devis pour l’installation du contrôle d’accès Vigik de la résidence ${c.nom}, veuillez indiquer le nombre de badges souhaités pour votre appartement.`
+      : `Suite à la validation du devis pour le remplacement du système d’interphone de la résidence ${c.nom}, veuillez choisir le poste qui sera installé dans votre appartement.`);
+    const ttc = a => a.prix_ht * (1 + a.tva / 100);
+    $('soArticles').innerHTML = d.articles.length ? d.articles.map(a => `<li><div class="principal"><b>${esc(a.nom)}</b><div class="sous">${esc([a.marque, a.ref].filter(Boolean).join(' '))}</div></div><div class="droite">${esc(PS.euros(ttc(a)))} TTC</div></li>`).join('')
+      : `<li><div class="principal">Aucun matériel au catalogue pour la marque « ${esc(c.marque_interphone || 'non précisée')} ». Contactez Harmonie Électricité avant d’ouvrir le sondage.</div></li>`;
+    $('soOuvrir').disabled = !d.articles.length;
+    message('soMessage', '');
+  } else rendreSuiviSondage();
+  montrer('vSondage');
+}
+$('soOuvrir').onclick = async () => {
+  $('soOuvrir').disabled = true;
+  try { await appel('ps_syndic_sondage_ouvrir', { p_session: S.session, p_copro: S.copro, p_texte: $('soTexte').value.trim() }, 'soMessage'); toast('Sondage ouvert : envoyez les liens.'); ouvrirSondage(); }
+  catch { $('soOuvrir').disabled = false; }
+};
+function rendreSuiviSondage() {
+  const d = SO.d, so = d.sondage || {}, lg = d.logements, signes = lg.filter(l => l.commande);
+  const total = signes.reduce((t, l) => t + (+l.commande.total_ttc || 0), 0);
+  $('soTuiles').innerHTML = [['Bons signés', `${signes.length} / ${lg.length}`, 'or'], ['Sans réponse', lg.length - signes.length], ['Total commandé TTC', PS.euros(total)],
+    ['Sondage', so.clos_le ? 'Clos le ' + dateCourte(so.clos_le) : 'Ouvert']].map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b style="font-size:20px">${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+  $('soClore').textContent = so.clos_le ? 'Rouvrir le sondage' : 'Clore le sondage';
+  const q = $('soRecherche').value.trim().toLowerCase();
+  const vis = lg.filter(l => !q || [l.numero, l.lot, l.nom, ...(l.emails || [])].join(' ').toLowerCase().includes(q));
+  $('soListe').innerHTML = vis.map(l => {
+    const k = l.commande, choix = k ? k.lignes.map(x => `${x.qte} × ${x.nom}`).join(', ') : '';
+    return `<li><div class="principal"><b>Appt ${esc(l.numero)} — ${esc(l.nom || 'sans nom')}</b>
+      <div class="sous">${k ? `<span class="pastille ok">Signé le ${esc(dateCourte(k.signe_le))}</span> ${esc(PS.QUALITES_COMMANDE[k.qualite] || '')} • ${esc(choix)} • <b>${esc(PS.euros(k.total_ttc))}</b>`
+        : `<span class="pastille attente">Pas encore répondu</span> ${esc([(l.emails || []).join(', '), l.telephone].filter(Boolean).join(' • ') || 'aucune coordonnée')}`}</div></div>
+      <div class="droite">
+        ${k ? `<button type="button" class="btn btn-petit" data-bon="${esc(k.id)}">Bon PDF</button>` : ''}
+        ${(l.emails || []).length ? `<button type="button" class="btn btn-petit" data-mail="${esc(l.id)}">E-mail</button>` : ''}
+        ${l.telephone ? `<button type="button" class="btn btn-petit" data-sms="${esc(l.id)}">SMS</button>` : ''}
+        <button type="button" class="btn btn-petit btn-discret" data-qr="${esc(l.id)}">QR / lien</button>
+      </div></li>`;
+  }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
+  const parId = id => lg.find(l => l.id === id);
+  $('soListe').querySelectorAll('[data-mail]').forEach(b => b.onclick = () => {
+    const l = parId(b.dataset.mail);
+    location.href = `mailto:${l.emails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Votre nouvel interphone — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteInvitation(l))}`;
+  });
+  $('soListe').querySelectorAll('[data-sms]').forEach(b => b.onclick = () => { const l = parId(b.dataset.sms); location.href = PS.lienSms(l.telephone, texteInvitation(l)); });
+  $('soListe').querySelectorAll('[data-qr]').forEach(b => b.onclick = async () => {
+    const l = parId(b.dataset.qr), lien = lienSondage(l.jeton);
+    $('qsAppt').textContent = `Appartement ${l.numero} — ${l.nom || ''}`; $('qsLien').textContent = lien; $('qsQr').innerHTML = await PS.qrSvg(lien, 240);
+    $('qsCopier').onclick = () => PS.copier(lien); $('dlgQrSondage').showModal();
+  });
+  $('soListe').querySelectorAll('[data-bon]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { const k = await appel('ps_syndic_commande', { p_session: S.session, p_commande: b.dataset.bon }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); }
+    catch {} finally { b.disabled = false; }
+  });
+}
+document.querySelector('[data-fermer-qs]').onclick = () => $('dlgQrSondage').close();
+$('soRecherche').oninput = () => rendreSuiviSondage();
+$('soCopierTous').onclick = () => PS.copier(SO.d.logements.map(l => `Appt ${l.numero} — ${l.nom || ''} : ${lienSondage(l.jeton)}`).join('\n')).then(() => toast('Liens copiés.'));
+$('soClore').onclick = async () => {
+  const clos = !!SO.d.sondage?.clos_le;
+  if (!clos && !confirm('Clore le sondage ? Les copropriétaires ne pourront plus répondre ni modifier leur choix avec leur lien.')) return;
+  try {
+    if (clos) await appel('ps_syndic_sondage_ouvrir', { p_session: S.session, p_copro: S.copro, p_texte: SO.d.sondage.texte || '' });
+    else await appel('ps_syndic_sondage_clore', { p_session: S.session, p_copro: S.copro });
+    toast(clos ? 'Sondage rouvert.' : 'Sondage clos.'); ouvrirSondage();
+  } catch {}
+};
 
 // ---------- Recensement ----------
 const R = { copro: null, logements: [], intervenants: [], stock: null };

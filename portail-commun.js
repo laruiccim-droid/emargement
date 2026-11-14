@@ -26,6 +26,13 @@ const PS = (() => {
     REMISE_ANNULEE: 'Cette remise a été annulée.',
     SIGNATURE_INCOMPLETE: 'Indiquez votre nom et signez dans le cadre.',
     GESTIONNAIRE_AUTRE_SYNDIC: 'Ce gestionnaire n’appartient pas au syndic choisi.',
+    RECENSEMENT_A_VALIDER: 'Validez d’abord le recensement des logements.',
+    SONDAGE_CLOS: 'Le sondage est clos : contactez votre syndic pour modifier votre choix.',
+    QUALITE_OBLIGATOIRE: 'Indiquez si vous habitez le logement ou si vous le louez.',
+    APPARTEMENT_OBLIGATOIRE: 'Indiquez le numéro de votre appartement (étiquette blanche sur la porte).',
+    POSTE_OBLIGATOIRE: 'Choisissez au moins un poste.',
+    ARTICLE_INCONNU: 'Un article choisi n’est plus proposé : rechargez la page.',
+    SIGNATURE_INVALIDE: 'Signez dans le cadre prévu.',
   };
 
   async function rpc(fonction, args = {}) {
@@ -282,6 +289,73 @@ const PS = (() => {
     }
     return doc.output('blob');
   }
+  // ---------- PDF : bon de commande signé par le copropriétaire ----------
+  const euros = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const QUALITES_COMMANDE = { occupant: 'Propriétaire occupant', bailleur: 'Propriétaire bailleur' };
+  async function pdfCommande(k) {
+    const JsPDF = await jsPdf();
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = 210, M = 15, ENC = [23, 24, 28], GRIS = [107, 102, 88], OR = [168, 132, 63], FILET = [217, 212, 200];
+    const c = k.copro || {}, lg = k.logement || {};
+    const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 10); doc.setTextColor(...(o.c || ENC)); doc.text(String(t ?? ''), x, y, o.al ? { align: o.al } : undefined); };
+    let y = 16;
+    if (typeof LOGO_NOIR_OR !== 'undefined') { try { doc.addImage(LOGO_NOIR_OR, 'PNG', M, y - 4, 42, 42 * LOGO_NOIR_OR_RATIO); } catch {} }
+    else T(ENTREPRISE.nom, M, y + 4, { s: 14, b: true });
+    T([ENTREPRISE.adresse, ENTREPRISE.tel + ' • ' + ENTREPRISE.email].join('   '), M, y + 18, { s: 8, c: GRIS });
+    T('BON DE COMMANDE', W - M, y, { s: 8.5, c: OR, al: 'right' });
+    T('N° ' + (k.numero || ''), W - M, y + 7, { s: 13, b: true, al: 'right' });
+    T(k.statut === 'remplace' ? 'Remplacé par un bon plus récent' : 'Signé le ' + horodatage(k.signe_le), W - M, y + 12.5, { s: 8.5, c: k.statut === 'remplace' ? [180, 68, 47] : GRIS, al: 'right' });
+    y += 24; doc.setDrawColor(...OR); doc.setLineWidth(0.5); doc.line(M, y, W - M, y); y += 9;
+    const section = t => { T(t.toUpperCase(), M, y, { s: 8, b: true, c: OR }); y += 2; doc.setDrawColor(...FILET); doc.setLineWidth(0.2); doc.line(M, y, W - M, y); y += 5.5; };
+    const kv = lignes => {
+      const cw = (W - 2 * M) / 2; let h = 0;
+      lignes.filter(l => l[1]).forEach((l, i, t) => {
+        const x = M + (i % 2) * cw;
+        T(l[0], x, y, { s: 7.5, c: GRIS });
+        const tx = doc.splitTextToSize(String(l[1]), cw - 4); doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...ENC); doc.text(tx, x, y + 4.5);
+        h = Math.max(h, 4.5 + tx.length * 4.4);
+        if (i % 2 === 1 || i === t.length - 1) { y += h + 3; h = 0; }
+      });
+    };
+    section('Résidence');
+    kv([['Copropriété', c.nom], ['Adresse', [c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')], ['Référence', c.reference]]);
+    section('Copropriétaire');
+    kv([['Nom', [k.prenom, k.nom].filter(Boolean).join(' ')], ['Qualité', QUALITES_COMMANDE[k.qualite] || k.qualite],
+      ['Appartement (étiquette)', k.numero_appt || lg.numero], ['N° de lot', lg.lot], ['Téléphone', k.telephone], ['E-mail', k.email]]);
+    section('Matériel commandé');
+    const cols = [M, M + 104, M + 120, M + 146, W - M];
+    T('Désignation', cols[0], y, { s: 7.5, c: GRIS }); T('Qté', cols[1] + 8, y, { s: 7.5, c: GRIS, al: 'right' }); T('P.U. HT', cols[2] + 22, y, { s: 7.5, c: GRIS, al: 'right' });
+    T('TVA', cols[3] + 8, y, { s: 7.5, c: GRIS, al: 'right' }); T('Total TTC', cols[4], y, { s: 7.5, c: GRIS, al: 'right' }); y += 5;
+    for (const l of k.lignes || []) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...ENC);
+      const nom = doc.splitTextToSize((l.marque ? l.marque + ' ' : '') + (l.ref ? l.ref + ' — ' : '') + l.nom, 92);
+      doc.text(nom, cols[0], y);
+      T(l.qte, cols[1] + 8, y, { s: 9.5, al: 'right' }); T(euros(l.prix_ht), cols[2] + 22, y, { s: 9.5, al: 'right' });
+      T(String(l.tva).replace('.', ',') + ' %', cols[3] + 8, y, { s: 9.5, al: 'right' }); T(euros(l.total_ttc), cols[4], y, { s: 9.5, b: true, al: 'right' });
+      y += nom.length * 4.3 + 2.5; doc.setDrawColor(...FILET); doc.line(M, y - 1.5, W - M, y - 1.5); y += 1.5;
+    }
+    y += 2;
+    [['Total HT', euros(k.total_ht)], ['TVA', euros((+k.total_ttc || 0) - (+k.total_ht || 0))], ['Total TTC', euros(k.total_ttc)]].forEach(([a, b], i) => {
+      T(a, W - M - 40, y, { s: i === 2 ? 11 : 9.5, b: i === 2, c: i === 2 ? ENC : GRIS, al: 'right' }); T(b, W - M, y, { s: i === 2 ? 11 : 9.5, b: i === 2, al: 'right' }); y += i === 1 ? 7 : 5.5;
+    });
+    y += 3;
+    doc.setFillColor(247, 244, 238); doc.rect(M, y, W - 2 * M, 16, 'F');
+    const att = doc.splitTextToSize(`Je soussigné(e) ${[k.prenom, k.nom].filter(Boolean).join(' ')} confirme le choix du matériel ci-dessus pour mon appartement, dans le cadre du remplacement du système d’interphonie de la résidence. Ce matériel est facturé au syndic de copropriété, qui le répartit sur le compte du copropriétaire. TVA à taux réduit (10 %) applicable aux travaux dans les logements de plus de deux ans.`, W - 2 * M - 8);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(...GRIS); doc.text(att, M + 4, y + 5); y += 22;
+    T('LE COPROPRIÉTAIRE · BON POUR ACCORD', M, y, { s: 7.5, b: true, c: OR }); T([k.prenom, k.nom].filter(Boolean).join(' '), M, y + 5, { s: 10 });
+    const bw = 90, bh = 40; doc.setDrawColor(...FILET); doc.setLineWidth(0.3); doc.rect(M, y + 8, bw, bh);
+    if (k.signature) { try { const t = await tailleImage(k.signature); const w = bw - 6, h = Math.min(bh - 6, w * t.h / t.w); doc.addImage(k.signature, 'PNG', M + 3, y + 8 + (bh - h) / 2, w, h); } catch {} }
+    T(`Signé électroniquement le ${horodatage(k.signe_le)}${k.par === 'gestionnaire' ? ', saisi par le gestionnaire' : ', depuis le lien personnel du copropriétaire'}.`, M, y + bh + 14, { s: 8.5, c: GRIS });
+    const n = doc.getNumberOfPages();
+    for (let p = 1; p <= n; p++) {
+      doc.setPage(p); doc.setDrawColor(...FILET); doc.setLineWidth(0.2); doc.line(M, 284, W - M, 284);
+      T(`${ENTREPRISE.nom} • Bon de commande ${k.numero || ''} • ${c.nom || ''}`, M, 289, { s: 7, c: GRIS });
+      T(`Page ${p} / ${n}`, W - M, 289, { s: 7, c: GRIS, al: 'right' });
+    }
+    return doc.output('blob');
+  }
+  const nomFichierCommande = k => `Bon de commande ${k.numero} - ${(k.copro && k.copro.nom) || ''} - appt ${k.numero_appt || (k.logement && k.logement.numero) || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
+
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
 
   // Ouvre / télécharge / partage un PDF.
@@ -326,5 +400,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

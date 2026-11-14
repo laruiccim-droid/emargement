@@ -82,7 +82,7 @@
     </div>
     <div class="tuiles" id="dTuiles"></div>
     <div class="bloc" id="dRecensement" hidden>
-      <h2>Recensement (espace syndic)</h2>
+      <h2>Recensement et sondage (espace syndic)</h2>
       <p class="aide" id="dRecInfo" style="margin-top:0"></p>
       <ul class="liste" id="dRecListe"></ul>
     </div>
@@ -228,8 +228,8 @@
   <p class="message" id="chMessage"></p>
 </form></dialog>
 
-<script src="logos.js"></script>
-<script src="portail-commun.js?v=6"></script>
+<script src="logos.js?v=2"></script>
+<script src="portail-commun.js?v=7"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -642,14 +642,25 @@ async function rendreRecensementAdmin(c) {
   let d; try { d = await PS.rpc('ps_admin_recensement', { p_admin: A.mdp, p_copro: c.id }); }
   catch { $('dRecInfo').textContent = 'Recensement indisponible (script SQL n° 11 à exécuter ?).'; return; }
   if (A.copro !== c.id) return;
+  // Sondage : bon de commande signé de chaque appartement (script SQL n° 12).
+  let so = null; try { so = await PS.rpc('ps_admin_sondage', { p_admin: A.mdp, p_copro: c.id }); } catch {}
+  const bons = new Map((so?.logements || []).filter(l => l.commande).map(l => [l.id, l.commande]));
   const rec = d.recensement || {}, lg = d.logements.filter(l => l.type === 'logement'), hors = d.logements.filter(l => l.type !== 'logement');
   const etape = { etiquettes: 'à commencer', saisie: 'en cours de saisie', pret: 'validé' }[rec.etape] || 'pas encore commencé';
   $('dRecInfo').textContent = [`Recensement ${etape}`, `${lg.length} appartement${lg.length > 1 ? 's' : ''}`,
     rec.etiquettes_le ? 'étiquettes posées le ' + dateCourte(rec.etiquettes_le) : 'étiquettes non posées',
-    rec.enregistre_le && 'mis à jour le ' + dateCourte(rec.enregistre_le) + (rec.par ? ' par ' + rec.par : '')].filter(Boolean).join(' • ');
-  $('dRecListe').innerHTML = [...lg.map(l => `<li><div class="principal"><b>Appt ${esc(l.numero || '?')}${l.lot ? ' — lot ' + esc(l.lot) : ''} — ${esc(l.nom || 'sans nom')}</b>
-      <div class="sous">${esc([l.telephone, (l.emails || []).join(', ')].filter(Boolean).join(' • ') || 'Aucune coordonnée')}</div></div></li>`),
+    rec.enregistre_le && 'mis à jour le ' + dateCourte(rec.enregistre_le) + (rec.par ? ' par ' + rec.par : ''),
+    so?.sondage?.ouvert_le && `sondage ${so.sondage.clos_le ? 'clos' : 'ouvert'} : ${bons.size} / ${lg.length} bons signés, ${PS.euros([...bons.values()].reduce((t, k) => t + (+k.total_ttc || 0), 0))} TTC`].filter(Boolean).join(' • ');
+  $('dRecListe').innerHTML = [...lg.map(l => { const k = bons.get(l.id); return `<li><div class="principal"><b>Appt ${esc(l.numero || '?')}${l.lot ? ' — lot ' + esc(l.lot) : ''} — ${esc(l.nom || 'sans nom')}</b>
+      <div class="sous">${esc([l.telephone, (l.emails || []).join(', ')].filter(Boolean).join(' • ') || 'Aucune coordonnée')}</div>
+      ${k ? `<div class="sous">${esc(k.lignes.map(x => x.qte + ' × ' + x.nom).join(', '))} • <b>${esc(PS.euros(k.total_ttc))}</b> • signé le ${esc(dateCourte(k.signe_le))}</div>` : ''}</div>
+      <div class="droite">${k ? `<button type="button" class="btn btn-petit" data-bon-admin="${esc(k.id)}">Bon ${esc(k.numero)}</button>` : so?.sondage?.ouvert_le ? '<span class="pastille attente">Sans réponse</span>' : ''}</div></li>`; }),
     ...hors.map(h => `<li><div class="principal"><b>${esc(h.nom)}</b><div class="sous">${h.type === 'stock' ? 'Stock syndic' : 'Entreprise intervenante'}</div></div><div class="droite">${h.badges} badge${h.badges > 1 ? 's' : ''}</div></li>`)].join('');
+  $('dRecListe').querySelectorAll('[data-bon-admin]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { const k = await appel('ps_admin_commande', { p_commande: b.dataset.bonAdmin }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); }
+    catch {} finally { b.disabled = false; }
+  });
 }
 
 async function ouvrirChantier(id, onglet) {

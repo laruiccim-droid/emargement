@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F7F4EE">
+<link rel="icon" href="assets/icone-192.png">
+<title>Choix de votre interphone · Harmonie Électricité</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
+<style>
+  /* Page lue par des copropriétaires de tous âges : fond clair, grands caractères, gros boutons, fort contraste. */
+  :root {
+    --fond: #F7F4EE; --carte: #FFFFFF; --encre: #1C1B18; --doux: #55514A; --filet: #DDD6C8;
+    --or: #A8843F; --or-clair: #C9A86A; --or-fond: #F3EBDD; --ok: #3F6B2E; --erreur: #A6402C;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--fond); color: var(--encre); font-family: 'Jost', system-ui, 'Segoe UI', sans-serif; font-size: 19px; line-height: 1.5; }
+  main { max-width: 860px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(48px + env(safe-area-inset-bottom, 0px)); }
+  [hidden] { display: none !important; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 2px solid var(--or-clair); }
+  header img { height: 46px; width: auto; }
+  header span { font-size: 15px; color: var(--doux); text-align: right; }
+  h1 { font-size: 30px; font-weight: 500; line-height: 1.2; margin: 22px 0 6px; }
+  h2 { font-size: 23px; font-weight: 500; margin: 0 0 6px; display: flex; gap: 12px; align-items: baseline; }
+  h2 .n { display: inline-grid; place-items: center; min-width: 36px; height: 36px; border-radius: 50%; background: var(--or); color: #fff; font-size: 19px; flex: none; }
+  p { margin: 8px 0; }
+  .doux { color: var(--doux); }
+  .bloc { background: var(--carte); border: 1px solid var(--filet); border-radius: 14px; padding: 20px; margin-top: 20px; }
+  .intro { font-size: 20px; }
+  .appt { display: inline-block; margin-top: 8px; padding: 6px 14px; border-radius: 999px; background: var(--or-fond); font-weight: 500; }
+  .groupe { margin-top: 18px; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--or); font-weight: 600; }
+  .modeles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }
+  .modele { display: flex; flex-direction: column; border: 3px solid var(--filet); border-radius: 14px; padding: 14px; background: #fff; transition: border-color .15s, box-shadow .15s; }
+  .modele.choisi { border-color: var(--or); box-shadow: 0 0 0 4px var(--or-fond); }
+  .modele .photo { height: 170px; display: grid; place-items: center; background: #FBFAF7; border-radius: 10px; }
+  .modele .photo img { max-height: 160px; max-width: 100%; object-fit: contain; }
+  .modele h3 { font-size: 20px; font-weight: 500; margin: 12px 0 2px; line-height: 1.25; }
+  .modele .arg { color: var(--doux); font-size: 17px; margin: 0 0 8px; }
+  .modele ul { margin: 0 0 10px; padding-left: 20px; font-size: 16.5px; }
+  .modele li { margin: 3px 0; }
+  .prix { font-size: 27px; font-weight: 600; margin-top: auto; }
+  .prix small { font-size: 15px; font-weight: 400; color: var(--doux); }
+  .notice { font-size: 16px; color: var(--or); }
+  button { font: inherit; cursor: pointer; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 58px; padding: 0 22px; border-radius: 12px; border: 2px solid var(--or); background: #fff; color: var(--encre); font-size: 19px; font-weight: 500; text-decoration: none; }
+  .btn.plein { background: var(--or); color: #fff; }
+  .btn.large { width: 100%; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:focus-visible, input:focus-visible { outline: 3px solid var(--encre); outline-offset: 2px; }
+  .choisir { margin-top: 12px; width: 100%; }
+  .qte { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+  .qte .rond { width: 58px; height: 58px; border-radius: 50%; border: 2px solid var(--or); background: #fff; font-size: 30px; line-height: 1; color: var(--encre); }
+  .qte b { font-size: 22px; text-align: center; flex: 1; }
+  .ouinon { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .ouinon .btn[aria-pressed="true"], .qualites .btn[aria-pressed="true"] { background: var(--or); color: #fff; }
+  .qualites { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+  .qualites .btn { flex-direction: column; min-height: 76px; line-height: 1.2; text-align: center; padding: 10px; }
+  .qualites .btn small { font-size: 15px; font-weight: 400; }
+  .ligne-badge { display: grid; grid-template-columns: 110px 1fr; gap: 16px; align-items: center; }
+  label { display: block; font-weight: 500; margin: 16px 0 6px; }
+  label .ob { color: var(--erreur); }
+  input[type=text], input[type=tel], input[type=email] { width: 100%; min-height: 58px; padding: 10px 14px; font: inherit; font-size: 20px; border: 2px solid var(--filet); border-radius: 10px; background: #fff; color: var(--encre); }
+  input:focus { border-color: var(--or); outline: none; }
+  .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .recap { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 18px; }
+  .recap td { padding: 10px 4px; border-bottom: 1px solid var(--filet); vertical-align: top; }
+  .recap td:last-child { text-align: right; white-space: nowrap; font-weight: 500; }
+  .recap tr.total td { border-bottom: 0; font-size: 22px; font-weight: 600; padding-top: 14px; }
+  .papier { position: relative; height: 220px; border: 2px dashed var(--or); border-radius: 12px; background: #fff; margin-top: 10px; touch-action: none; }
+  .papier canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .papier span { position: absolute; left: 14px; bottom: 10px; color: var(--doux); font-size: 15px; pointer-events: none; }
+  .case { display: flex; gap: 12px; align-items: flex-start; margin-top: 16px; font-weight: 400; }
+  .case input { width: 28px; height: 28px; accent-color: var(--or); flex: none; margin-top: 2px; }
+  .message { margin-top: 14px; font-size: 18px; min-height: 1em; }
+  .message.erreur { color: var(--erreur); font-weight: 500; }
+  .encart { background: var(--or-fond); border-radius: 12px; padding: 14px 16px; margin-top: 14px; }
+  .fin { text-align: center; }
+  .fin .coche { width: 84px; height: 84px; margin: 28px auto 8px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; font-size: 46px; }
+  @media (max-width: 560px) {
+    body { font-size: 18px; }
+    h1 { font-size: 26px; }
+    .grille, .qualites { grid-template-columns: 1fr; }
+    .ligne-badge { grid-template-columns: 80px 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header><img src="assets/logo-noir-or.png" alt="Harmonie Électricité"><span id="enteteSyndic"></span></header>
+
+  <section id="chargement"><p class="doux" style="margin-top:30px">Chargement…</p></section>
+
+  <section id="erreur" class="fin" hidden>
+    <h1>Lien indisponible</h1>
+    <p class="intro" id="erreurTexte"></p>
+  </section>
+
+  <section id="formulaire" hidden>
+    <h1 id="titre"></h1>
+    <p class="doux" id="adresse"></p>
+    <span class="appt" id="appt"></span>
+    <p class="intro" id="texte" style="margin-top:16px"></p>
+    <div class="encart" id="dejaSigne" hidden></div>
+
+    <div class="bloc" id="blocPostes">
+      <h2><span class="n">1</span>Choisissez votre poste</h2>
+      <p class="doux">Touchez « Je choisis ce modèle ». Vous pouvez en prendre plusieurs (par exemple un dans l’entrée et un à l’étage).</p>
+      <div id="modeles"></div>
+    </div>
+
+    <div class="bloc" id="blocPlaque" hidden>
+      <h2><span class="n" data-num></span>Plaque de propreté</h2>
+      <p>Le nouveau poste n’a pas forcément la même taille que l’ancien. La <b>plaque de propreté</b> se pose derrière lui et <b>cache les anciens trous et les traces de peinture</b> : pas de reprise de peinture à prévoir.</p>
+      <p class="prix" id="plaquePrix" style="margin-top:6px"></p>
+      <div class="ouinon">
+        <button type="button" class="btn" data-plaque="1" aria-pressed="false">Oui, je la veux</button>
+        <button type="button" class="btn" data-plaque="0" aria-pressed="false">Non merci</button>
+      </div>
+    </div>
+
+    <div class="bloc" id="blocBadges" hidden>
+      <h2><span class="n" data-num></span>Badges d’accès</h2>
+      <div class="ligne-badge">
+        <svg viewBox="0 0 100 70" aria-hidden="true" style="width:100%;height:auto"><rect x="6" y="8" width="88" height="54" rx="12" fill="#1C1B18"/><circle cx="74" cy="35" r="11" fill="none" stroke="#C9A86A" stroke-width="3"/><circle cx="74" cy="35" r="5" fill="none" stroke="#C9A86A" stroke-width="2"/><rect x="16" y="22" width="34" height="5" rx="2" fill="#C9A86A"/><rect x="16" y="33" width="24" height="4" rx="2" fill="#7d7566"/></svg>
+        <div><p style="margin:0" id="badgeTexte"></p><p class="prix" id="badgePrix" style="margin-top:4px"></p></div>
+      </div>
+      <div class="qte"><button type="button" class="rond" id="badgeMoins" aria-label="Un badge de moins">−</button><b id="badgeQte">0 badge</b><button type="button" class="rond" id="badgePlus" aria-label="Un badge de plus">+</button></div>
+    </div>
+
+    <div class="bloc">
+      <h2><span class="n" data-num></span>Vos coordonnées</h2>
+      <label>Vous êtes <span class="ob">*</span></label>
+      <div class="qualites">
+        <button type="button" class="btn" data-qualite="occupant" aria-pressed="false">Propriétaire occupant<small>j’habite le logement</small></button>
+        <button type="button" class="btn" data-qualite="bailleur" aria-pressed="false">Propriétaire bailleur<small>je loue le logement</small></button>
+      </div>
+      <div class="grille">
+        <div><label for="nom">Nom <span class="ob">*</span></label><input type="text" id="nom" autocomplete="family-name"></div>
+        <div><label for="prenom">Prénom <span class="ob">*</span></label><input type="text" id="prenom" autocomplete="given-name"></div>
+        <div><label for="tel">Téléphone <span class="ob">*</span></label><input type="tel" id="tel" autocomplete="tel" inputmode="tel"></div>
+        <div><label for="email">E-mail</label><input type="email" id="email" autocomplete="email" inputmode="email" autocapitalize="off"></div>
+      </div>
+      <label for="numeroAppt">N° de l’appartement <span class="ob" id="numeroOb">*</span></label>
+      <input type="text" id="numeroAppt" style="max-width:220px">
+      <p class="doux" style="font-size:16px">C’est le numéro de l’<b>étiquette blanche</b> collée sur le cadre de votre porte d’entrée.</p>
+    </div>
+
+    <div class="bloc">
+      <h2><span class="n" data-num></span>Récapitulatif</h2>
+      <table class="recap" id="recap"></table>
+      <p class="doux" style="font-size:16px">Prix toutes taxes comprises (TVA 10 %), pose comprise. Le montant est facturé au syndic, qui le répartit sur votre compte de copropriétaire.</p>
+    </div>
+
+    <div class="bloc">
+      <h2><span class="n" data-num></span>Signature</h2>
+      <p>Signez avec le doigt dans le cadre ci-dessous.</p>
+      <div class="papier"><canvas id="pad"></canvas><span>Signature</span></div>
+      <p style="text-align:right;margin:6px 0 0"><button type="button" class="btn" id="effacer" style="min-height:46px;font-size:16px">Effacer</button></p>
+      <label class="case"><input type="checkbox" id="accord"> J’ai vérifié mon choix : je commande ce matériel pour mon appartement.</label>
+      <button type="button" class="btn plein large" id="signer" style="margin-top:18px">Signer mon bon de commande</button>
+      <p class="message" id="message" role="status"></p>
+    </div>
+  </section>
+
+  <section id="merci" class="fin" hidden>
+    <div class="coche">✓</div>
+    <h1>Merci, votre choix est enregistré</h1>
+    <p class="intro" id="merciTexte"></p>
+    <table class="recap" id="merciRecap" style="text-align:left;max-width:560px;margin:14px auto 0"></table>
+    <p style="margin-top:22px"><button type="button" class="btn plein" id="telecharger">Télécharger mon bon de commande</button></p>
+    <p class="doux" id="merciModif"></p>
+    <p><button type="button" class="btn" id="modifier" hidden>Modifier mon choix</button></p>
+  </section>
+</main>
+
+<script src="logos.js?v=2"></script>
+<script src="portail-commun.js?v=7"></script>
+<script>
+'use strict';
+const { rpc, $, esc, dateCourte, euros } = PS;
+const jeton = new URLSearchParams(location.search).get('j') || '';
+const E = { d: null, qte: {}, plaque: null, badges: 0, qualite: '', bon: null };
+let pad = null;
+
+function montrer(id) { ['chargement', 'erreur', 'formulaire', 'merci'].forEach(x => $(x).hidden = x !== id); window.scrollTo({ top: 0 }); }
+function erreur(t) { $('erreurTexte').textContent = t; montrer('erreur'); }
+const ttc = a => Math.round(a.prix_ht * (1 + a.tva / 100) * 100) / 100;
+const ligneTtc = (a, q) => Math.round(Math.round(a.prix_ht * q * 100) / 100 * (1 + a.tva / 100) * 100) / 100;
+const postes = () => (E.d?.articles || []).filter(a => a.type === 'combine' || a.type === 'moniteur');
+const nbPostes = () => postes().reduce((t, a) => t + (E.qte[a.ref] || 0), 0);
+const plaque = () => (E.d?.articles || []).find(a => a.type === 'plaque');
+const badge = () => (E.d?.articles || []).find(a => a.type === 'badge');
+const avecInterphone = () => E.d.copro.travaux !== 'vigik';
+
+async function charger() {
+  if (!/^[0-9a-f]{32}$/.test(jeton)) return erreur('Ce lien est incomplet. Ouvrez-le à nouveau depuis le message reçu, ou contactez votre syndic.');
+  try { E.d = await rpc('ps_sondage_lire', { p_jeton: jeton }); }
+  catch (e) { return erreur(e.message || 'Connexion impossible : vérifiez votre réseau puis rouvrez le lien.'); }
+  const d = E.d, c = d.copro, l = d.logement;
+  $('enteteSyndic').textContent = d.syndic?.nom ? 'Pour ' + d.syndic.nom : '';
+  $('titre').textContent = c.nom;
+  $('adresse').textContent = [c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  $('appt').textContent = ['Appartement n° ' + (l.numero || '?'), l.lot && 'lot ' + l.lot].filter(Boolean).join(' • ');
+  $('texte').textContent = d.texte || (avecInterphone()
+    ? `Suite à la validation du devis pour le remplacement du système d’interphone de la résidence, veuillez choisir le poste qui sera installé dans votre appartement.`
+    : `Suite à la validation du devis pour l’installation du contrôle d’accès Vigik de la résidence, veuillez indiquer le nombre de badges souhaités pour votre appartement.`);
+  // Coordonnées connues du syndic, puis réponse déjà signée.
+  const k = d.commande;
+  $('nom').value = k?.nom || ''; $('prenom').value = k?.prenom || ''; $('tel').value = k?.telephone || l.telephone || '';
+  $('email').value = k?.email || (l.emails || [])[0] || ''; $('numeroAppt').value = k?.numero_appt || l.numero || '';
+  if (k) {
+    for (const x of k.lignes) { if (x.type === 'plaque') E.plaque = true; else if (x.type === 'badge') E.badges = x.qte; else E.qte[x.ref] = x.qte; }
+    if (E.plaque === null && plaque()) E.plaque = false;
+    E.qualite = k.qualite;
+    $('dejaSigne').hidden = false;
+    $('dejaSigne').innerHTML = `Vous avez déjà signé votre bon de commande le <b>${esc(dateCourte(k.signe_le))}</b> (${esc(euros(k.total_ttc))} TTC).`
+      + (d.ouvert ? ' Vous pouvez encore modifier votre choix : le nouveau bon remplacera le précédent.' : '');
+  }
+  if (!d.ouvert) {
+    if (k) return afficherMerci(k, true);
+    return erreur('Le sondage est clos. Pour toute question, contactez votre syndic.');
+  }
+  $('blocPostes').hidden = !avecInterphone();
+  rendreModeles(); rendrePlaque(); rendreBadges(); rendreQualite(); numeroter(); rendreRecap();
+  montrer('formulaire');
+  pad = PS.pad($('pad')); setTimeout(() => pad.taille(), 50);
+}
+
+// Postes regroupés : audio, vidéo, vidéo connectée.
+function famille(a) { return a.type === 'combine' ? 'audio' : /connect|wifi|smartphone/i.test(a.nom + ' ' + (a.points || []).join(' ')) ? 'connecte' : 'video'; }
+const FAMILLES = { audio: 'Audio : on entend le visiteur', video: 'Vidéo : on voit et on entend le visiteur', connecte: 'Vidéo connectée : on répond aussi depuis son téléphone portable' };
+function rendreModeles() {
+  const html = Object.entries(FAMILLES).map(([f, titre]) => {
+    const as = postes().filter(a => famille(a) === f);
+    if (!as.length) return '';
+    return `<div class="groupe">${esc(titre)}</div><div class="modeles">${as.map(a => {
+      const q = E.qte[a.ref] || 0;
+      return `<div class="modele${q ? ' choisi' : ''}">
+        <div class="photo">${a.photo ? `<img src="${esc(a.photo)}" alt="${esc(a.nom)}" loading="lazy">` : ''}</div>
+        <h3>${esc(a.nom)}</h3>
+        ${a.argument ? `<p class="arg">${esc(a.argument)}</p>` : ''}
+        <ul>${(a.points || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        <div class="prix">${esc(euros(ttc(a)))} <small>TTC, pose comprise</small></div>
+        ${a.notice ? `<a class="notice" href="${esc(a.notice)}" target="_blank" rel="noopener">Voir la notice (PDF)</a>` : ''}
+        ${q ? `<div class="qte"><button type="button" class="rond" data-moins="${esc(a.ref)}" aria-label="Un poste de moins">−</button><b>${q} poste${q > 1 ? 's' : ''}</b><button type="button" class="rond" data-plus="${esc(a.ref)}" aria-label="Un poste de plus">+</button></div>`
+          : `<button type="button" class="btn plein choisir" data-choisir="${esc(a.ref)}">Je choisis ce modèle</button>`}
+      </div>`;
+    }).join('')}</div>`;
+  }).join('');
+  $('modeles').innerHTML = html || '<p class="doux">Aucun modèle n’est encore proposé : contactez votre syndic.</p>';
+  $('modeles').querySelectorAll('[data-choisir]').forEach(b => b.onclick = () => {
+    // Premier choix : remplace un autre modèle choisi seul ; ensuite on peut cumuler avec + .
+    if (nbPostes() === 1) E.qte = {};
+    E.qte[b.dataset.choisir] = 1; maj();
+  });
+  $('modeles').querySelectorAll('[data-plus]').forEach(b => b.onclick = () => { E.qte[b.dataset.plus] = Math.min(5, (E.qte[b.dataset.plus] || 0) + 1); maj(); });
+  $('modeles').querySelectorAll('[data-moins]').forEach(b => b.onclick = () => { E.qte[b.dataset.moins] = Math.max(0, (E.qte[b.dataset.moins] || 0) - 1); maj(); });
+}
+function rendrePlaque() {
+  const p = plaque(); $('blocPlaque').hidden = !p || !avecInterphone(); if (!p) return;
+  $('plaquePrix').innerHTML = `${esc(euros(ttc(p)))} <small>TTC par poste</small>`;
+  document.querySelectorAll('[data-plaque]').forEach(b => { b.setAttribute('aria-pressed', E.plaque === (b.dataset.plaque === '1')); b.onclick = () => { E.plaque = b.dataset.plaque === '1'; maj(); }; });
+}
+function rendreBadges() {
+  const b = badge(); $('blocBadges').hidden = !b; if (!b) return;
+  $('badgeTexte').textContent = `Badge de proximité Vigik pour ouvrir les portes de la résidence${E.d.copro.travaux === 'vigik' ? '' : ''}. Indiquez combien de badges ${E.d.copro.travaux === 'vigik' ? 'vous souhaitez' : 'supplémentaires vous souhaitez'}.`;
+  $('badgePrix').innerHTML = `${esc(euros(ttc(b)))} <small>TTC le badge</small>`;
+  $('badgeQte').textContent = E.badges + ' badge' + (E.badges > 1 ? 's' : '');
+}
+$('badgeMoins').onclick = () => { E.badges = Math.max(0, E.badges - 1); maj(); };
+$('badgePlus').onclick = () => { E.badges = Math.min(20, E.badges + 1); maj(); };
+function rendreQualite() {
+  document.querySelectorAll('[data-qualite]').forEach(b => { b.setAttribute('aria-pressed', E.qualite === b.dataset.qualite); b.onclick = () => { E.qualite = b.dataset.qualite; rendreQualite(); }; });
+  $('numeroOb').hidden = E.qualite === 'bailleur';
+}
+function numeroter() { let n = 0; document.querySelectorAll('#formulaire .bloc').forEach(bl => { if (bl.hidden) return; n++; const s = bl.querySelector('.n'); if (s) s.textContent = n; }); }
+function lignes() {
+  const L = postes().filter(a => E.qte[a.ref]).map(a => ({ a, q: E.qte[a.ref] }));
+  if (plaque() && avecInterphone() && E.plaque && nbPostes()) L.push({ a: plaque(), q: nbPostes() });
+  if (badge() && E.badges) L.push({ a: badge(), q: E.badges });
+  return L;
+}
+function rendreRecap() {
+  const L = lignes(), total = L.reduce((t, x) => t + ligneTtc(x.a, x.q), 0);
+  $('recap').innerHTML = (L.length ? L.map(x => `<tr><td>${x.q} × ${esc(x.a.nom)}</td><td>${esc(euros(ligneTtc(x.a, x.q)))}</td></tr>`).join('')
+    : '<tr><td class="doux">Rien de choisi pour l’instant.</td><td></td></tr>') + `<tr class="total"><td>Total TTC</td><td>${esc(euros(total))}</td></tr>`;
+}
+function maj() { const y = window.scrollY; rendreModeles(); rendrePlaque(); rendreBadges(); rendreRecap(); window.scrollTo({ top: y }); }
+$('effacer').onclick = () => pad.effacer();
+
+function message(t, err = true) { $('message').textContent = t; $('message').className = 'message' + (err ? ' erreur' : ''); }
+$('signer').onclick = async () => {
+  if (avecInterphone() && !nbPostes()) return message('Choisissez d’abord votre poste (étape 1).');
+  if (plaque() && avecInterphone() && E.plaque === null) return message('Indiquez si vous voulez la plaque de propreté.');
+  if (!E.qualite) return message('Indiquez si vous êtes propriétaire occupant ou bailleur.');
+  for (const [id, t] of [['nom', 'votre nom'], ['prenom', 'votre prénom'], ['tel', 'votre téléphone']]) if (!$(id).value.trim()) { $(id).focus(); return message('Indiquez ' + t + '.'); }
+  if (E.qualite === 'occupant' && !$('numeroAppt').value.trim()) { $('numeroAppt').focus(); return message('Indiquez le numéro de votre appartement (étiquette blanche sur la porte).'); }
+  if (!lignes().length) return message('Votre choix est vide.');
+  if (pad.estVide()) return message('Signez dans le cadre.');
+  if (!$('accord').checked) return message('Cochez la case pour confirmer votre commande.');
+  $('signer').disabled = true; message('Enregistrement de votre bon de commande…', false);
+  try {
+    const k = await rpc('ps_sondage_signer', { p_jeton: jeton, p: {
+      lignes: lignes().map(x => ({ ref: x.a.ref, qte: x.q })), nom: $('nom').value.trim(), prenom: $('prenom').value.trim(), telephone: $('tel').value.trim(),
+      email: $('email').value.trim(), numero_appt: $('numeroAppt').value.trim(), qualite: E.qualite, signature: pad.image(), navigateur: navigator.userAgent } });
+    E.d.commande = k; afficherMerci(k, false);
+  } catch (e) { message(e.message || 'L’enregistrement a échoué : vérifiez votre connexion puis réessayez.'); }
+  finally { $('signer').disabled = false; }
+};
+function afficherMerci(k, clos) {
+  E.bon = k;
+  $('merciTexte').textContent = clos ? `Le sondage est clos. Voici le bon de commande que vous avez signé le ${dateCourte(k.signe_le)}.`
+    : `Votre bon de commande n° ${k.numero} est signé. Votre syndic et Harmonie Électricité le reçoivent automatiquement.`;
+  $('merciRecap').innerHTML = k.lignes.map(x => `<tr><td>${x.qte} × ${esc(x.nom)}</td><td>${esc(euros(x.total_ttc))}</td></tr>`).join('')
+    + `<tr class="total"><td>Total TTC</td><td>${esc(euros(k.total_ttc))}</td></tr>`;
+  $('merciModif').textContent = clos ? '' : 'Vous pouvez modifier votre choix tant que le sondage est ouvert, avec ce même lien.';
+  $('modifier').hidden = clos;
+  montrer('merci');
+}
+$('modifier').onclick = () => location.reload();
+$('telecharger').onclick = async () => {
+  const k = E.bon; if (!k) return;
+  // Le bon complet (signature comprise) n'est renvoyé qu'à la signature ; sinon, résumé sans signature.
+  const blob = await PS.pdfCommande({ ...k, copro: k.copro || { ...E.d.copro }, logement: k.logement || E.d.logement });
+  PS.telecharger(blob, PS.nomFichierCommande({ ...k, copro: k.copro || E.d.copro }));
+};
+
+charger();
+</script>
+</body>
+</html>
