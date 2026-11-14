@@ -180,6 +180,20 @@
     <div><label for="chEtat">État du dossier</label><select id="chEtat"></select></div>
     <div style="grid-column:1/-1"><label for="chLien">Chantier lié dans l’app d’émargement</label><select id="chLien"><option value="">— Aucun —</option></select></div>
     <div style="grid-column:1/-1"><label for="chNotes">Notes internes</label><textarea id="chNotes" rows="3"></textarea></div>
+    <div style="grid-column:1/-1"><label for="chTravaux">Travaux</label><select id="chTravaux">
+      <option value="interphone">Interphone</option><option value="interphone_vigik">Interphone + Vigik</option><option value="vigik">Vigik seul</option></select></div>
+  </div>
+  <div id="chVigik" hidden>
+    <h2 style="margin-top:16px">Accès Vigik</h2>
+    <div class="grille-2" style="margin-top:6px">
+      <div><label for="chNbPortes">Portes équipées de Vigik</label><input type="number" id="chNbPortes" min="1" max="20" inputmode="numeric"></div>
+      <div><label for="chNbDroits">Droits d’accès à créer</label><input type="number" id="chNbDroits" min="0" max="30" inputmode="numeric"></div>
+    </div>
+    <div class="grille-2" id="chPortes" style="margin-top:4px"></div>
+    <label>Droits d’accès</label>
+    <ul class="liste" id="chDroits"></ul>
+    <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-petit" id="chAjouterDroit">+ Ajouter un droit</button><button type="button" class="btn btn-petit btn-discret" id="chProposerDroits">Proposer : une par porte + toutes</button></div>
+    <p class="aide">Ex. Saint-Antoine : 2 portes → « Porte d’entrée », « Porte de garage », « Porte d’entrée + porte de garage ». Touchez les portes ouvertes par chaque droit ; sans nom saisi, il prend le nom de ses portes.</p>
   </div>
   <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Enregistrer</button></div>
   <p class="message" id="chMessage"></p>
@@ -359,6 +373,61 @@ async function remplirChantiersApp(select, premier) {
 }
 $('btnNouveauChantier').onclick = () => ouvrirFormChantier(null);
 $('btnModifierChantier').onclick = () => ouvrirFormChantier(A.detail.copro);
+// ---------- Travaux et accès Vigik (portes, droits d'accès) ----------
+const TRAVAUX = { interphone: 'Interphone', interphone_vigik: 'Interphone + Vigik', vigik: 'Vigik seul' };
+const nomPorteP = i => (A.vigik.portes[i] || '').trim() || 'Porte ' + (i + 1);
+// Sans nom saisi, un droit porte le nom de ses portes (« Porte d’entrée + Porte de garage »).
+const nomDroit = a => (a.nom || '').trim() || a.portes.map(nomPorteP).join(' + ') || 'Droit sans porte';
+function rendreAccesPortail() {
+  const v = A.vigik;
+  $('chVigik').hidden = $('chTravaux').value === 'interphone';
+  $('chNbPortes').value = v.portes.length;
+  $('chPortes').innerHTML = v.portes.map((n, i) => `<div><label for="chPorte${i}">Porte ${i + 1}</label><input type="text" id="chPorte${i}" data-porte="${i}" value="${esc(n)}" placeholder="ex. Porte de garage"></div>`).join('');
+  $('chPortes').querySelectorAll('[data-porte]').forEach(inp => inp.oninput = () => { v.portes[+inp.dataset.porte] = inp.value; rendreDroits(); });
+  rendreDroits();
+}
+function rendreDroits() {
+  const v = A.vigik, ul = $('chDroits');
+  $('chNbDroits').value = v.autorisations.length;
+  ul.innerHTML = v.autorisations.length ? '' : '<li><span class="aide">Aucun droit d’accès.</span></li>';
+  v.autorisations.forEach((a, k) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<div class="principal"><input type="text" value="${esc(a.nom || '')}" placeholder="${esc(nomDroit({ ...a, nom: '' }))}" aria-label="Nom du droit ${k + 1}">
+        <div class="puces" style="margin-top:6px">${v.portes.map((p, i) => `<button type="button" class="puce" data-i="${i}" aria-pressed="${a.portes.includes(i)}">${esc(nomPorteP(i))}</button>`).join('')}</div></div>
+      <div class="droite"><button type="button" class="btn btn-petit btn-discret" aria-label="Supprimer ce droit">✕</button></div>`;
+    li.querySelector('input').oninput = e => { a.nom = e.target.value; };
+    li.querySelector('.droite button').onclick = () => { v.autorisations.splice(k, 1); rendreDroits(); };
+    li.querySelectorAll('.puce').forEach(b => b.onclick = () => {
+      const i = +b.dataset.i; a.portes = a.portes.includes(i) ? a.portes.filter(x => x !== i) : [...a.portes, i].sort((x, y) => x - y); rendreDroits();
+    });
+    ul.append(li);
+  });
+}
+// Une par porte, puis toutes les portes ensemble.
+const propositionsDroits = n => [...Array.from({ length: n }, (_, i) => [i]), ...(n > 1 ? [Array.from({ length: n }, (_, i) => i)] : [])];
+$('chTravaux').onchange = rendreAccesPortail;
+$('chNbPortes').onchange = () => {
+  const v = A.vigik, n = Math.max(1, Math.min(20, parseInt($('chNbPortes').value, 10) || 1));
+  while (v.portes.length < n) v.portes.push(v.portes.length === 1 ? 'Porte de garage' : '');
+  v.portes.length = n; v.autorisations.forEach(a => { a.portes = a.portes.filter(i => i < n); });
+  // Nombre de droits proposé : une par porte + toutes les portes (modifiable).
+  $('chNbDroits').value = n > 1 ? n + 1 : 1; $('chNbDroits').onchange();
+  rendreAccesPortail();
+};
+$('chNbDroits').onchange = () => {
+  const v = A.vigik, n = Math.max(0, Math.min(30, parseInt($('chNbDroits').value, 10) || 0)), prop = propositionsDroits(v.portes.length);
+  while (v.autorisations.length < n) v.autorisations.push({ nom: '', portes: prop[v.autorisations.length] || [] });
+  v.autorisations.length = n; rendreDroits();
+};
+$('chAjouterDroit').onclick = () => {
+  A.vigik.autorisations.push({ nom: '', portes: A.vigik.portes.length === 1 ? [0] : [] }); rendreDroits();
+  $('chDroits').querySelector('li:last-child input')?.focus();
+};
+$('chProposerDroits').onclick = () => {
+  if (A.vigik.autorisations.some(a => a.nom || a.portes.length) && !confirm('Remplacer les droits saisis par une proposition (une par porte + toutes les portes) ?')) return;
+  A.vigik.autorisations = propositionsDroits(A.vigik.portes.length).map(portes => ({ nom: '', portes })); rendreDroits();
+};
+
 async function ouvrirFormChantier(c) {
   A.edition = c;
   $('chTitre').textContent = c ? c.nom : 'Nouveau chantier';
@@ -366,13 +435,18 @@ async function ouvrirFormChantier(c) {
   $('chEtat').innerHTML = Object.entries(PS.ETATS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
   [['chNom', 'nom'], ['chAdresse', 'adresse'], ['chCp', 'cp'], ['chVille', 'ville'], ['chReference', 'reference'], ['chNotes', 'notes']].forEach(([id, k]) => { $(id).value = c ? c[k] || '' : ''; });
   $('chSyndic').value = c?.syndic_id || ''; $('chType').value = c?.type || 'badges'; $('chEtat').value = c?.etat || 'commence';
+  $('chTravaux').value = c?.travaux || 'interphone';
+  A.vigik = JSON.parse(JSON.stringify(c?.vigik?.portes?.length ? c.vigik : { portes: ['Porte d’entrée'], autorisations: [{ nom: '', portes: [0] }] }));
+  rendreAccesPortail();
   await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';
   msg('chMessage', ''); $('dlgChantier').showModal();
 }
 $('formChantier').onsubmit = async e => {
   e.preventDefault();
   const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
-    reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim() };
+    reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
+    travaux: $('chTravaux').value, vigik: $('chTravaux').value === 'interphone' ? { portes: [], autorisations: [] }
+      : { portes: A.vigik.portes.map((n, i) => n.trim() || 'Porte ' + (i + 1)), autorisations: A.vigik.autorisations.map(a => ({ nom: nomDroit(a), portes: a.portes })) } };
   try {
     const r = await appel('ps_admin_copro_enregistrer', { p }, 'chMessage');
     $('dlgChantier').close(); await charger(); ouvrirChantier(r.id);
@@ -386,7 +460,8 @@ async function ouvrirChantier(id, onglet) {
   $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' ? ' • chantier complet' : ' • badges seuls');
   const g = A.detail.gestionnaire;
   $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference,
-    s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet')].filter(Boolean).join(' • ');
+    s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet'),
+    TRAVAUX[c.travaux] && TRAVAUX[c.travaux] + (c.travaux !== 'interphone' && c.vigik?.portes?.length ? ` (${c.vigik.portes.length} porte${c.vigik.portes.length > 1 ? 's' : ''} : ${(c.vigik.autorisations || []).map(a => a.nom).join(', ') || 'aucun droit d’accès'})` : '')].filter(Boolean).join(' • ');
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu();
