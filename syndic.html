@@ -9,6 +9,32 @@
 <title>Espace syndic · Harmonie Électricité</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
 <link rel="stylesheet" href="portail.css?v=2">
+<style>
+  .parcours { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+  .parcours li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border-hairline); border-radius: 8px; }
+  .parcours li.courante { border-color: var(--border-strong); box-shadow: var(--glow-gold-sm); }
+  .parcours li.faite { opacity: .75; }
+  .parcours .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border-strong); color: var(--he-gold); font-weight: 500; }
+  .parcours li.faite .num { background: var(--grad-gold); color: var(--he-black); border-color: transparent; }
+  .parcours h3 { margin: 4px 0 2px; font-size: 15px; font-weight: 500; color: var(--he-white); letter-spacing: .02em; text-transform: none; }
+  .parcours p { margin: 0; color: var(--grey-300); font-size: 13.5px; line-height: 1.45; }
+  .parcours .actions { margin-top: 10px; }
+  .lg-tete, .lg { display: grid; grid-template-columns: 74px 84px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.6fr) 40px; gap: 6px; align-items: center; }
+  .lg-tete { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey-400); padding: 0 2px 4px; }
+  .lg { padding: 6px 0; border-top: 1px solid var(--border-hairline); }
+  .lg input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
+  .lg .suppr { min-height: 40px; padding: 0; width: 40px; }
+  .lg.incomplet input[data-k="numero"]:placeholder-shown, .lg.incomplet input[data-k="nom"]:placeholder-shown { border-color: rgba(217,163,91,.7); }
+  .hl { display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border-hairline); }
+  .hl input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
+  .rappel { border-left: 3px solid var(--he-gold); padding: 10px 12px; background: rgba(201,168,106,.06); border-radius: 0 6px 6px 0; margin-top: 12px; color: var(--text); font-size: 14px; line-height: 1.45; }
+  @media (max-width: 720px) {
+    .lg-tete { display: none; }
+    .lg { grid-template-columns: 1fr 1fr 40px; padding: 10px 0; }
+    .lg input[data-k="nom"], .lg input[data-k="telephone"], .lg input[data-k="emails"] { grid-column: 1 / 3; }
+    .lg .suppr { grid-row: 1; grid-column: 3; }
+  }
+</style>
 </head>
 <body>
 <main id="main">
@@ -129,6 +155,10 @@
       <div><div class="sourcil" id="coEtat"></div><h1 id="coNom"></h1><p class="aide" id="coAdresse"></p></div>
       <button type="button" class="btn btn-or" id="btnNouvelleRemise">+ Remettre des badges</button>
     </div>
+    <div class="bloc" id="coRecensement" hidden>
+      <h2>Préparation du chantier</h2>
+      <ol class="parcours" id="coParcours"></ol>
+    </div>
     <div class="tuiles" id="coTuiles"></div>
     <div class="barre-prog"><i id="coProg"></i></div>
     <div class="onglets" role="tablist">
@@ -146,6 +176,54 @@
       </div>
       <input type="search" id="bRecherche" placeholder="N° de badge…" style="margin-top:10px">
       <ul class="liste" id="listeBadges"></ul>
+    </div>
+  </section>
+
+  <!-- Recensement des logements -->
+  <section id="vRecensement" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
+    <div class="sourcil" style="margin-top:8px" id="rcCopro"></div>
+    <h1>Recensement des logements</h1>
+    <p class="intro">Listez chaque appartement avec le numéro de son étiquette blanche, le n° de lot et les coordonnées du propriétaire. Ces informations serviront au sondage des copropriétaires, aux rendez-vous et à l’émargement.</p>
+
+    <div class="bloc">
+      <h2>1 · Nombre d’appartements</h2>
+      <div class="grille-2">
+        <div><label for="rcNb">Appartements à équiper</label><input type="number" id="rcNb" min="1" max="2000" inputmode="numeric"></div>
+      </div>
+      <p class="aide" id="rcNbAide"></p>
+    </div>
+
+    <div class="bloc">
+      <h2>2 · Appartements et propriétaires</h2>
+      <div class="actions" style="margin-top:0">
+        <button type="button" class="btn" id="rcImporter">Importer un fichier Excel ou CSV</button>
+        <input type="file" id="rcFichier" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt" hidden>
+      </div>
+      <p class="aide">Colonnes reconnues : appartement (n° d’étiquette), lot, nom, prénom, téléphone, e-mail. Plusieurs e-mails par appartement : séparez-les par une virgule.</p>
+      <p class="message" id="rcImport"></p>
+      <div class="lg-tete" style="margin-top:12px"><span>N° appt</span><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span></span></div>
+      <div id="rcLogements"></div>
+      <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouter">+ Ajouter un appartement</button></div>
+    </div>
+
+    <div class="bloc" id="rcHorsBloc" hidden>
+      <h2>3 · Badges hors logements (Vigik)</h2>
+      <p class="aide" style="margin-top:0">Badges à prévoir pour le stock du syndic et pour les entreprises qui interviennent dans la résidence.</p>
+      <div class="hl" style="border-top:0"><b style="font-weight:500">Stock syndic</b><input type="number" id="rcStock" min="0" max="500" inputmode="numeric" placeholder="Badges"><span></span></div>
+      <div id="rcIntervenants"></div>
+      <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouterIntervenant">+ Ajouter une entreprise</button></div>
+    </div>
+
+    <div class="bloc">
+      <h2 id="rcTitreFin">3 · Étiquettes et validation</h2>
+      <div class="rappel">Avant l’envoi du sondage, une <b>étiquette blanche numérotée</b> doit être collée sur l’huisserie de chaque porte palière, avec le même numéro que dans la liste ci-dessus. C’est ce numéro que les copropriétaires et les locataires indiqueront.</div>
+      <label class="case"><input type="checkbox" id="rcEtiquettes"> Les étiquettes de numérotation sont posées sur toutes les portes.</label>
+      <div class="actions">
+        <button type="button" class="btn" id="rcEnregistrer">Enregistrer le brouillon</button>
+        <button type="button" class="btn btn-or" id="rcValider">Valider le recensement</button>
+      </div>
+      <p class="message" id="rcMessage" role="status"></p>
     </div>
   </section>
 
@@ -289,7 +367,7 @@ const S = { session: null, etat: null, copro: null, detail: null, remise: null, 
 let padProfil = null, padSigne = null;
 let tamponCourant = '';
 
-const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRemise', 'vSigner', 'vFin'];
+const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRecensement', 'vRemise', 'vSigner', 'vFin'];
 function montrer(v) {
   vues.forEach(x => { $(x).hidden = x !== v; });
   $('barreRemise').hidden = v !== 'vRemise';
@@ -443,13 +521,185 @@ async function ouvrirCopro(id) {
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('coProg').style.width = (k.livres ? Math.round(k.remis / k.livres * 100) : 0) + '%';
   $('btnNouvelleRemise').disabled = !k.stock;
-  rendreRemises(); rendreBadges();
+  rendreRemises(); rendreBadges(); rendreParcours();
   montrer('vCopro');
 }
 document.querySelectorAll('[data-onglet]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-onglet]').forEach(x => x.setAttribute('aria-selected', x === b));
   $('ongRemises').hidden = b.dataset.onglet !== 'remises'; $('ongBadges').hidden = b.dataset.onglet !== 'badges';
 });
+// ---------- Préparation du chantier (chantier complet) ----------
+const avecVigik = c => c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+function rendreParcours() {
+  const c = S.detail.copro, rec = c.recensement || {}, n = c.nb_logements_saisis || 0;
+  $('coRecensement').hidden = c.type !== 'complet';
+  if (c.type !== 'complet') return;
+  const etiq = !!rec.etiquettes_le, pret = rec.etape === 'pret';
+  const etapes = [
+    { fait: etiq, titre: 'Poser les étiquettes de numérotation',
+      texte: etiq ? `Étiquettes posées (confirmé le ${dateCourte(rec.etiquettes_le)}).`
+        : 'Collez une étiquette blanche numérotée (1, 2, 3…) sur l’huisserie de chaque porte palière. Ce numéro identifiera l’appartement dans le sondage, les rendez-vous et l’émargement.',
+      bouton: etiq ? '' : '<button type="button" class="btn btn-petit" data-parcours="etiquettes">Étiquettes posées</button>' },
+    { fait: pret, titre: 'Recenser les appartements',
+      texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
+        : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
+        : 'Indiquez le nombre d’appartements, puis pour chacun : n° d’étiquette, n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
+      bouton: `<button type="button" class="btn btn-petit ${pret ? '' : 'btn-or'}" data-parcours="recensement">${pret ? 'Modifier le recensement' : n ? 'Reprendre le recensement' : 'Lancer le recensement'}</button>` },
+    { fait: false, titre: 'Envoyer le sondage aux copropriétaires',
+      texte: pret && etiq ? 'Le recensement est prêt. L’envoi du sondage (choix du matériel, signature) arrive dans la prochaine version du portail.'
+        : 'Disponible une fois les étiquettes posées et le recensement validé.',
+      bouton: '<button type="button" class="btn btn-petit" disabled>Envoyer le sondage</button>' },
+  ];
+  const courante = etapes.findIndex(e => !e.fait);
+  $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
+    <span class="num">${e.fait ? '✓' : i + 1}</span><div><h3>${esc(e.titre)}</h3><p>${esc(e.texte)}</p>${e.bouton ? `<div class="actions">${e.bouton}</div>` : ''}</div></li>`).join('');
+  $('coParcours').querySelectorAll('[data-parcours]').forEach(b => b.onclick = async () => {
+    if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
+    b.disabled = true;
+    try { await appel('ps_syndic_recensement_enregistrer', { p_session: S.session, p_copro: S.copro, p: { etiquettes: true } }); toast('Étiquettes notées comme posées.'); }
+    catch { b.disabled = false; return; }
+    ouvrirCopro(S.copro);
+  });
+}
+
+// ---------- Recensement ----------
+const R = { copro: null, logements: [], intervenants: [], stock: null };
+const INTERVENANTS_TYPES = ['Entreprise de ménage', 'Ascensoriste', 'Chauffagiste'];
+const ligneVide = () => ({ id: '', type: 'logement', numero: '', lot: '', nom: '', telephone: '', emails: [] });
+async function ouvrirRecensement() {
+  let d; try { d = await appel('ps_syndic_recensement', { p_session: S.session, p_copro: S.copro }); } catch { return; }
+  R.copro = d.copro; R.rec = d.recensement || {};
+  R.logements = d.logements.filter(l => l.type === 'logement').map(l => ({ ...l }));
+  R.stock = d.logements.find(l => l.type === 'stock') || null;
+  R.intervenants = d.logements.filter(l => l.type === 'intervenant').map(l => ({ ...l }));
+  if (avecVigik(R.copro) && !R.intervenants.length) R.intervenants = INTERVENANTS_TYPES.map(nom => ({ id: '', type: 'intervenant', nom, badges: '' }));
+  const nb = R.rec.nb_logements || R.logements.length || R.copro.appartements_devis || '';
+  $('rcCopro').textContent = R.copro.nom;
+  $('rcNb').value = nb;
+  $('rcNbAide').textContent = R.copro.appartements_devis ? `Le devis prévoit ${R.copro.appartements_devis} appartements.` : '';
+  if (nb && R.logements.length < nb) ajusterLignes(+nb);
+  $('rcHorsBloc').hidden = !avecVigik(R.copro);
+  $('rcTitreFin').textContent = (avecVigik(R.copro) ? '4' : '3') + ' · Étiquettes et validation';
+  $('rcStock').value = R.stock ? R.stock.badges : '';
+  $('rcEtiquettes').checked = !!R.rec.etiquettes_le;
+  message('rcMessage', ''); message('rcImport', '');
+  rendreLignes(); rendreIntervenants();
+  montrer('vRecensement');
+}
+// Ajoute des lignes vides numérotées à la suite, ou retire seulement les lignes vides de la fin.
+function ajusterLignes(n) {
+  while (R.logements.length < n) { const l = ligneVide(); l.numero = String(R.logements.length + 1); R.logements.push(l); }
+  while (R.logements.length > n) { const l = R.logements[R.logements.length - 1]; if (l.nom || l.lot || l.telephone || l.emails.length) break; R.logements.pop(); }
+}
+const estVideLg = l => !l.nom && !l.lot && !l.telephone && !l.emails.length;
+function rendreLignes() {
+  $('rcLogements').innerHTML = R.logements.map((l, i) => `<div class="lg${!l.numero || !l.nom ? ' incomplet' : ''}" data-i="${i}">
+    <input type="text" data-k="numero" value="${esc(l.numero)}" placeholder="N° appt" aria-label="N° d’appartement (étiquette)">
+    <input type="text" data-k="lot" value="${esc(l.lot)}" placeholder="N° lot" aria-label="N° de lot">
+    <input type="text" data-k="nom" value="${esc(l.nom)}" placeholder="Nom du propriétaire" aria-label="Propriétaire">
+    <input type="tel" data-k="telephone" value="${esc(l.telephone)}" placeholder="Téléphone" aria-label="Téléphone">
+    <input type="text" data-k="emails" value="${esc(l.emails.join(', '))}" placeholder="E-mail(s)" aria-label="E-mails" inputmode="email" autocapitalize="off">
+    <button type="button" class="btn btn-discret suppr" data-suppr="${i}" title="Retirer cet appartement" aria-label="Retirer">✕</button></div>`).join('')
+    || '<div class="vide">Indiquez le nombre d’appartements ou importez un fichier.</div>';
+  $('rcLogements').querySelectorAll('.lg input').forEach(inp => inp.oninput = () => {
+    const l = R.logements[+inp.closest('.lg').dataset.i], k = inp.dataset.k;
+    l[k] = k === 'emails' ? inp.value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean) : inp.value;
+    inp.closest('.lg').classList.toggle('incomplet', !l.numero.trim() || !l.nom.trim());
+  });
+  $('rcLogements').querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => {
+    const l = R.logements[+b.dataset.suppr];
+    if (!estVideLg(l) && !confirm(`Retirer l’appartement ${l.numero || ''} ${l.nom ? '(' + l.nom + ')' : ''} ?`)) return;
+    R.logements.splice(+b.dataset.suppr, 1); $('rcNb').value = R.logements.length; rendreLignes();
+  });
+}
+function rendreIntervenants() {
+  $('rcIntervenants').innerHTML = R.intervenants.map((h, i) => `<div class="hl" data-i="${i}">
+    <input type="text" data-k="nom" value="${esc(h.nom)}" placeholder="Entreprise (ménage, ascenseur…)" aria-label="Entreprise">
+    <input type="number" data-k="badges" value="${esc(h.badges)}" min="0" max="500" inputmode="numeric" placeholder="Badges" aria-label="Nombre de badges">
+    <button type="button" class="btn btn-discret suppr" data-suppr="${i}" title="Retirer" aria-label="Retirer" style="min-height:40px;padding:0;width:40px">✕</button></div>`).join('');
+  $('rcIntervenants').querySelectorAll('input').forEach(inp => inp.oninput = () => { R.intervenants[+inp.closest('.hl').dataset.i][inp.dataset.k] = inp.value; });
+  $('rcIntervenants').querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => { R.intervenants.splice(+b.dataset.suppr, 1); rendreIntervenants(); });
+}
+$('rcNb').oninput = () => { const n = parseInt($('rcNb').value, 10); if (n > 0 && n <= 2000) { ajusterLignes(n); rendreLignes(); } };
+$('rcAjouter').onclick = () => { const l = ligneVide(); l.numero = String(R.logements.length + 1); R.logements.push(l); $('rcNb').value = R.logements.length; rendreLignes();
+  $('rcLogements').lastElementChild?.querySelector('[data-k="nom"]')?.focus(); };
+$('rcAjouterIntervenant').onclick = () => { R.intervenants.push({ id: '', type: 'intervenant', nom: '', badges: '' }); rendreIntervenants(); };
+
+// Import Excel / CSV : colonnes repérées par leur titre, sinon par leur contenu.
+$('rcImporter').onclick = () => $('rcFichier').click();
+$('rcFichier').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    if (!window.XLSX) await PS.chargerScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const lignes = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false }).map(l => l.map(c => String(c).trim()));
+    const res = analyserListe(lignes);
+    if (!res.length) return message('rcImport', 'Aucun appartement reconnu dans ce fichier.');
+    const remplis = R.logements.filter(l => !estVideLg(l)).length;
+    if (remplis && !confirm(`Remplacer les ${remplis} appartements déjà saisis par les ${res.length} du fichier ?`)) return;
+    // On garde les identifiants des appartements déjà enregistrés portant le même n°.
+    const parNum = new Map(R.logements.filter(l => l.id).map(l => [l.numero, l.id]));
+    R.logements = res.map(l => ({ ...ligneVide(), ...l, id: parNum.get(l.numero) || '' }));
+    $('rcNb').value = R.logements.length; rendreLignes();
+    const sansNum = R.logements.filter(l => !l.numero).length;
+    message('rcImport', `${res.length} appartements importés.` + (sansNum ? ` ${sansNum} sans n° d’appartement : complétez-les (n° de l’étiquette).` : ''), !!sansNum);
+  } catch { message('rcImport', 'Lecture du fichier impossible (Excel .xlsx/.xls, .ods ou .csv).'); }
+};
+function analyserListe(lignes) {
+  const nrm = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const reMail = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g, reTel = /^(\+33\s?|0)[1-9]([\s.-]?\d{2}){4}$/;
+  const roles = { numero: /appart|porte|etiquette|n.?\s*appt|^appt|^logement|^log\b|^bat/, lot: /\blot/, prenom: /prenom/, nom: /nom|proprietaire|coproprietaire|occupant/, telephone: /tel|portable|mobile|gsm/, emails: /mail|courriel/ };
+  let iTete = lignes.findIndex(l => l.filter(c => Object.values(roles).some(re => re.test(nrm(c)))).length >= 2);
+  if (iTete < 0) iTete = lignes.findIndex(l => l.some(c => /^(co)?proprietaires?$|^noms?$/.test(nrm(c).trim())));
+  const col = {};
+  if (iTete >= 0) lignes[iTete].forEach((c, j) => { const t = nrm(c); for (const [k, re] of Object.entries(roles)) if (col[k] === undefined && re.test(t) && !(k === 'nom' && roles.prenom.test(t))) { col[k] = j; break; } });
+  const donnees = lignes.slice(iTete + 1).filter(l => l.some(Boolean));
+  // Sans titres : e-mails et téléphones repérés au contenu, nom = première colonne de texte.
+  if (iTete < 0 && donnees.length) {
+    const n = Math.max(...donnees.map(l => l.length));
+    for (let j = 0; j < n; j++) {
+      const v = donnees.map(l => l[j] || '').filter(Boolean);
+      if (!v.length) continue;
+      if (col.emails === undefined && v.filter(x => x.match(reMail)).length > v.length / 2) col.emails = j;
+      else if (col.telephone === undefined && v.filter(x => reTel.test(x.replace(/\s+/g, ' '))).length > v.length / 2) col.telephone = j;
+      else if (col.nom === undefined && v.filter(x => /[a-z]{3}/i.test(x)).length > v.length / 2) col.nom = j;
+    }
+  }
+  const val = (l, k) => col[k] === undefined ? '' : (l[col[k]] || '').trim();
+  return donnees.map(l => ({
+    numero: val(l, 'numero'), lot: val(l, 'lot'),
+    nom: [val(l, 'nom'), val(l, 'prenom')].filter(Boolean).join(' '),
+    telephone: val(l, 'telephone'),
+    emails: [...new Set((col.emails === undefined ? l.join(' ') : val(l, 'emails')).match(reMail) || [])].map(x => x.toLowerCase()),
+  })).filter(l => l.nom || l.numero || l.emails.length);
+}
+
+async function enregistrerRecensement(valider) {
+  const lg = R.logements.map(l => ({ ...l, numero: l.numero.trim(), nom: l.nom.trim() }));
+  if (valider) {
+    const manquants = lg.filter(l => !l.numero || !l.nom).length;
+    if (!lg.length) return message('rcMessage', 'Ajoutez au moins un appartement.');
+    if (manquants) return message('rcMessage', `${manquants} appartement${manquants > 1 ? 's' : ''} sans n° d’étiquette ou sans propriétaire (cases orangées).`);
+    const nums = lg.map(l => l.numero.toLowerCase()), double = nums.find((n, i) => nums.indexOf(n) !== i);
+    if (double) return message('rcMessage', `Le n° d’appartement « ${double} » est utilisé deux fois.`);
+    if (!$('rcEtiquettes').checked) return message('rcMessage', 'Confirmez que les étiquettes de numérotation sont posées (case ci-dessus), ou « Enregistrer le brouillon ».');
+  }
+  const hors = avecVigik(R.copro) ? [
+    { id: R.stock?.id || '', type: 'stock', nom: 'Stock syndic', badges: parseInt($('rcStock').value, 10) || 0 },
+    ...R.intervenants.filter(h => (h.nom || '').trim()).map(h => ({ id: h.id || '', type: 'intervenant', nom: h.nom.trim(), badges: parseInt(h.badges, 10) || 0 })),
+  ] : [];
+  const p = { etape: valider ? 'pret' : 'saisie', nb_logements: lg.length, etiquettes: $('rcEtiquettes').checked, logements: [...lg, ...hors] };
+  ['rcEnregistrer', 'rcValider'].forEach(id => $(id).disabled = true);
+  message('rcMessage', 'Enregistrement…', false);
+  try {
+    await appel('ps_syndic_recensement_enregistrer', { p_session: S.session, p_copro: S.copro, p }, 'rcMessage');
+    toast(valider ? 'Recensement validé.' : 'Brouillon enregistré.');
+    ouvrirCopro(S.copro);
+  } catch {} finally { ['rcEnregistrer', 'rcValider'].forEach(id => $(id).disabled = false); }
+}
+$('rcEnregistrer').onclick = () => enregistrerRecensement(false);
+$('rcValider').onclick = () => enregistrerRecensement(true);
+
 const pastilleRemise = r => r.statut === 'signe' ? '<span class="pastille ok">Signée</span>' : r.statut === 'attente' ? '<span class="pastille attente">En attente</span>' : '<span class="pastille erreur">Annulée</span>';
 function rendreRemises() {
   const q = $('rRecherche').value.trim().toLowerCase();

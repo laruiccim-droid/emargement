@@ -81,6 +81,11 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
     </div>
     <div class="tuiles" id="dTuiles"></div>
+    <div class="bloc" id="dRecensement" hidden>
+      <h2>Recensement (espace syndic)</h2>
+      <p class="aide" id="dRecInfo" style="margin-top:0"></p>
+      <ul class="liste" id="dRecListe"></ul>
+    </div>
     <div class="onglets" role="tablist">
       <button type="button" role="tab" data-ong="livrer" aria-selected="true">Livrer des badges</button>
       <button type="button" role="tab" data-ong="remises" aria-selected="false">Remises</button>
@@ -556,6 +561,7 @@ function preremplirDepuisDevis(d, tout) {
   mettre('chNom', d.client.replace(/^syndicat des copropri[ée]taires\s+(de\s+|du\s+|des\s+)?/i, '').trim()); mettre('chAdresse', d.adresse); mettre('chCp', d.cp); mettre('chVille', d.ville); mettre('chReference', d.numero);
   const sid = syndicDuDevis(d.emails, d.sousCouvert); if (sid && (tout || !$('chSyndic').value)) $('chSyndic').value = sid;
   if (tout || !A.edition) {
+    $('chType').value = 'complet';
     $('chTravaux').value = d.interphone && d.vigik ? 'interphone_vigik' : d.vigik && !d.interphone ? 'vigik' : 'interphone';
     if (MARQUES_INTERPHONE.includes(d.marque) && d.interphone) $('chMarqueInterphone').value = d.marque;
     if (MARQUES_VIGIK.includes(d.marque) && d.vigik) $('chMarqueVigik').value = d.marque;
@@ -628,6 +634,24 @@ $('formChantier').onsubmit = async e => {
   } catch {}
 };
 
+// Recensement saisi par le gestionnaire (chantier complet) : lecture seule ici.
+async function rendreRecensementAdmin(c) {
+  $('dRecensement').hidden = c.type !== 'complet';
+  if (c.type !== 'complet') return;
+  $('dRecInfo').textContent = 'Chargement…'; $('dRecListe').innerHTML = '';
+  let d; try { d = await PS.rpc('ps_admin_recensement', { p_admin: A.mdp, p_copro: c.id }); }
+  catch { $('dRecInfo').textContent = 'Recensement indisponible (script SQL n° 11 à exécuter ?).'; return; }
+  if (A.copro !== c.id) return;
+  const rec = d.recensement || {}, lg = d.logements.filter(l => l.type === 'logement'), hors = d.logements.filter(l => l.type !== 'logement');
+  const etape = { etiquettes: 'à commencer', saisie: 'en cours de saisie', pret: 'validé' }[rec.etape] || 'pas encore commencé';
+  $('dRecInfo').textContent = [`Recensement ${etape}`, `${lg.length} appartement${lg.length > 1 ? 's' : ''}`,
+    rec.etiquettes_le ? 'étiquettes posées le ' + dateCourte(rec.etiquettes_le) : 'étiquettes non posées',
+    rec.enregistre_le && 'mis à jour le ' + dateCourte(rec.enregistre_le) + (rec.par ? ' par ' + rec.par : '')].filter(Boolean).join(' • ');
+  $('dRecListe').innerHTML = [...lg.map(l => `<li><div class="principal"><b>Appt ${esc(l.numero || '?')}${l.lot ? ' — lot ' + esc(l.lot) : ''} — ${esc(l.nom || 'sans nom')}</b>
+      <div class="sous">${esc([l.telephone, (l.emails || []).join(', ')].filter(Boolean).join(' • ') || 'Aucune coordonnée')}</div></div></li>`),
+    ...hors.map(h => `<li><div class="principal"><b>${esc(h.nom)}</b><div class="sous">${h.type === 'stock' ? 'Stock syndic' : 'Entreprise intervenante'}</div></div><div class="droite">${h.badges} badge${h.badges > 1 ? 's' : ''}</div></li>`)].join('');
+}
+
 async function ouvrirChantier(id, onglet) {
   A.copro = id;
   try { A.detail = await appel('ps_admin_copro_detail', { p_copro: id }); } catch { return; }
@@ -642,7 +666,7 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu();
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));
