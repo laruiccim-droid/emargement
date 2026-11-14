@@ -690,7 +690,8 @@ dialog.scan:not([open]) { display: none; }
     <div class="code">Bâtiment  Étage  Porte  Nom affiché  Occupant  Téléphone  E-mail  Heure RDV  Nb badges  Modèle  Nom listing syndic</div>
     <textarea id="importTexte" placeholder="A	2	21	MARTIN	Mme Martin Claire	06 12 34 56 78	c.martin@exemple.fr	09:00	2	Fermax – VEO 4,3&quot;" style="margin-top:8px"></textarea>
     <div class="dlg-actions" style="justify-content:space-between">
-      <button type="button" class="btn btn-discret" id="nouveauChantier">Changer de chantier</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-discret" id="nouveauChantier">Changer de chantier</button>
+      <button type="button" class="btn btn-discret btn-danger" id="supprimerChantier">Supprimer le chantier</button></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button type="button" class="btn" id="importer">Importer</button>
         <button type="submit" class="btn btn-or">Fermer</button>
@@ -1837,6 +1838,29 @@ $('importer').onclick = () => {
 };
 
 $('nouveauChantier').onclick = () => { $('dlgChantier').close(); ouvrirChantiers(); };
+// Suppression définitive du chantier ouvert : en ligne (tous les appareils) et sur cet appareil.
+$('supprimerChantier').onclick = async () => {
+  if (etat.exemple) return toast('Le chantier d’exemple ne se supprime pas : changez simplement de chantier.');
+  const nom = etat.residence || 'ce chantier', reels = logementsReels(), signes = reels.filter(l => l.statut === 'signe').length;
+  if (!await demander('Supprimer le chantier ?', `« ${nom} » : ${reels.length} logement${reels.length > 1 ? 's' : ''}, ${signes} bon${signes > 1 ? 's' : ''} signé${signes > 1 ? 's' : ''}. Le chantier disparaîtra de tous les appareils. Les PDF déjà envoyés aux clients ne sont pas concernés.`, 'Continuer')) return;
+  if (!await demander('Suppression définitive', `Dernière confirmation : « ${nom} » sera supprimé définitivement, sans retour possible.`, 'Supprimer définitivement')) return;
+  const id = etat.id;
+  clearTimeout(envoiEnAttente);
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: SB });
+    if (!r.ok) throw new Error('erreur ' + r.status);
+  } catch (e) { return toast('Suppression impossible (' + e.message + ') : vérifiez la connexion.'); }
+  // Demandes de signature à distance encore ouvertes : le lien envoyé au client ne fonctionnera plus.
+  for (const l of etat.logements) if (l.distance?.jeton) fetch(`${SUPA_URL}/rest/v1/${TABLE}?id=eq.SIG_${l.distance.jeton}`, { method: 'DELETE', headers: SB }).catch(() => {});
+  // Photos gardées sur cet appareil.
+  for (const l of etat.logements) for (const k of ['avant', 'apres']) photoEcrire(cleePhoto(l, k), null).catch(() => {});
+  for (const p of etat.pieces || []) photoEcrire(clePiece(p), null).catch(() => {});
+  oublierChantier(id);
+  etat = chantierVide(); courantId = null; rendreTout();
+  $('dlgChantier').close();
+  toast(`« ${nom} » supprimé.`);
+  ouvrirChantiers();
+};
 
 /* ---------- SMS : envoyés depuis le téléphone, sans abonnement ---------- */
 // Le lien sms: ouvre la messagerie du téléphone avec le numéro et le texte prêts : il reste à appuyer sur Envoyer.

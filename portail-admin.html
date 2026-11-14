@@ -70,7 +70,7 @@
     <button type="button" class="btn btn-discret btn-petit" data-aller="chantiers">‹ Chantiers</button>
     <div class="titre-ligne" style="margin-top:8px">
       <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
     </div>
     <div class="tuiles" id="dTuiles"></div>
     <div class="onglets" role="tablist">
@@ -403,6 +403,25 @@ function choisirOnglet(o) {
   if (o === 'livrer') setTimeout(() => lvPad && lvPad.taille(), 30);
 }
 document.querySelectorAll('[data-ong]').forEach(b => b.onclick = () => choisirOnglet(b.dataset.ong));
+
+// ---------- Suppression définitive d'un chantier (livraisons, badges, remises, historique) ----------
+$('btnSupprimerChantier').onclick = async () => {
+  const c = A.detail.copro, k = A.detail.compteurs;
+  if (!confirm(`Supprimer le chantier « ${c.nom} » ?
+
+• ${k.livres} badge${k.livres > 1 ? 's' : ''} livré${k.livres > 1 ? 's' : ''} (dont ${k.remis} remis)
+• ${A.detail.remises.length} remise${A.detail.remises.length > 1 ? 's' : ''}, signées ou non
+• ${A.detail.livraisons.length} livraison${A.detail.livraisons.length > 1 ? 's' : ''} et l’historique
+
+Le syndic n’y aura plus accès. Les PDF déjà envoyés ne sont pas concernés.`)) return;
+  if (!confirm(`Dernière confirmation : « ${c.nom} » sera supprimé définitivement, sans retour possible.`)) return;
+  try {
+    await appel('ps_admin_copro_supprimer', { p_copro: A.copro });
+    A.copro = null; A.detail = null;
+    await charger(); rendreChantiers(); montrer('vChantiers');
+    toast(`« ${c.nom} » supprimé.`, 4500);
+  } catch {}
+};
 
 // ---------- Transfert vers un autre gestionnaire ou un autre syndic ----------
 $('btnTransfert').onclick = () => {
