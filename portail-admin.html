@@ -180,6 +180,8 @@
     <div><label for="chEtat">État du dossier</label><select id="chEtat"></select></div>
     <div style="grid-column:1/-1"><label for="chTravaux">Travaux</label><select id="chTravaux">
       <option value="interphone">Interphone</option><option value="interphone_vigik">Interphone + Vigik</option><option value="vigik">Vigik seul</option></select></div>
+    <div id="chMarqueInterphoneBloc"><label for="chMarqueInterphone">Marque de l’interphone</label><select id="chMarqueInterphone"></select></div>
+    <div id="chMarqueVigikBloc" hidden><label for="chMarqueVigik">Marque de la centrale Vigik</label><select id="chMarqueVigik"></select></div>
     <div id="chVigik" style="grid-column:1/-1" hidden>
     <h2 style="margin-top:6px">Accès Vigik</h2>
     <div class="grille-2" style="margin-top:6px">
@@ -375,12 +377,17 @@ $('btnNouveauChantier').onclick = () => ouvrirFormChantier(null);
 $('btnModifierChantier').onclick = () => ouvrirFormChantier(A.detail.copro);
 // ---------- Travaux et accès Vigik (portes, droits d'accès) ----------
 const TRAVAUX = { interphone: 'Interphone', interphone_vigik: 'Interphone + Vigik', vigik: 'Vigik seul' };
+const MARQUES_INTERPHONE = ['Fermax', 'Golmar', 'Bticino', 'Intratone', 'Noralsy', 'Urmet', 'Comelit'];
+const MARQUES_VIGIK = ['Intratone', 'Noralsy', 'Urmet', 'Comelit', 'Hexact'];
 const nomPorteP = i => (A.vigik.portes[i] || '').trim() || 'Porte ' + (i + 1);
 // Sans nom saisi, un droit porte le nom de ses portes (« Porte d’entrée + Porte de garage »).
 const nomDroit = a => (a.nom || '').trim() || a.portes.map(nomPorteP).join(' + ') || 'Droit sans porte';
 function rendreAccesPortail() {
   const v = A.vigik;
-  $('chVigik').hidden = $('chTravaux').value === 'interphone';
+  const t = $('chTravaux').value;
+  // Interphone seul : ni centrale Vigik, ni portes, ni droits d'accès. Vigik seul : pas de marque d'interphone.
+  $('chVigik').hidden = $('chMarqueVigikBloc').hidden = t === 'interphone';
+  $('chMarqueInterphoneBloc').hidden = t === 'vigik';
   $('chNbPortes').value = v.portes.length;
   $('chPortes').innerHTML = v.portes.map((n, i) => `<div><label for="chPorte${i}">Porte ${i + 1}</label><input type="text" id="chPorte${i}" data-porte="${i}" value="${esc(n)}" placeholder="ex. Porte de garage"></div>`).join('');
   $('chPortes').querySelectorAll('[data-porte]').forEach(inp => inp.oninput = () => { v.portes[+inp.dataset.porte] = inp.value; rendreDroits(); });
@@ -406,6 +413,7 @@ function rendreDroits() {
 // Une par porte, puis toutes les portes ensemble.
 const propositionsDroits = n => [...Array.from({ length: n }, (_, i) => [i]), ...(n > 1 ? [Array.from({ length: n }, (_, i) => i)] : [])];
 $('chTravaux').onchange = rendreAccesPortail;
+// Interphone + Vigik : les deux marques sont demandées ; une seule sinon.
 $('chNbPortes').onchange = () => {
   const v = A.vigik, n = Math.max(1, Math.min(20, parseInt($('chNbPortes').value, 10) || 1));
   while (v.portes.length < n) v.portes.push(v.portes.length === 1 ? 'Porte de garage' : '');
@@ -436,6 +444,9 @@ async function ouvrirFormChantier(c) {
   [['chNom', 'nom'], ['chAdresse', 'adresse'], ['chCp', 'cp'], ['chVille', 'ville'], ['chReference', 'reference'], ['chNotes', 'notes']].forEach(([id, k]) => { $(id).value = c ? c[k] || '' : ''; });
   $('chSyndic').value = c?.syndic_id || ''; $('chType').value = c?.type || 'badges'; $('chEtat').value = c?.etat || 'commence';
   $('chTravaux').value = c?.travaux || 'interphone';
+  $('chMarqueInterphone').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_INTERPHONE.map(m => `<option>${m}</option>`).join('');
+  $('chMarqueVigik').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_VIGIK.map(m => `<option>${m}</option>`).join('');
+  $('chMarqueInterphone').value = c?.marque_interphone || ''; $('chMarqueVigik').value = c?.marque_vigik || '';
   A.vigik = JSON.parse(JSON.stringify(c?.vigik?.portes?.length ? c.vigik : { portes: ['Porte d’entrée'], autorisations: [{ nom: '', portes: [0] }] }));
   rendreAccesPortail();
   await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';
@@ -445,6 +456,8 @@ $('formChantier').onsubmit = async e => {
   e.preventDefault();
   const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
     reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
+    marque_interphone: $('chTravaux').value === 'vigik' ? '' : $('chMarqueInterphone').value,
+    marque_vigik: $('chTravaux').value === 'interphone' ? '' : $('chMarqueVigik').value,
     travaux: $('chTravaux').value, vigik: $('chTravaux').value === 'interphone' ? { portes: [], autorisations: [] }
       : { portes: A.vigik.portes.map((n, i) => n.trim() || 'Porte ' + (i + 1)), autorisations: A.vigik.autorisations.map(a => ({ nom: nomDroit(a), portes: a.portes })) } };
   try {
@@ -461,7 +474,7 @@ async function ouvrirChantier(id, onglet) {
   const g = A.detail.gestionnaire;
   $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference,
     s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet'),
-    TRAVAUX[c.travaux] && TRAVAUX[c.travaux] + (c.travaux !== 'interphone' && c.vigik?.portes?.length ? ` (${c.vigik.portes.length} porte${c.vigik.portes.length > 1 ? 's' : ''} : ${(c.vigik.autorisations || []).map(a => a.nom).join(', ') || 'aucun droit d’accès'})` : '')].filter(Boolean).join(' • ');
+    TRAVAUX[c.travaux] && TRAVAUX[c.travaux] + ([c.marque_interphone && 'interphone ' + c.marque_interphone, c.marque_vigik && 'Vigik ' + c.marque_vigik].filter(Boolean).map(x => ' — ' + x).join('')) + (c.travaux !== 'interphone' && c.vigik?.portes?.length ? ` (${c.vigik.portes.length} porte${c.vigik.portes.length > 1 ? 's' : ''} : ${(c.vigik.autorisations || []).map(a => a.nom).join(', ') || 'aucun droit d’accès'})` : '')].filter(Boolean).join(' • ');
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu();
