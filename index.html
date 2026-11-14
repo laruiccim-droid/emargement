@@ -294,6 +294,10 @@ dialog::backdrop { background: rgba(10,10,10,0.75); backdrop-filter: blur(6px); 
 .tableau-listing input.doute { border-color: var(--he-gold); background: rgba(201, 168, 106, .14); }
 .tableau-listing .lu { font-size: 10px; color: var(--grey-400); margin-top: 2px; }
 dialog#dlgListing { width: min(1100px, 96vw); max-width: 96vw; }
+.portes-vigik { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 8px; }
+.liste-autorisations { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.liste-autorisations li { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 6px 8px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
+.liste-autorisations .puces { grid-column: 1 / -1; }
 .tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
 .tuile { border: 1px solid var(--border-hairline); border-radius: var(--r-sm); padding: 10px; }
 .tuile b { display: block; font-size: var(--fs-2xl); font-weight: 300; color: var(--he-white); font-variant-numeric: tabular-nums; }
@@ -538,6 +542,7 @@ dialog.scan:not([open]) { display: none; }
     <div class="champ"><label for="lst-adresse">Adresse</label><input type="text" id="lst-adresse" placeholder="rue, code postal ville"></div>
     <div class="ligne">
       <div class="champ"><label for="lst-marque">Marque d’interphone</label><select id="lst-marque"></select></div>
+      <div class="champ"><label for="lst-type">Travaux</label><select id="lst-type" class="choix-type"></select></div>
       <div class="champ"><label for="lst-centrale">Centrale Vigik</label><select id="lst-centrale"></select></div>
     </div>
     <p class="aide" id="lst-resume"></p>
@@ -567,6 +572,7 @@ dialog.scan:not([open]) { display: none; }
     </div>
     <div class="champ"><label for="c-marque">Marque d’interphone installée</label><select id="c-marque" class="choix-marque"></select>
       <p class="aide">Seuls les combinés et moniteurs de cette marque sont proposés dans les fiches.</p></div>
+    <div class="champ" style="max-width:320px"><label for="c-typeTravaux">Travaux</label><select id="c-typeTravaux" class="choix-type"></select></div>
     <div class="champ"><label for="c-objet">Objet de l’intervention (repris dans les SMS et avis)</label><input type="text" id="c-objet" placeholder="le remplacement de votre combiné d’interphone"></div>
 
     <div class="separateur"></div>
@@ -635,6 +641,7 @@ dialog.scan:not([open]) { display: none; }
     </div>
     <p class="aide">Une notice par modèle, commune à tous vos chantiers : elle part avec le bon d’intervention du client et elle est jointe au dossier de fin de chantier.</p>
 
+    <div id="blocInterphone">
     <div class="separateur"></div>
     <div class="etiq">Interphone</div>
     <div class="ligne" style="margin-top:8px">
@@ -649,6 +656,21 @@ dialog.scan:not([open]) { display: none; }
     </div>
     <p class="aide">Boutons numérotés de 1 (en haut à gauche) jusqu’en bas à droite, du dernier étage au rez-de-chaussée ; codes de programmation de 0 (en bas à gauche) jusqu’en haut à droite. La fiche interphone se pose à côté de la platine ; la codification sert à programmer. Un numéro se corrige dans la fiche du logement.</p>
 
+    </div>
+
+    <div id="blocVigik">
+    <div class="separateur"></div>
+    <div class="etiq">Accès Vigik : portes et autorisations</div>
+    <div class="champ" style="margin-top:8px;max-width:260px"><label for="c-nbPortes">Nombre de portes équipées de Vigik</label><input type="number" id="c-nbPortes" min="1" max="20" inputmode="numeric"></div>
+    <div class="portes-vigik" id="listePortes"></div>
+    <div class="etiq" style="margin-top:14px">Autorisations d’accès à créer <span id="nbAutorisations" class="aide"></span></div>
+    <ul class="liste-autorisations" id="listeAutorisations"></ul>
+    <div class="dlg-actions" style="justify-content:flex-start">
+      <button type="button" class="btn" id="ajouterAutorisation"><svg class="ic"><use href="#i-plus"/></svg>Ajouter une autorisation</button>
+      <button type="button" class="btn btn-discret" id="proposerAutorisations">Proposer : une par porte + toutes les portes</button>
+    </div>
+    <p class="aide">Exemple, Saint-Antoine : 2 portes → « Porte d’entrée », « Porte de garage » et « Porte d’entrée + porte de garage ». Touchez les portes ouvertes par chaque autorisation ; sans nom saisi, elle prend le nom de ses portes.</p>
+
     <div class="separateur"></div>
     <div class="etiq">Centrale Vigik</div>
     <div class="champ" style="margin-top:8px;max-width:320px"><label for="c-centrale">Modèle de centrale</label><select id="c-centrale" class="choix-centrale"></select></div>
@@ -659,6 +681,7 @@ dialog.scan:not([open]) { display: none; }
       <p class="aide" id="resumeVigik"></p>
       <div class="dlg-actions" style="justify-content:flex-start"><button type="button" class="btn btn-or" id="robotBaticonnect"><svg class="ic"><use href="#i-settings"/></svg>Robot BatiConnect</button></div>
       <p class="aide">Le robot crée sur baticonnect.com le site, le bâtiment (propriétaires du listing + « Stock syndic » + « Société de nettoyage »), nomme chaque appartement et ajoute les badges. Il s’utilise depuis Chrome sur ordinateur.</p>
+    </div>
     </div>
 
     <div class="separateur"></div>
@@ -690,7 +713,8 @@ dialog.scan:not([open]) { display: none; }
     <div class="champ" style="margin-top:8px"><label for="nc-client">Client ou syndic</label><input type="text" id="nc-client" list="nc-clients" placeholder="Rechercher dans vos clients…" autocomplete="off"><datalist id="nc-clients"></datalist></div>
     <div class="champ" id="nc-blocResidence" hidden><label for="nc-residence">Résidence</label><select id="nc-residence"></select></div>
     <div class="champ"><label for="nc-marque">Marque d’interphone installée</label><select id="nc-marque" class="choix-marque"></select></div>
-    <div class="champ"><label for="nc-centrale">Centrale Vigik</label><select id="nc-centrale" class="choix-centrale"></select></div>
+    <div class="champ"><label for="nc-type">Travaux</label><select id="nc-type" class="choix-type"></select></div>
+    <div class="champ" id="nc-blocCentrale" hidden><label for="nc-centrale">Centrale Vigik</label><select id="nc-centrale" class="choix-centrale"></select></div>
     <div class="dlg-actions" style="justify-content:space-between">
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-discret" id="chantierExemple">Exemple</button></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="fermerChantiers">Fermer</button><button type="button" class="btn btn-or" id="creerChantier">Créer le chantier</button></div>
@@ -1762,7 +1786,7 @@ $('ouvrirChantier').onclick = () => {
   $('dlgChantier').showModal();
   if (!padTechChantier) padTechChantier = creerPad($('sigTechChantier'), { valeur: sigTech, onChange: v => { sigTech = v; stock.ecrire(CLE_SIG, v); } });
   else padTechChantier.poser(sigTech);
-  majReception(); rendrePieces(); majResumeNotices(); majVigik(); rendreTitulaires(); chargerNotices().then(majResumeNotices);
+  majReception(); rendrePieces(); majResumeNotices(); majVigik(); rendreTitulaires(); majTypeTravaux(); chargerNotices().then(majResumeNotices);
 };
 champsChantier.forEach(k => $('c-' + k).addEventListener('input', e => { etat[k] = e.target.value; sauver(); rendreEntete(); }));
 $('dlgChantier').addEventListener('close', () => { rendreTout(); });
@@ -2314,11 +2338,12 @@ $('creerChantier').onclick = async () => {
   etat = chantierVide({
     residence: r ? r.nom : saisi, adresse: r ? (r.adresse || '') : (c ? (c.addressChantier || c.address || '') : ''),
     donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null, residenceId: r ? r.id : null,
-    marque: $('nc-marque').value, centrale: $('nc-centrale').value,
+    marque: $('nc-marque').value, typeTravaux: $('nc-type').value, centrale: $('nc-type').value === 'interphone' ? '' : $('nc-centrale').value,
   });
   courantId = null; sauver(); rendreTout();
-  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = ''; $('nc-blocResidence').hidden = true;
+  $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = ''; $('nc-type').value = 'interphone'; $('nc-blocCentrale').hidden = true; $('nc-blocResidence').hidden = true;
   $('ouvrirChantier').click(); // compléter la référence et importer la liste des logements
+  if (avecVigik()) setTimeout(() => $('blocVigik').scrollIntoView({ block: 'start' }), 300);
 };
 $('fermerChantiers').onclick = () => $('dlgChantiers').close();
 $('chantierExemple').onclick = async () => {
@@ -3526,6 +3551,7 @@ async function ouvrirListing(f) {
     $('lst-adresse').value = r.adresse || ''; $('lst-reference').value = r.reference || '';
     $('lst-marque').innerHTML = MARQUES.map(m => `<option ${m === marque ? 'selected' : ''}>${esc(m)}</option>`).join('');
     $('lst-centrale').innerHTML = '<option value="">— Non précisée —</option>' + CENTRALES.map(m => `<option ${m === $('nc-centrale').value ? 'selected' : ''}>${esc(m)}</option>`).join('');
+    $('lst-type').value = $('nc-type').value; $('lst-centrale').closest('.champ').hidden = $('lst-type').value === 'interphone';
     $('lst-fichier').textContent = f.name;
     rendreListing(); $('dlgListing').showModal();
   } catch (e) { toast('Lecture impossible : ' + e.message); }
@@ -3555,7 +3581,7 @@ $('lst-creer').onclick = async () => {
   clearTimeout(envoiEnAttente); await envoyerChantier();
   etat = chantierVide({
     residence: copro, copropriete: copro, adresse: $('lst-adresse').value.trim(), reference: $('lst-reference').value.trim(),
-    marque: $('lst-marque').value, centrale: $('lst-centrale').value,
+    marque: $('lst-marque').value, typeTravaux: $('lst-type').value, centrale: $('lst-type').value === 'interphone' ? '' : $('lst-centrale').value,
     donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null,
     listingSyndic: L.fichier,
   });
@@ -3568,7 +3594,7 @@ $('lst-creer').onclick = async () => {
     ...EXTRAS_LISTING.map(nom => nouveauLogement({ occupant: nom, nomListing: nom, horsLogement: true, rdvDate: '' })),
   ];
   courantId = null; sauver(); rendreTout();
-  $('dlgListing').close(); $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = '';
+  $('dlgListing').close(); $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = ''; $('nc-type').value = 'interphone'; $('nc-blocCentrale').hidden = true;
   toast(`Chantier créé : ${gardes.length} appartements + Stock syndic + Entreprise de nettoyage.`);
   $('ouvrirChantier').click();
 };
@@ -3593,6 +3619,77 @@ $('ajouterTitulaire').onclick = () => {
   etat.logements.push(nouveauLogement({ occupant: nom, nomListing: nom, horsLogement: true, rdvDate: '' }));
   $('nouveauTitulaire').value = ''; sauver(); rendreTitulaires(); rendreListe(); majVigik();
   toast('Titulaire ajouté : touchez « Badges » pour saisir ses badges.');
+};
+
+/* ---------- Type de travaux et accès Vigik (portes, autorisations d'accès) ---------- */
+const TYPES_TRAVAUX = { interphone: 'Interphone', interphone_vigik: 'Interphone + Vigik', vigik: 'Vigik seul' };
+document.querySelectorAll('.choix-type').forEach(sel => { sel.innerHTML = Object.entries(TYPES_TRAVAUX).map(([k, v]) => `<option value="${k}">${v}</option>`).join(''); });
+// Anciens chantiers sans type : interphone, avec Vigik si une centrale a été choisie.
+const typeTravaux = () => etat.typeTravaux || (etat.centrale ? 'interphone_vigik' : 'interphone');
+const avecVigik = () => typeTravaux() !== 'interphone';
+const accesVigik = () => (etat.vigik ||= { portes: ['Porte d’entrée'], autorisations: [] });
+const nomPorte = i => (accesVigik().portes[i] || '').trim() || `Porte ${i + 1}`;
+// Sans nom saisi, une autorisation porte le nom de ses portes (« Porte d’entrée + Porte de garage »).
+const nomAutorisation = a => (a.nom || '').trim() || a.portes.map(nomPorte).join(' + ') || 'Autorisation sans porte';
+
+function majTypeTravaux() {
+  $('c-typeTravaux').value = typeTravaux();
+  $('blocInterphone').hidden = typeTravaux() === 'vigik';
+  $('blocVigik').hidden = !avecVigik();
+  if (avecVigik()) rendreAcces();
+}
+$('c-typeTravaux').addEventListener('change', e => {
+  etat.typeTravaux = e.target.value;
+  if (!avecVigik()) etat.centrale = '';
+  sauver(); majTypeTravaux(); majVigik();
+});
+$('nc-type').addEventListener('change', e => { $('nc-blocCentrale').hidden = e.target.value === 'interphone'; });
+$('lst-type').addEventListener('change', e => { $('lst-centrale').closest('.champ').hidden = e.target.value === 'interphone'; });
+
+function rendreAcces() {
+  const v = accesVigik();
+  $('c-nbPortes').value = v.portes.length;
+  $('listePortes').innerHTML = v.portes.map((n, i) => `<div class="champ" style="margin:0"><label for="porte-${i}">Porte ${i + 1}</label><input type="text" id="porte-${i}" data-porte="${i}" value="${esc(n)}" placeholder="ex. Porte de garage"></div>`).join('');
+  $('listePortes').querySelectorAll('[data-porte]').forEach(inp => inp.addEventListener('input', () => { v.portes[+inp.dataset.porte] = inp.value; sauver(); rendreAutorisations(); }));
+  rendreAutorisations();
+}
+function rendreAutorisations() {
+  const v = accesVigik(), ul = $('listeAutorisations');
+  $('nbAutorisations').textContent = v.autorisations.length ? `(${v.autorisations.length})` : '';
+  ul.innerHTML = v.autorisations.length ? '' : '<li><span class="aide">Aucune autorisation pour l’instant.</span></li>';
+  v.autorisations.forEach((a, k) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<input type="text" value="${esc(a.nom || '')}" placeholder="${esc(nomAutorisation({ ...a, nom: '' }))}" aria-label="Nom de l’autorisation ${k + 1}">
+      <button type="button" class="btn btn-discret btn-carre" aria-label="Supprimer l’autorisation"><svg class="ic"><use href="#i-x"/></svg></button>
+      <div class="puces">${v.portes.map((p, i) => `<button type="button" class="puce" data-i="${i}" aria-pressed="${a.portes.includes(i)}">${esc(nomPorte(i))}</button>`).join('')}</div>`;
+    li.querySelector('input').oninput = e => { a.nom = e.target.value; sauver(); };
+    li.querySelector('.btn-carre').onclick = () => { v.autorisations.splice(k, 1); sauver(); rendreAutorisations(); };
+    li.querySelectorAll('.puce').forEach(b => b.onclick = () => {
+      const i = +b.dataset.i; a.portes = a.portes.includes(i) ? a.portes.filter(x => x !== i) : [...a.portes, i].sort((x, y) => x - y);
+      sauver(); rendreAutorisations();
+    });
+    ul.append(li);
+  });
+}
+$('c-nbPortes').addEventListener('change', e => {
+  const v = accesVigik(), n = Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1));
+  while (v.portes.length < n) v.portes.push(v.portes.length === 1 ? 'Porte de garage' : '');
+  v.portes.length = n;
+  // Une porte retirée disparaît aussi des autorisations.
+  v.autorisations.forEach(a => { a.portes = a.portes.filter(i => i < n); });
+  sauver(); rendreAcces();
+});
+$('ajouterAutorisation').onclick = () => {
+  const v = accesVigik(); v.autorisations.push({ id: uid(), nom: '', portes: v.portes.length === 1 ? [0] : [] });
+  sauver(); rendreAutorisations();
+  $('listeAutorisations').querySelector('li:last-child input')?.focus();
+};
+$('proposerAutorisations').onclick = async () => {
+  const v = accesVigik();
+  if (v.autorisations.length && !await demander('Remplacer les autorisations ?', `Les ${v.autorisations.length} autorisations saisies seront remplacées par une autorisation par porte${v.portes.length > 1 ? ', plus une pour toutes les portes' : ''}.`, 'Remplacer')) return;
+  v.autorisations = v.portes.map((p, i) => ({ id: uid(), nom: '', portes: [i] }));
+  if (v.portes.length > 1) v.autorisations.push({ id: uid(), nom: '', portes: v.portes.map((p, i) => i) });
+  sauver(); rendreAutorisations();
 };
 
 /* ---------- Dossier de fin de chantier : tous les documents réunis en un seul PDF ---------- */
