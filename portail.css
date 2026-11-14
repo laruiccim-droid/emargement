@@ -74,8 +74,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--h
 .barre-prog { height: 4px; border-radius: 2px; background: var(--ink-500); overflow: hidden; margin-top: 10px; }
 .barre-prog i { display: block; height: 100%; background: var(--he-gold); }
 /* Frise d'avancement du chantier : un segment par étape, vert quand l'étape est faite. */
-.frise { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--ink-500); overflow: hidden; }
-.frise i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #00E676, #39FF14); box-shadow: 0 0 10px rgba(57,255,20,.55); transition: width .6s ease; }
+.frise { position: relative; height: 20px; margin-top: 12px; border-radius: 10px; background: var(--ink-500); overflow: hidden; }
+.frise span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: #fff; text-shadow: 0 0 3px rgba(0,0,0,.9), 0 0 1px #000; }
+.frise i { display: block; height: 100%; border-radius: 10px; background: linear-gradient(90deg, #00E676, #39FF14); box-shadow: 0 0 10px rgba(57,255,20,.55); transition: width .6s ease; }
 .frise-legende { display: flex; justify-content: space-between; gap: 10px; margin-top: 7px; font-size: 13px; color: var(--grey-300); }
 .frise-legende b { color: #39FF14; font-weight: 500; white-space: nowrap; }
 

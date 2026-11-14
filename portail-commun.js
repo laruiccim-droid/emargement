@@ -232,8 +232,8 @@ const PS = (() => {
   }
   function friseHtml(c) {
     const a = avancement(c);
-    return `<div class="frise" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${a.pc}" title="${esc(a.etapes.map((e, j) => (e.fait >= 1 ? '✓ ' : j === a.index ? '▸ ' : '· ') + e.titre).join('\n'))}"><i style="width:${a.pc}%"></i></div>
-      <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.etapes.length} · `}${esc(a.libelle)}</span><b>${a.pc} %</b></div>`;
+    return `<div class="frise" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${a.pc}" title="${esc(a.etapes.map((e, j) => (e.fait >= 1 ? '✓ ' : j === a.index ? '▸ ' : '· ') + e.titre).join('\n'))}"><i style="width:${a.pc}%"></i><span>${a.pc} %</span></div>
+      <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.etapes.length} · `}${esc(a.libelle)}</span></div>`;
   }
 
   const STATUTS_BADGE = { stock: 'En stock', reserve: 'Réservé', remis: 'Remis', perdu: 'Perdu', desactive: 'Désactivé' };
