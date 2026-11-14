@@ -40,7 +40,9 @@ const PS = (() => {
     let data = null; try { data = txt ? JSON.parse(txt) : null; } catch {}
     if (!r.ok) {
       const code = (data && data.message) || '';
-      const e = new Error(ERREURS[code] || (r.status === 404 ? 'Le portail n’est pas encore installé dans Supabase (script sql/portail-syndic.sql).' : 'Erreur : ' + (code || r.status)));
+      const absente = r.status === 404 && fonction !== 'ps_admin_statut';
+      const e = new Error(ERREURS[code] || (absente ? `Fonction ${fonction} absente de Supabase : exécutez le dernier script du dossier sql/ (SQL Editor).`
+        : r.status === 404 ? 'Le portail n’est pas encore installé dans Supabase (script sql/portail-syndic.sql).' : 'Erreur : ' + (code || r.status)));
       e.code = code; throw e;
     }
     return data;

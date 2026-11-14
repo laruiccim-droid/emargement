@@ -175,7 +175,7 @@
 </form></dialog>
 
 <script src="logos.js"></script>
-<script src="portail-commun.js?v=2"></script>
+<script src="portail-commun.js?v=3"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -469,7 +469,9 @@ $('lvLivrer').onclick = async () => {
     await ouvrirChantier(A.copro, 'livrer');
     $('lvResultat').innerHTML = `<div class="bloc"><h2>Livraison enregistrée</h2><p style="margin:0"><b style="color:var(--he-white)">${r.ajoutes.length}</b> badge${r.ajoutes.length > 1 ? 's' : ''} ajouté${r.ajoutes.length > 1 ? 's' : ''} au stock du syndic.</p>
       ${r.ailleurs.length ? `<p class="aide">Attention, ${r.ailleurs.length} n° existe${r.ailleurs.length > 1 ? 'nt' : ''} aussi dans un autre chantier : ${esc(r.ailleurs.map(a => a.numero + ' (' + a.copro + ')').join(', '))}</p>` : ''}
-      <div class="actions"><button type="button" class="btn" id="lvBon">Bon de livraison PDF</button></div></div>`;
+      <div class="actions"><button type="button" class="btn" id="lvBon">Bon de livraison PDF</button>
+        ${r.livraison ? '<button type="button" class="btn btn-danger" id="lvAnnuler">Mauvais fichier ? Supprimer cette livraison</button>' : ''}</div></div>`;
+    if (r.livraison) $('lvAnnuler').onclick = () => supprimerLivraison(r.livraison);
     $('lvBon').onclick = async () => { const b = await pdfLivraison(livraison); window.open(URL.createObjectURL(b), '_blank') || PS.telecharger(b, 'Bon de livraison badges.pdf'); };
   } catch { $('lvLivrer').disabled = false; }
 };
@@ -552,11 +554,31 @@ function rendreLivraisons() {
   $('listeLivraisons').innerHTML = ls.length ? ls.map((l, i) => `<li><div class="principal"><b>${dateCourte(l.cree_le)} • ${l.badges.length} badge${l.badges.length > 1 ? 's' : ''}</b>
       <div class="sous">${l.signataire ? 'Reçu par ' + esc(l.signataire) : 'Sans signature de réception'}${l.commentaire ? ' • ' + esc(l.commentaire) : ''}</div>
       <div class="sous mono">${esc(l.badges.join(', '))}</div></div>
-    <div class="droite"><button type="button" class="btn btn-petit" data-bl="${i}">Bon PDF</button></div></li>`).join('') : '<li><div class="vide" style="grid-column:1/-1">Aucune livraison.</div></li>';
+    <div class="droite"><button type="button" class="btn btn-petit" data-bl="${i}">Bon PDF</button>
+      <button type="button" class="btn btn-petit btn-danger" data-suppr-liv="${esc(l.id)}">Supprimer</button></div></li>`).join('') : '<li><div class="vide" style="grid-column:1/-1">Aucune livraison.</div></li>';
   document.querySelectorAll('[data-bl]').forEach(b => b.onclick = async () => {
     const l = A.detail.livraisons[+b.dataset.bl];
     const blob = await pdfLivraison(l); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, 'Bon de livraison badges.pdf');
   });
+  document.querySelectorAll('[data-suppr-liv]').forEach(b => b.onclick = () => supprimerLivraison(b.dataset.supprLiv));
+}
+// Suppression d'une livraison (mauvais fichier importé) : ses badges encore en stock sont retirés ;
+// ceux déjà réservés ou remis à un résident restent, avec leur remise.
+async function supprimerLivraison(id) {
+  const l = A.detail.livraisons.find(x => x.id === id); if (!l) return;
+  const etat = Object.fromEntries(A.detail.badges.map(b => [b.numero, b.statut]));
+  const enStock = l.badges.filter(n => etat[n] === 'stock').length, pris = l.badges.length - enStock;
+  const texte = `Supprimer la livraison du ${dateCourte(l.cree_le)} ?
+
+• ${enStock} badge${enStock > 1 ? 's' : ''} en stock ser${enStock > 1 ? 'ont' : 'a'} retiré${enStock > 1 ? 's' : ''} du chantier.`
+    + (pris ? `
+• ${pris} badge${pris > 1 ? 's' : ''} déjà réservé${pris > 1 ? 's' : ''} ou remis ser${pris > 1 ? 'ont' : 'a'} gardé${pris > 1 ? 's' : ''} (remises intactes).` : '');
+  if (!confirm(texte)) return;
+  try {
+    const r = await appel('ps_admin_livraison_supprimer', { p_livraison: id });
+    await ouvrirChantier(A.copro, 'livraisons');
+    toast(`${r.retires} badge${r.retires > 1 ? 's' : ''} retiré${r.retires > 1 ? 's' : ''}${r.gardes.length ? ` • ${r.gardes.length} gardé${r.gardes.length > 1 ? 's' : ''} (déjà remis ou réservés)` : ''}.`, 5000);
+  } catch {}
 }
 
 demarrer();
