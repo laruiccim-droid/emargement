@@ -154,8 +154,9 @@
     <button type="button" class="btn btn-discret btn-petit" data-retour="accueil">‹ Copropriétés</button>
     <div class="titre-ligne" style="margin-top:8px">
       <div><div class="sourcil" id="coEtat"></div><h1 id="coNom"></h1><p class="aide" id="coAdresse"></p></div>
-      <button type="button" class="btn btn-or" id="btnNouvelleRemise">+ Remettre des badges</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfertG">Transférer à un collègue</button><button type="button" class="btn btn-or" id="btnNouvelleRemise">+ Remettre des badges</button></div>
     </div>
+    <div class="bloc" id="coTransfert" hidden></div>
     <div class="bloc" id="coRecensement" hidden>
       <h2>Préparation du chantier</h2>
       <ol class="parcours" id="coParcours"></ol>
@@ -427,6 +428,15 @@
   <div class="actions"><button type="button" class="btn" id="qsCopier">Copier le lien</button><button type="button" class="btn btn-or" data-fermer-qs>Fermer</button></div>
 </div></dialog>
 
+<dialog id="dlgTransfertG"><form class="dlg" id="formTransfertG">
+  <div class="sourcil">Transfert du chantier</div><h3 id="tgTitre"></h3>
+  <p class="aide">Le chantier passera à votre collègue après validation par Harmonie Électricité.</p>
+  <label for="tgVers">Collègue du cabinet</label><select id="tgVers" required></select>
+  <label for="tgMotif">Motif (facultatif)</label><textarea id="tgMotif" rows="2" placeholder="Ex. : réorganisation du portefeuille"></textarea>
+  <div class="actions"><button type="button" class="btn btn-discret" id="tgFermer">Annuler</button><button type="submit" class="btn btn-or">Envoyer la demande</button></div>
+  <p class="message" id="tgMessage"></p>
+</form></dialog>
+
 <dialog id="dlgAnnuler"><div class="dlg">
   <div class="sourcil">Annuler une remise</div><h3 id="anTitre"></h3>
   <p class="aide">Rien n’est effacé : la remise reste visible comme « annulée » et ses badges reviennent en stock.</p>
@@ -598,13 +608,43 @@ async function ouvrirCopro(id) {
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
   $('btnNouvelleRemise').disabled = !k.stock;
-  rendreRemises(); rendreBadges(); rendreParcours();
+  rendreRemises(); rendreBadges(); rendreParcours(); rendreTransfertG();
   montrer('vCopro');
 }
 document.querySelectorAll('[data-onglet]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-onglet]').forEach(x => x.setAttribute('aria-selected', x === b));
   $('ongRemises').hidden = b.dataset.onglet !== 'remises'; $('ongBadges').hidden = b.dataset.onglet !== 'badges';
 });
+// ---------- Transfert à un collègue : demande validée par Harmonie ----------
+function rendreTransfertG() {
+  const t = S.detail.copro.transfert_demande || {};
+  $('btnTransfertG').hidden = !!t.vers;
+  $('coTransfert').hidden = !t.vers;
+  if (!t.vers) return;
+  $('coTransfert').innerHTML = `<span class="pastille attente">Transfert demandé</span> Demande de transfert à <b>${esc(t.vers_nom)}</b> envoyée le ${esc(dateCourte(t.demande_le))}${t.par_nom ? ' par ' + esc(t.par_nom) : ''} : en attente de validation par Harmonie Électricité.
+    <div class="actions"><button type="button" class="btn btn-petit btn-discret" id="tgAnnulerDemande">Annuler la demande</button></div>`;
+  $('tgAnnulerDemande').onclick = async () => {
+    if (!confirm('Annuler la demande de transfert ?')) return;
+    try { await appel('ps_syndic_transfert_annuler', { p_session: S.session, p_copro: S.copro }); toast('Demande annulée.'); ouvrirCopro(S.copro); } catch {}
+  };
+}
+$('btnTransfertG').onclick = async () => {
+  let col = []; try { col = await appel('ps_syndic_collegues', { p_session: S.session }); } catch { return; }
+  if (!col.length) return toast('Aucun autre gestionnaire actif dans votre cabinet.', 4000);
+  $('tgTitre').textContent = S.detail.copro.nom;
+  $('tgVers').innerHTML = '<option value="">— Choisir —</option>' + col.map(x => `<option value="${esc(x.id)}">${esc(x.nom)}</option>`).join('');
+  $('tgMotif').value = ''; message('tgMessage', ''); $('dlgTransfertG').showModal();
+};
+$('tgFermer').onclick = () => $('dlgTransfertG').close();
+$('formTransfertG').onsubmit = async e => {
+  e.preventDefault();
+  if (!$('tgVers').value) return message('tgMessage', 'Choisissez le collègue.');
+  try {
+    await appel('ps_syndic_transfert_demander', { p_session: S.session, p_copro: S.copro, p_vers: $('tgVers').value, p_motif: $('tgMotif').value.trim() }, 'tgMessage');
+    $('dlgTransfertG').close(); toast('Demande envoyée à Harmonie Électricité.'); ouvrirCopro(S.copro);
+  } catch {}
+};
+
 // ---------- Préparation du chantier (chantier complet) ----------
 const avecVigik = c => c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
 function rendreParcours() {

@@ -80,6 +80,7 @@
       <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p><p class="aide" id="dDevis"></p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
     </div>
+    <div class="bloc" id="dTransfertDemande" hidden></div>
     <div id="dFrise"></div>
     <div class="actions" id="dJalons"></div>
     <div class="tuiles" id="dTuiles"></div>
@@ -427,6 +428,7 @@ function rendreChantiers() {
     const k = c.compteurs;
     return `<button type="button" class="carte" data-chantier="${c.id}"><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
       <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.gestionnaire_id && nomGestionnaire(c.gestionnaire_id), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
+      ${c.transfert_demande?.vers ? `<div class="chiffres"><span class="pastille attente">Transfert demandé vers ${esc(c.transfert_demande.vers_nom)}</span></div>` : ''}
       <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.a_creer ? `<span class="pastille attente">${k.a_creer} à créer dans le contrôle d’accès</span>` : ''}</div>
       ${PS.friseHtml(c)}</button>`;
   }).join('') : `<div class="vide">${q ? 'Aucun résultat.' : 'Aucun chantier. Créez le premier.'}</div>`;
@@ -680,6 +682,21 @@ $('formChantier').onsubmit = async e => {
     $('dlgChantier').close(); await charger(); ouvrirChantier(r.id);
   } catch {}
 };
+
+// ---------- Demande de transfert faite par un gestionnaire ----------
+function rendreDemandeTransfert(c) {
+  const t = c.transfert_demande || {};
+  $('dTransfertDemande').hidden = !t.vers;
+  if (!t.vers) return;
+  $('dTransfertDemande').innerHTML = `<h2>Transfert demandé</h2>
+    <p><b>${esc(t.par_nom || 'Le gestionnaire')}</b> demande le transfert de ce chantier à <b>${esc(t.vers_nom)}</b> (même cabinet), le ${esc(dateCourte(t.demande_le))}.${t.motif ? '<br>Motif : ' + esc(t.motif) : ''}</p>
+    <div class="actions"><button type="button" class="btn btn-or" data-tr="1">Valider le transfert</button><button type="button" class="btn btn-discret" data-tr="0">Refuser</button></div>`;
+  $('dTransfertDemande').querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => {
+    const ok = b.dataset.tr === '1';
+    if (!ok && !confirm('Refuser cette demande de transfert ?')) return;
+    try { await appel('ps_admin_transfert_decider', { p_copro: c.id, p_accepter: ok }); toast(ok ? 'Transfert validé.' : 'Demande refusée.'); await charger(); ouvrirChantier(c.id); } catch {}
+  });
+}
 
 // ---------- Émargement (app d'émargement) et facturation ----------
 // Les appartements du portail deviennent les logements d'un chantier de l'app (identifiant « P » + id du portail) ;
@@ -1023,7 +1040,7 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreFournitureAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); rendreFournitureAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));
