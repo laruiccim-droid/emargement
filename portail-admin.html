@@ -178,6 +178,20 @@
 <dialog id="dlgChantier"><form class="dlg" id="formChantier">
   <div class="sourcil">Copropriété</div><h3 id="chTitre">Nouveau chantier</h3>
   <div class="grille-2">
+    <div style="grid-column:1/-1">
+      <label for="chDevisChoisir">1. Devis accepté (PDF)</label>
+      <div class="depot-devis" id="chDevisZone">
+        <div class="nom" id="chDevisNom"></div>
+        <div class="boutons">
+          <a class="btn btn-petit" id="chDevisOuvrir" target="_blank" rel="noopener" hidden>Ouvrir</a>
+          <button type="button" class="btn btn-petit btn-or" id="chDevisChoisir">Déposer le devis</button>
+          <button type="button" class="btn btn-petit btn-discret" id="chDevisRetirer" hidden>Retirer</button>
+        </div>
+      </div>
+      <input type="file" id="chDevis" accept="application/pdf,.pdf" hidden>
+      <p class="aide">Commencez par le devis : glissez le PDF ici ou touchez « Déposer le devis ». Le nom de la copropriété, l’adresse du chantier, la référence, la marque et le syndic sont repris automatiquement — vérifiez-les ci-dessous. Le devis reste attaché au chantier pour le sondage et les bons de commande.</p>
+      <p class="message" id="chDevisLu"></p>
+    </div>
     <div style="grid-column:1/-1"><label for="chNom">Nom de la copropriété *</label><input type="text" id="chNom" required placeholder="Saint Antoine"></div>
     <div style="grid-column:1/-1"><label for="chAdresse">Adresse</label><input type="text" id="chAdresse"></div>
     <div><label for="chCp">Code postal</label><input type="text" id="chCp"></div>
@@ -202,19 +216,6 @@
     <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-petit" id="chAjouterDroit">+ Ajouter un droit</button><button type="button" class="btn btn-petit btn-discret" id="chProposerDroits">Proposer : une par porte + toutes</button></div>
     <p class="aide">Ex. Saint-Antoine : 2 portes → « Porte d’entrée », « Porte de garage », « Porte d’entrée + porte de garage ». Touchez les portes ouvertes par chaque droit ; sans nom saisi, il prend le nom de ses portes.</p>
   </div>
-    <div style="grid-column:1/-1">
-      <label for="chDevisChoisir">Devis (PDF)</label>
-      <div class="depot-devis" id="chDevisZone">
-        <div class="nom" id="chDevisNom"></div>
-        <div class="boutons">
-          <a class="btn btn-petit" id="chDevisOuvrir" target="_blank" rel="noopener" hidden>Ouvrir</a>
-          <button type="button" class="btn btn-petit btn-or" id="chDevisChoisir">Déposer le devis</button>
-          <button type="button" class="btn btn-petit btn-discret" id="chDevisRetirer" hidden>Retirer</button>
-        </div>
-      </div>
-      <input type="file" id="chDevis" accept="application/pdf,.pdf" hidden>
-      <p class="aide">Glissez le PDF ici ou touchez « Déposer le devis ». Il reste attaché au chantier : ses prix serviront au sondage des copropriétaires et aux bons de commande.</p>
-    </div>
     <div style="grid-column:1/-1"><label for="chLien">Chantier lié dans l’app d’émargement</label><select id="chLien"><option value="">— Aucun —</option></select></div>
     <div style="grid-column:1/-1"><label for="chNotes">Notes internes</label><textarea id="chNotes" rows="3"></textarea></div>
   </div>
@@ -473,18 +474,100 @@ function rendreDevis() {
   $('chDevisRetirer').hidden = !d.url;
   $('chDevisChoisir').textContent = d.url ? 'Remplacer' : 'Déposer le devis';
 }
+// Lecture du devis (logiciel de gestion Harmonie) : bloc client à droite sous le logo
+// (nom de la copropriété puis adresse ; si deux adresses, la première sous le nom est celle du syndic,
+// l'adresse du chantier est l'autre), n° de devis, date, nombre d'appartements, marque, e-mails.
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const MARQUES_TOUTES = [...new Set([...MARQUES_INTERPHONE, ...MARQUES_VIGIK])];
+async function lireDevis(octets) {
+  await PS.chargerScript(PDFJS);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS.replace('pdf.min.js', 'pdf.worker.min.js');
+  const doc = await pdfjsLib.getDocument({ data: octets }).promise;
+  const pages = [];
+  for (let n = 1; n <= Math.min(doc.numPages, 12); n++) {
+    const pg = await doc.getPage(n), H = pg.getViewport({ scale: 1 }).height, tc = await pg.getTextContent();
+    pages.push(tc.items.filter(i => i.str.trim()).map(i => ({ t: i.str.replace(/\s+/g, ' ').trim(), x: i.transform[4], y: H - i.transform[5] })));
+  }
+  const p1 = pages[0] || [], tout = pages.map(p => p.map(i => i.t).join('\n')).join('\n');
+  // Lignes : éléments regroupés par hauteur (3 pt), lus de gauche à droite.
+  const lignes = items => {
+    const L = [];
+    for (const i of [...items].sort((a, b) => a.y - b.y || a.x - b.x)) {
+      const l = L.find(l => Math.abs(l.y - i.y) < 3);
+      if (l) l.items.push(i); else L.push({ y: i.y, items: [i] });
+    }
+    return L.map(l => ({ y: l.y, x: Math.min(...l.items.map(i => i.x)), t: l.items.sort((a, b) => a.x - b.x).map(i => i.t).join(' ').replace(/\s+/g, ' ').trim() }));
+  };
+  const enTete = p1.find(i => /^Description$/i.test(i.t))?.y || 300;
+  const droite = lignes(p1.filter(i => i.x > 290 && i.y > 100 && i.y < enTete - 4));
+  const coord = [], blocClient = [];
+  for (const l of droite) (/^(t[ée]l|e-?mail|fax|port)/i.test(l.t) ? coord : blocClient).push(l.t);
+  const estCp = t => /^\d{5}\s+\S/.test(t);
+  const res = { client: blocClient[0] || '' };
+  // Groupes d'adresse : lignes jusqu'à « CP Ville ».
+  const groupes = []; let g = [];
+  for (const t of blocClient.slice(1)) { g.push(t); if (estCp(t)) { groupes.push(g); g = []; } }
+  const adr = groupes.length > 1 ? groupes[groupes.length - 1] : groupes[0];
+  if (adr) {
+    const m = adr[adr.length - 1].match(/^(\d{5})\s+(.+)$/);
+    res.adresse = adr.slice(0, -1).filter(t => !/^(c\/o|chez|syndic)/i.test(t)).join(', ');
+    res.cp = m[1]; res.ville = m[2].replace(/\b\p{L}+/gu, w => w.charAt(0) + w.slice(1).toLowerCase()).replace(/\bCedex\b.*$/i, '').trim();
+  }
+  res.emails = [...new Set((coord.join(' ') + ' ' + tout).match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) || [])].filter(e => !/harmonie-electricite/i.test(e));
+  res.telephone = (coord.join(' ').match(/(\+33\s?|0)[1-9](?:[\s.]?\d{2}){4}/) || [''])[0].replace(/\D/g, '');
+  res.numero = (p1.map(i => i.t).join(' ').match(/\b(D\d{4,})\b/) || [])[1] || '';
+  res.date = (tout.match(/Date\s*:\s*(\d{2}\/\d{2}\/\d{4})/) || [])[1] || '';
+  res.appartements = +((tout.match(/(\d+)\s+(?:appartements|logements)\b/i) || [])[1] || 0);
+  const comptes = MARQUES_TOUTES.map(m => [m, (tout.match(new RegExp('\\b' + m + '\\b', 'gi')) || []).length]).filter(c => c[1]).sort((a, b) => b[1] - a[1]);
+  res.marque = comptes[0]?.[0] || '';
+  const bas = tout.toLowerCase();
+  res.interphone = /interphon|vid[ée]ophon|platine de rue|moniteur|combin[ée]/.test(bas);
+  res.vigik = /\bvigik\b|contr[ôo]le d.acc[èe]s|badge/.test(bas);
+  return res;
+}
+// Syndic retrouvé par l'e-mail d'un gestionnaire, sinon par le domaine (foncia.com → Foncia…).
+function syndicDuDevis(emails) {
+  const nrm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const e of emails) for (const s of A.etat.syndics) if ((s.users || []).some(u => (u.email || '').toLowerCase() === e.toLowerCase())) return s.id;
+  for (const e of emails) {
+    const dom = nrm(e.split('@')[1].split('.')[0]);
+    if (/^(gmail|yahoo|hotmail|outlook|orange|free|sfr|wanadoo|laposte|icloud|live)$/.test(dom)) continue;
+    const s = A.etat.syndics.find(s => nrm(s.nom).includes(dom) || (s.users || []).some(u => nrm((u.email || '').split('@')[1]?.split('.')[0]) === dom));
+    if (s) return s.id;
+  }
+  return '';
+}
+function preremplirDepuisDevis(d, tout) {
+  const mettre = (id, v) => { if (v && (tout || !$(id).value.trim())) $(id).value = v; };
+  mettre('chNom', d.client.replace(/^syndicat des copropri[ée]taires\s+(de\s+|du\s+|des\s+)?/i, '').trim()); mettre('chAdresse', d.adresse); mettre('chCp', d.cp); mettre('chVille', d.ville); mettre('chReference', d.numero);
+  const sid = syndicDuDevis(d.emails); if (sid && (tout || !$('chSyndic').value)) $('chSyndic').value = sid;
+  if (tout || !A.edition) {
+    $('chTravaux').value = d.interphone && d.vigik ? 'interphone_vigik' : d.vigik && !d.interphone ? 'vigik' : 'interphone';
+    if (MARQUES_INTERPHONE.includes(d.marque) && d.interphone) $('chMarqueInterphone').value = d.marque;
+    if (MARQUES_VIGIK.includes(d.marque) && d.vigik) $('chMarqueVigik').value = d.marque;
+    rendreAccesPortail();
+  }
+  const vus = [d.client && 'copropriété « ' + d.client + ' »', d.adresse && 'adresse ' + [d.adresse, d.cp, d.ville].join(' '), d.numero && 'devis ' + d.numero,
+    d.appartements && d.appartements + ' appartements', d.marque && 'marque ' + d.marque, sid ? 'syndic ' + nomSyndic(sid) : d.emails.length && 'syndic non reconnu (' + d.emails.join(', ') + ')'].filter(Boolean);
+  $('chDevisLu').className = 'message'; $('chDevisLu').textContent = vus.length ? 'Repris du devis : ' + vus.join(' • ') + '. Vérifiez avant d’enregistrer.' : 'Rien n’a pu être lu dans ce devis : complétez à la main.';
+}
+
 async function deposerDevis(f) {
   if (!f) return;
   if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') return msg('chMessage', 'Le devis doit être un PDF.', true);
   if (f.size > 20 * 1048576) return msg('chMessage', 'PDF trop lourd (20 Mo au plus).', true);
   const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
   const chemin = `emargement/devis/${cle}.pdf`;
-  $('chDevisChoisir').disabled = true; msg('chMessage', 'Envoi du devis…', false);
+  $('chDevisChoisir').disabled = true; msg('chMessage', 'Lecture du devis…', false);
+  let extrait = null;
+  try { extrait = await lireDevis(new Uint8Array(await f.arrayBuffer())); preremplirDepuisDevis(extrait, !A.edition); }
+  catch (e) { $('chDevisLu').className = 'message erreur'; $('chDevisLu').textContent = 'Lecture du devis impossible : complétez à la main.'; }
+  msg('chMessage', 'Envoi du devis…', false);
   try {
     const rep = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST',
       headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/pdf' }, body: f });
     if (!rep.ok) throw new Error();
-    A.devis = { url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, nom: f.name, taille: f.size, depose_le: new Date().toISOString() };
+    A.devis = { url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, nom: f.name, taille: f.size, depose_le: new Date().toISOString(), extrait };
     rendreDevis(); msg('chMessage', 'Devis déposé : pensez à « Enregistrer ».', false);
   } catch { msg('chMessage', 'Le devis n’a pas pu être envoyé. Vérifiez la connexion puis réessayez.', true); }
   finally { $('chDevisChoisir').disabled = false; $('chDevis').value = ''; }
@@ -510,7 +593,7 @@ async function ouvrirFormChantier(c) {
   $('chMarqueInterphone').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_INTERPHONE.map(m => `<option>${m}</option>`).join('');
   $('chMarqueVigik').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_VIGIK.map(m => `<option>${m}</option>`).join('');
   $('chMarqueInterphone').value = c?.marque_interphone || ''; $('chMarqueVigik').value = c?.marque_vigik || '';
-  A.devis = c?.devis?.url ? { ...c.devis } : {}; rendreDevis();
+  A.devis = c?.devis?.url ? { ...c.devis } : {}; rendreDevis(); $('chDevisLu').textContent = '';
   A.vigik = JSON.parse(JSON.stringify(c?.vigik?.portes?.length ? c.vigik : { portes: ['Porte d’entrée'], autorisations: [{ nom: '', portes: [0] }] }));
   rendreAccesPortail();
   await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';

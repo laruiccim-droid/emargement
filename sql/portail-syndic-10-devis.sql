@@ -5,7 +5,8 @@
 --
 -- Le PDF du devis est déposé à la création (ou modification) du chantier dans le portail admin.
 -- Il reste disponible pour la suite : prix du sondage des copropriétaires, bons de commande, facturation.
--- devis = { url, nom, taille, depose_le }   ({} : aucun devis)
+-- devis = { url, nom, taille, depose_le, extrait }   ({} : aucun devis) ; extrait = ce que le portail a lu dans le PDF
+-- (client, adresse, n° de devis, date, nombre d'appartements, marque, e-mails). Le script peut être relancé sans risque.
 -- =====================================================================================
 
 alter table public.ps_copros add column if not exists devis jsonb not null default '{}'::jsonb;
@@ -18,7 +19,8 @@ declare v_id uuid := nullif(p->>'id', '')::uuid; v_ancien uuid;
   v_vigik jsonb := case when jsonb_typeof(p->'vigik') = 'object' then p->'vigik' else '{"portes": [], "autorisations": []}'::jsonb end;
   v_devis jsonb := case when jsonb_typeof(p->'devis') = 'object' and coalesce(p->'devis'->>'url', '') like 'https://%' then
       jsonb_build_object('url', p->'devis'->>'url', 'nom', left(coalesce(p->'devis'->>'nom', 'devis.pdf'), 200),
-        'taille', coalesce(nullif(p->'devis'->>'taille', '')::bigint, 0), 'depose_le', coalesce(p->'devis'->>'depose_le', now()::text))
+        'taille', coalesce(nullif(p->'devis'->>'taille', '')::bigint, 0), 'depose_le', coalesce(p->'devis'->>'depose_le', now()::text),
+        'extrait', case when jsonb_typeof(p->'devis'->'extrait') = 'object' then p->'devis'->'extrait' else '{}'::jsonb end)
     else '{}'::jsonb end;
   v_mi text; v_mv text;
 begin
