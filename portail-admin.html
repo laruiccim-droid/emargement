@@ -119,6 +119,15 @@
       <ul class="liste" id="caRattacherAdmin"></ul>
       <ul class="liste" id="caPlanningAdmin"></ul>
     </div>
+    <div class="bloc" id="dEmargement" hidden>
+      <h2>Émargement et facturation</h2>
+      <p class="aide" style="margin-top:0" id="emInfo"></p>
+      <div class="actions" id="emActions"></div>
+      <ul class="liste" id="emListe"></ul>
+      <div id="emFacture" style="margin-top:14px"></div>
+      <input type="file" id="emFichierFacture" accept="application/pdf,.pdf" hidden>
+      <p class="message" id="emMsg"></p>
+    </div>
     <div class="bloc" id="dRecensement" hidden>
       <h2>Recensement et sondage (espace syndic)</h2>
       <p class="aide" id="dRecInfo" style="margin-top:0"></p>
@@ -267,7 +276,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=13"></script>
+<script src="portail-commun.js?v=14"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -672,6 +681,142 @@ $('formChantier').onsubmit = async e => {
   } catch {}
 };
 
+// ---------- Émargement (app d'émargement) et facturation ----------
+// Les appartements du portail deviennent les logements d'un chantier de l'app (identifiant « P » + id du portail) ;
+// l'émargement fait dans l'app est ensuite relu et reporté sur chaque appartement.
+const EM = { c: null, app: null };
+const MARQUE_CENTRALE = { Noralsy: 'Noralsy EasyConnect', Intratone: 'Intratone' };
+async function lireChantierApp(id) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: entetesApp() });
+  if (!r.ok) throw new Error('lecture');
+  return (await r.json())[0]?.payload || null;
+}
+async function ecrireChantierApp(payload) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/emargements`, { method: 'POST', headers: { ...entetesApp(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ id: payload.id, payload }) });
+  if (!r.ok) throw new Error('écriture ' + r.status);
+}
+const dateLocale = t => new Date(t).toLocaleDateString('sv-SE');
+const heureLocale = t => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+// Champs d'un logement de l'app tirés du recensement, du bon de commande et du rendez-vous.
+function champsLogementApp(l) {
+  const k = l.commande, r = l.rdv, lignes = k?.lignes || [];
+  const postes = lignes.filter(x => x.type === 'combine' || x.type === 'moniteur');
+  const nbBadges = lignes.filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0);
+  const proprio = k ? [k.prenom, k.nom].filter(Boolean).join(' ') : l.nom;
+  const occupant = r ? [r.prenom, r.nom].filter(Boolean).join(' ') : proprio;
+  const champs = {
+    porte: l.numero || '', nomAffiche: (k?.nom || l.nom || '').toUpperCase(), nomListing: l.nom || '', occupant,
+    tel: r?.telephone || k?.telephone || l.telephone || '', email: r?.email || k?.email || (l.emails || [])[0] || '',
+    proprietaire: r?.qualite === 'locataire' ? proprio : '', emailProprio: r?.qualite === 'locataire' ? (k?.email || (l.emails || [])[0] || '') : '',
+    modele: postes.map(x => (x.qte > 1 ? x.qte + ' × ' : '') + `${x.marque || ''} ${x.ref} · ${x.nom}`.trim()).join(' + '),
+    plaque: lignes.some(x => x.type === 'plaque'), badgesPrevu: nbBadges || null,
+    observations: [l.lot && 'Lot ' + l.lot, k?.qualite === 'bailleur' && 'Propriétaire bailleur'].filter(Boolean).join(' • '),
+    bonCommande: k?.numero || '',
+  };
+  if (r) { champs.rdvDate = dateLocale(r.debut); champs.rdvHeure = heureLocale(r.debut); }
+  return champs;
+}
+function logementApp(l) {
+  const base = { id: 'P' + l.id, batiment: '', etage: '', porte: '', nomAffiche: '', occupant: '', tel: '', email: '', rdvDate: '', rdvHeure: '', modele: '', plaque: false,
+    badgesPrevu: null, badges: [], observations: '', statut: 'afaire', prevenuLe: null, signataire: '', sigClient: '', signeLe: null, absentLe: null, numeroBon: '',
+    proprietaire: '', badgesProprio: [] };
+  if (l.type !== 'logement') return { ...base, occupant: l.nom, horsLogement: true, badgesPrevu: l.badges || null, badges: Array(l.badges || 0).fill('') };
+  const ch = champsLogementApp(l);
+  return { ...base, ...ch, badges: Array(ch.badgesPrevu || 0).fill('') };
+}
+async function creerOuMajChantierApp() {
+  const c = EM.c;
+  let prep; try { prep = await appel('ps_admin_preparation_app', { p_copro: c.id }, 'emMsg'); } catch { return; }
+  const p = prep.copro, s = prep.syndic || {};
+  const premierJour = (p.campagne?.jours || [])[0]?.date || new Date().toLocaleDateString('sv-SE');
+  let app = p.chantier_id ? await lireChantierApp(p.chantier_id).catch(() => null) : null;
+  if (p.chantier_id && !app && !entetesApp()['x-harmonie-cle']) return msg('emMsg', 'Saisissez d’abord le code d’accès dans l’app d’émargement sur cet appareil.');
+  const nouveau = !app;
+  if (nouveau) app = { id: p.chantier_id || 'CH_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), logements: [], technicien: 'LARUICCI Mathieu' };
+  Object.assign(app, {
+    residence: p.nom, adresse: [p.adresse, [p.cp, p.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), reference: p.reference || app.reference || '',
+    donneur: s.nom || app.donneur || '', donneurEmail: s.email || app.donneurEmail || '', date: app.date || premierJour,
+    marque: p.marque_interphone || app.marque || '', typeTravaux: p.travaux, centrale: p.travaux === 'interphone' ? '' : (MARQUE_CENTRALE[p.marque_vigik] || (p.marque_vigik ? 'Autre' : '')),
+    copropriete: app.copropriete || p.nom, portailCopro: p.id, modifieLe: Date.now(),
+  });
+  if (p.travaux !== 'interphone' && p.vigik?.portes?.length && !app.vigik) app.vigik = p.vigik;
+  let ajoutes = 0, maj = 0;
+  for (const l of prep.logements) {
+    const ex = app.logements.find(x => x.id === 'P' + l.id);
+    if (!ex) { app.logements.push(logementApp(l)); ajoutes++; continue; }
+    if (ex.statut !== 'afaire' || l.type !== 'logement') continue; // déjà émargé : on ne touche à rien
+    const ch = champsLogementApp(l);
+    if (!ch.rdvDate) { delete ch.rdvDate; delete ch.rdvHeure; }
+    Object.assign(ex, ch);
+    if (ch.badgesPrevu && ex.badges.length < ch.badgesPrevu) ex.badges = [...ex.badges, ...Array(ch.badgesPrevu - ex.badges.length).fill('')];
+    maj++;
+  }
+  try { await ecrireChantierApp(app); }
+  catch { return msg('emMsg', 'Écriture dans l’app impossible : vérifiez le code d’accès de l’app sur cet appareil.'); }
+  if (nouveau || p.chantier_id !== app.id) await appel('ps_admin_lier_app', { p_copro: c.id, p_chantier: app.id });
+  chantiersApp = null;
+  toast(nouveau ? `Chantier créé dans l’app : ${ajoutes} logements.` : `Chantier de l’app mis à jour (${ajoutes} ajoutés, ${maj} actualisés).`);
+  await charger(); ouvrirChantier(c.id);
+}
+async function rendreEmargementAdmin(c) {
+  $('dEmargement').hidden = c.type !== 'complet';
+  if (c.type !== 'complet') return;
+  EM.c = c; EM.app = null; msg('emMsg', '');
+  const lie = !!c.chantier_id;
+  $('emActions').innerHTML = `<button type="button" class="btn ${lie ? '' : 'btn-or'}" id="emCreer">${lie ? 'Mettre à jour le chantier de l’app' : 'Créer le chantier dans l’app d’émargement'}</button>`
+    + (lie ? ' <a class="btn btn-discret" href="index.html">Ouvrir l’app d’émargement</a>' : '');
+  $('emCreer').onclick = async () => { $('emCreer').disabled = true; try { await creerOuMajChantierApp(); } finally { $('emCreer').disabled = false; } };
+  $('emListe').innerHTML = '';
+  if (!lie) {
+    $('emInfo').textContent = 'Créez le chantier dans l’app d’émargement : les appartements, propriétaires, occupants, modèles choisis, plaques, badges et rendez-vous y sont repris. L’app génère ensuite la feuille d’émargement, la codification et l’affichage interphone.';
+    rendreFactureAdmin(c, 0, 0); return;
+  }
+  // Relecture de l'émargement de l'app et report sur les appartements.
+  try { EM.app = await lireChantierApp(c.chantier_id); } catch {}
+  if (A.copro !== c.id) return;
+  if (!EM.app) { $('emInfo').textContent = 'Chantier de l’app introuvable ou code d’accès de l’app absent sur cet appareil.'; rendreFactureAdmin(c, 0, 0); return; }
+  const lgs = EM.app.logements.filter(l => l.id?.startsWith('P') && !l.horsLogement);
+  const items = lgs.map(l => ({ logement_id: l.id.slice(1), statut: l.statut === 'signe' ? 'signe' : l.statut === 'absent' ? 'absent' : '',
+    signe_le: l.signeLe ? new Date(l.signeLe).toISOString() : null, absent_le: l.absentLe ? new Date(l.absentLe).toISOString() : null,
+    bon: l.numeroBon || '', bon_url: l.bonUrl || '', signataire: l.signataire || '' }));
+  let res = null; try { res = await appel('ps_admin_emargement_maj', { p_copro: c.id, p_items: items }); } catch {}
+  const signes = lgs.filter(l => l.statut === 'signe'), absents = lgs.filter(l => l.statut === 'absent');
+  $('emInfo').textContent = `${signes.length} / ${lgs.length} appartements émargés${absents.length ? ` • ${absents.length} absent${absents.length > 1 ? 's' : ''}` : ''} (chantier ${EM.app.residence || c.chantier_id} de l’app).`;
+  $('emListe').innerHTML = lgs.map(l => `<li><div class="principal"><b>Appt ${esc(l.porte || '?')} — ${esc(l.occupant || l.nomAffiche || '')}</b>
+    <div class="sous">${esc(l.modele || '')}${l.rdvDate ? ' • rendez-vous ' + esc(dateCourte(l.rdvDate)) + (l.rdvHeure ? ' ' + esc(l.rdvHeure) : '') : ''}</div></div>
+    <div class="droite">${l.statut === 'signe' ? `<span class="pastille ok">Émargé ${esc(dateCourte(l.signeLe))}</span>${l.bonUrl ? ` <a class="btn btn-petit" href="${esc(l.bonUrl)}" target="_blank" rel="noopener">Bon ${esc(l.numeroBon)}</a>` : ''}`
+      : l.statut === 'absent' ? '<span class="pastille attente">Absent</span>' : '<span class="pastille">À faire</span>'}</div></li>`).join('');
+  if (res && res.emarges !== (c.nb_emarges ?? -1)) { const e = A.etat.copros.find(x => x.id === c.id); if (e) e.nb_emarges = res.emarges; }
+  rendreFactureAdmin(c, signes.length, lgs.length);
+}
+function rendreFactureAdmin(c, nbSignes, nbTotal) {
+  const f = c.facture || {};
+  const pret = c.etat === 'attente_facturation' || c.etat === 'facture' || (nbTotal && nbSignes >= nbTotal);
+  $('emFacture').innerHTML = f.url
+    ? `<span class="pastille ok">Facturé — chantier terminé</span> <a class="btn btn-petit" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.nom || 'Facture')}</a> <button type="button" class="btn btn-petit btn-discret" id="emRetirerFacture">Retirer la facture</button>`
+    : pret ? `<span class="pastille attente">Installation terminée, en attente de facturation</span> <button type="button" class="btn btn-or" id="emDeposerFacture">Déposer la facture (PDF)</button>`
+    : `<span class="aide">La facture se dépose quand tous les appartements sont émargés${nbTotal ? ` (${nbSignes} / ${nbTotal})` : ''}.</span> <button type="button" class="btn btn-petit btn-discret" id="emDeposerFacture">Déposer quand même</button>`;
+  if ($('emDeposerFacture')) $('emDeposerFacture').onclick = () => $('emFichierFacture').click();
+  if ($('emRetirerFacture')) $('emRetirerFacture').onclick = async () => {
+    if (!confirm('Retirer la facture ? Le chantier repasse « en attente de facturation ».')) return;
+    try { await appel('ps_admin_facture', { p_copro: c.id, p: {} }); await charger(); ouvrirChantier(c.id); } catch {}
+  };
+}
+$('emFichierFacture').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !EM.c) return;
+  if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') return msg('emMsg', 'La facture doit être un PDF.');
+  const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+  const chemin = `emargement/factures/${cle}.pdf`;
+  msg('emMsg', 'Envoi de la facture…', false);
+  try {
+    const rep = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/pdf' }, body: f });
+    if (!rep.ok) throw new Error();
+    await appel('ps_admin_facture', { p_copro: EM.c.id, p: { url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, nom: f.name, taille: f.size } }, 'emMsg');
+    toast('Facture déposée : chantier facturé.'); await charger(); ouvrirChantier(EM.c.id);
+  } catch { msg('emMsg', 'La facture n’a pas pu être envoyée.'); }
+};
+
 // ---------- Commande du matériel au fournisseur ----------
 const FO = { lignes: [], manquants: 0, copro: null };
 async function rendreFournitureAdmin(c) {
@@ -878,7 +1023,7 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreFournitureAdmin(c); rendreCampagneAdmin(c);
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreFournitureAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));

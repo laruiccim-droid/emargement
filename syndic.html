@@ -434,7 +434,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=13"></script>
+<script src="portail-commun.js?v=14"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -675,7 +675,10 @@ function rendreCampagne() {
   const CAN = { email: 'e-mail', sms: 'SMS', qr: 'QR code' };
   $('caListe').innerHTML = lg.map(l => {
     const bailleur = l.commande?.qualite === 'bailleur', tel = l.commande?.telephone || l.telephone, mails = [l.commande?.email, ...(l.emails || [])].filter(Boolean);
-    const etat = l.rdv ? `<span class="pastille ok">Rendez-vous ${esc(fmtJourCourt(l.rdv.debut))} à ${esc(fmtH(l.rdv.debut))}</span> ${esc(l.rdv.prenom + ' ' + l.rdv.nom)}${l.rdv.qualite === 'locataire' ? ' (locataire)' : ''}`
+    const em = l.emarge || {};
+    const etat = em.statut === 'signe' ? `<span class="pastille ok">Installé le ${esc(dateCourte(em.signe_le))}</span>${em.bon_url ? ` <a href="${esc(em.bon_url)}" target="_blank" rel="noopener">bon ${esc(em.bon || '')}</a>` : ''}`
+      : em.statut === 'absent' ? '<span class="pastille attente">Absent le jour de l’intervention</span>'
+      : l.rdv ? `<span class="pastille ok">Rendez-vous ${esc(fmtJourCourt(l.rdv.debut))} à ${esc(fmtH(l.rdv.debut))}</span> ${esc(l.rdv.prenom + ' ' + l.rdv.nom)}${l.rdv.qualite === 'locataire' ? ' (locataire)' : ''}`
       : bailleur ? '<span class="pastille">Bailleur : le locataire prend rendez-vous par l’affiche</span>'
       : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé le ${esc(dateCourte(l.rdv_invite_le))} (${esc(CAN[l.rdv_invite_canal] || l.rdv_invite_canal)})` : 'Lien pas encore envoyé'}</span>`;
     return `<li><div class="principal"><b>Appt ${esc(l.numero)} — ${esc(l.nom || '')}</b><div class="sous">${etat}</div></div>

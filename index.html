@@ -830,7 +830,7 @@ dialog.scan:not([open]) { display: none; }
     <div class="sourcil" id="docSourcil">Bon d’intervention</div>
     <h3 id="docTitre">Document prêt</h3>
     <ul class="recap" id="docRecap"></ul>
-    <div class="champ" style="margin-top:14px"><label for="docDest">Envoyer à</label><input type="email" id="docDest" inputmode="email" placeholder="adresse e-mail"></div>
+    <div class="champ" style="margin-top:14px"><label for="docDest">Envoyer à</label><input type="email" id="docDest" inputmode="email" multiple placeholder="adresse e-mail (plusieurs : séparez par une virgule)"></div>
     <p class="aide" id="docAide"></p>
     <div class="dlg-actions">
       <button type="button" class="btn btn-discret" id="docFermer">Fermer</button>
@@ -1772,13 +1772,23 @@ function totaux() {
 const nomFichier = s => s.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim() + '.pdf';
 let docCourant = null;
 
+// Chantier venu du portail syndic : le bon signé est déposé en ligne, le portail l'attache à l'appartement.
+async function deposerBon(l, blob) {
+  if (!etat.portailCopro || l.statut !== 'signe' || !l.numeroBon || (l.bonUrl || '').includes(l.numeroBon)) return;
+  const chemin = `emargement/bons/${etat.id}/${l.id}-${l.numeroBon}.pdf`;
+  try {
+    const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/pdf', 'x-upsert': 'true' }, body: blob });
+    if (r.ok) { l.bonUrl = `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`; sauver(); }
+  } catch {} // hors ligne : nouvel essai à la prochaine ouverture du bon
+}
 async function proposerBon(l) {
   const blob = await pdfBon(l), n = noticePour(l.modele);
+  deposerBon(l, blob);
   const d = {
     blob, nom: nomFichier(`Bon d'intervention ${l.numeroBon} - ${etat.residence} - ${lieu(l)}`),
     sourcil: 'Bon d’intervention • ' + l.numeroBon, titre: l.nomAffiche || l.occupant,
     recap: [['Matériel', l.modele || '—'], ['Plaque', l.plaque ? 'Oui' : 'Non'], ['Badges', l.badges.length], ['Signé par', l.signataire || '—'], ['Le', horodatage(l.signeLe)]],
-    dest: l.email,
+    dest: [...new Set([l.email, l.emailProprio].filter(Boolean))].join(', '), // locataire + propriétaire bailleur
     objet: `Bon d'intervention ${l.numeroBon} — ${etat.residence} — Harmonie Électricité`,
     texte: `Madame, Monsieur,\n\nSuite à notre intervention du ${dateFr(etat.date)} au ${lieu(l)} de la résidence ${etat.residence}, veuillez trouver ci-joint votre bon d'intervention signé.\n\nMatériel posé : ${l.modele || 'combiné / moniteur'}${l.plaque ? ', plaque' : ''}.\nBadges remis : ${l.badges.length}${l.badges.length ? ' (' + l.badges.filter(Boolean).join(', ') + ')' : ''}.\n\nNous restons à votre disposition.\n\nCordialement,\n${etat.technicien}\nHarmonie Électricité\n06 31 13 47 01`,
     apres: apresBon,
@@ -1839,7 +1849,8 @@ async function envoiGmail(dest, objet, texte, blob, nom) {
 }
 $('docEnvoyer').onclick = async () => {
   const d = docCourant, dest = $('docDest').value.trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dest)) { $('docDest').focus(); return toast('Indiquez une adresse e-mail valide.'); }
+  // Une ou plusieurs adresses séparées par des virgules (locataire et propriétaire).
+  if (!dest.split(/\s*[,;]\s*/).every(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) { $('docDest').focus(); return toast('Indiquez une adresse e-mail valide.'); }
   if (d.surDest) d.surDest(dest);
   const fichier = new File([d.blob], d.nom, { type: 'application/pdf' });
   if (ENVOI_GMAIL_URL) {
@@ -3006,7 +3017,7 @@ function pdfReception() {
   y = titreBloc(doc, M, y, 'Travaux réceptionnés', W - 2 * M);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...ENCRE);
   // L'objet saisi pour les SMS s'adresse à l'occupant (« votre combiné ») : on garde une formule neutre dans ce cas.
-  const objet = etat.objet && !/(votre|vos)/i.test(etat.objet) ? etat.objet.charAt(0).toUpperCase() + etat.objet.slice(1) : 'Remplacement des postes intérieurs d’interphone';
+  const objet = etat.objet && !/\b(votre|vos)\b/i.test(etat.objet) ? etat.objet.charAt(0).toUpperCase() + etat.objet.slice(1) : 'Remplacement des postes intérieurs d’interphone';
   const travaux = [`${objet}.`, `Logements équipés : ${t.signes} sur ${t.total} (${t.combines} combiné${t.combines > 1 ? 's' : ''}, ${t.moniteurs} moniteur${t.moniteurs > 1 ? 's' : ''}, ${t.plaques} plaque${t.plaques > 1 ? 's' : ''} de propreté).`,
     `Badges d’accès remis : ${t.badges}${etat.logements.some(l => badgesProprietaire(l).length) ? `, dont ${etat.logements.reduce((n, l) => n + badgesProprietaire(l).length, 0)} confiés au donneur d’ordre pour les propriétaires` : ''}.`,
     ...(boutonsChantier().size ? [`Platine de rue : ${platine().boutons} boutons d’appel numérotés et programmés, fiche de correspondance fournie.`] : [])];

@@ -194,13 +194,15 @@ const PS = (() => {
   const lienSignature = jeton => urlPage('signer-badges.html') + '?t=' + jeton;
   const QUALITES = { proprietaire: 'Propriétaire', locataire: 'Locataire', autre: 'Autre' };
   const ETATS = { commence: 'Commencé', livres: 'Badges livrés au syndic', distribution: 'Distribution en cours', recensement: 'Recensement en cours',
-    recensement_termine: 'Recensement terminé', commande: 'Matériel commandé', installation: 'Installation en cours', reserves: 'Réserves à lever', termine: 'Terminé' };
+    recensement_termine: 'Recensement terminé', commande: 'Matériel commandé', installation: 'Installation en cours', reserves: 'Réserves à lever',
+    attente_facturation: 'Installation terminée, en attente de facturation', facture: 'Facturé, chantier terminé', termine: 'Terminé' };
   // ---------- Avancement d'un chantier : étapes, étape en cours, pourcentage ----------
   // Chaque étape vaut de 0 à 1 (fraction pour les étapes « x sur n ») ; le pourcentage est la moyenne.
   function avancement(c) {
     const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, camp = c.campagne || {}, fo = c.fourniture || {}, etat = c.etat || 'commence';
     const apres = (...e) => e.includes(etat);
-    const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, ni = Math.max(c.nb_invites || 0, nc), nr = c.nb_rdv || 0;
+    const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, ni = Math.max(c.nb_invites || 0, nc), nr = c.nb_rdv || 0, ne = c.nb_emarges || 0;
+    const fini = apres('attente_facturation', 'facture', 'termine'), facture = !!(c.facture || {}).url || apres('facture', 'termine');
     const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
     const pl = (x, mot) => `${x} ${mot}${x > 1 ? 's' : ''}`;
     const badges = { cle: 'badges', titre: 'Remise des badges', fait: k.livres > 0 && k.remis >= k.livres ? 1 : k.livres ? k.remis / k.livres : 0,
@@ -213,7 +215,7 @@ const PS = (() => {
         { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
       ];
     } else {
-      const commande = apres('commande', 'installation', 'reserves', 'termine'), surSite = apres('installation', 'reserves', 'termine');
+      const commande = apres('commande', 'installation', 'reserves', 'attente_facturation', 'facture', 'termine'), surSite = apres('installation', 'reserves', 'attente_facturation', 'facture', 'termine');
       E = [
         { cle: 'etiquettes', titre: 'Étiquettes de numérotation (validées par Harmonie)', fait: rec.etiquettes_le ? 1 : 0,
           attente: 'En attente de la pose des étiquettes de numérotation des appartements (validation Harmonie)' },
@@ -229,18 +231,19 @@ const PS = (() => {
           attente: 'Planification de la campagne d’information : date d’intervention et feuille d’affichage' },
         { cle: 'rdv', titre: 'Rendez-vous validés par tous les appartements', fait: surSite || (n && nr >= n) ? 1 : n ? nr / n : 0,
           enCours: `Rendez-vous : ${nr} / ${n} appartements`, attente: 'En attente des rendez-vous des copropriétaires et locataires' },
-        { cle: 'installation', titre: 'Installation', fait: apres('reserves', 'termine') ? 1 : etat === 'installation' ? 0.5 : 0,
-          enCours: 'Installation en cours', attente: 'En attente de l’installation' },
+        { cle: 'installation', titre: 'Installation et émargement', fait: fini || (n && ne >= n) ? 1 : n && ne ? ne / n : etat === 'installation' ? 0.1 : 0,
+          enCours: `Installation : ${ne} / ${n} appartements émargés`, attente: 'En attente de l’installation' },
       ];
       // Les badges sont souvent remis avant l'intervention : étape en parallèle, comptée dans le pourcentage.
       if (vigik) E.push({ ...badges, parallele: true });
-      E.push({ cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: etat === 'reserves' ? 'Réserves à lever' : 'Clôture du chantier' });
+      E.push({ cle: 'facture', titre: 'Facturé, chantier terminé', fait: facture ? 1 : 0,
+        attente: fini ? 'Installation terminée, en attente de facturation' : etat === 'reserves' ? 'Réserves à lever' : 'Facturation' });
     }
     E.forEach(e => { e.fait = Math.max(0, Math.min(1, +e.fait || 0)); });
     const suite = E.filter(e => !e.parallele), i = suite.findIndex(e => e.fait < 1), courante = i < 0 ? null : suite[i];
     const pc = Math.round(E.reduce((t, e) => t + e.fait, 0) / E.length * 100);
     const par = E.find(e => e.parallele && e.fait < 1 && k.livres > 0);
-    const libelle = (!courante ? 'Chantier terminé' : courante.fait > 0 && courante.enCours ? courante.enCours : courante.attente) + (par ? ' · ' + par.enCours : '');
+    const libelle = (!courante ? (c.type === 'complet' ? 'Facturé, chantier terminé' : 'Chantier terminé') : courante.fait > 0 && courante.enCours ? courante.enCours : courante.attente) + (par ? ' · ' + par.enCours : '');
     return { etapes: E, suite, index: i, courante, pc, libelle };
   }
   function friseHtml(c) {
