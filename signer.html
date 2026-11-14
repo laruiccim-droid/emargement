@@ -127,8 +127,9 @@ const horodatage = ts => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', 
 async function charger() {
   if (!/^[0-9a-f]{32}$/.test(jeton)) return erreur('Ce lien est incomplet. Ouvrez-le à nouveau depuis le message reçu, ou contactez-nous au 06 31 13 47 01.');
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${idDemande}`, { headers: SB });
-    demande = r.ok ? (await r.json())[0]?.payload : null;
+    // Fonction qui n'ouvre que la demande de ce lien (la table n'est plus lisible directement).
+    const r = await fetch(`${SUPA_URL}/rest/v1/rpc/em_sig_lire`, { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_jeton: jeton }) });
+    demande = r.ok ? await r.json() : null;
   } catch { return erreur('Connexion impossible. Vérifiez votre réseau puis rouvrez le lien.'); }
   if (!demande) return erreur('Ce lien n’est plus valide : la demande a été annulée. Contactez-nous au 06 31 13 47 01.');
   if (demande.statut === 'signe') {
@@ -196,11 +197,12 @@ $('signer').onclick = async () => {
   if (!$('nom').value.trim()) { $('nom').focus(); return message('Indiquez le nom du signataire.', true); }
   if (pad.estVide()) return message('Signez dans le cadre blanc.', true);
   $('signer').disabled = true; message('Envoi de la signature…');
-  const signee = { ...demande, statut: 'signe', signature: pad.image(), signataire: $('nom').value.trim(), signeLe: Date.now(), navigateur: navigator.userAgent };
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?id=eq.${idDemande}`, {
-      method: 'PATCH', headers: { ...SB, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ payload: signee }),
+    const r = await fetch(`${SUPA_URL}/rest/v1/rpc/em_sig_signer`, {
+      method: 'POST', headers: { ...SB, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_jeton: jeton, p_signataire: $('nom').value.trim(), p_signature: pad.image(), p_navigateur: navigator.userAgent }),
     });
+    if (!r.ok && /DEJA_SIGNE/.test(await r.text())) { $('merciTexte').textContent = 'Ce bon a déjà été signé. Vous recevrez le bon signé par e-mail.'; return montrer('merci'); }
     if (!r.ok) throw new Error();
     montrer('merci'); window.scrollTo({ top: 0 });
   } catch {

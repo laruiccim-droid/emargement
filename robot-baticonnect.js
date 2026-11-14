@@ -11,7 +11,8 @@
   if (document.getElementById('he-robot')) { document.getElementById('he-robot').style.display = 'block'; return; }
 
   const SUPA = 'https://bqzebkobyfktemnwfwbt.supabase.co/rest/v1/emargements', CLE = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
-  const ENTETES = { apikey: CLE, Authorization: 'Bearer ' + CLE };
+  // Code d'accès de l'app, mis dans le favori par l'app d'émargement.
+  const ENTETES = { apikey: CLE, Authorization: 'Bearer ' + CLE, 'x-harmonie-cle': window.HE_CLE || '' };
   const STOCK = 'Stock syndic', NETTOYAGE = 'Entreprise de nettoyage';
   const pause = ms => new Promise(r => setTimeout(r, ms));
   const visible = e => !!e && e.offsetParent !== null;

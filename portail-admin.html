@@ -360,11 +360,17 @@ function rendreChantiers() {
 }
 $('chRecherche').oninput = rendreChantiers;
 
+// Lecture des chantiers de l'app : avec le code d'accès saisi dans l'app sur cet appareil.
+function entetesApp() {
+  const h = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY };
+  try { const k = localStorage.getItem('he.cle-app'); if (k) h['x-harmonie-cle'] = k; } catch {}
+  return h;
+}
 let chantiersApp = null;
 async function listeChantiersApp() {
   if (chantiersApp) return chantiersApp;
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=id,residence:payload->>residence,reference:payload->>reference&id=like.CH_*&order=created_at.desc`, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
+    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=id,residence:payload->>residence,reference:payload->>reference&id=like.CH_*&order=created_at.desc`, { headers: entetesApp() });
     chantiersApp = r.ok ? await r.json() : [];
   } catch { chantiersApp = []; }
   return chantiersApp;
@@ -570,7 +576,7 @@ $('lvEffacer').onclick = () => lvPad.effacer();
 $('lvChantierApp').onchange = async e => {
   const id = e.target.value; if (!id) return;
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
+    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: entetesApp() });
     const p = r.ok ? (await r.json())[0]?.payload : null;
     const badges = (p?.logements || []).flatMap(l => (l.badges || []).filter(Boolean));
     if (!badges.length) { toast('Aucun n° de badge saisi dans ce chantier.'); return; }

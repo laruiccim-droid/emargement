@@ -665,6 +665,8 @@ $('exportPdf').onclick = async () => {
 const SUPA_URL = 'https://bqzebkobyfktemnwfwbt.supabase.co';
 const SUPA_KEY = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
 const SB = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY };
+// Code d'accès saisi dans l'app d'émargement (même appareil) : sans lui, la table est fermée.
+try { const k = localStorage.getItem('he.cle-app'); if (k) SB['x-harmonie-cle'] = k; } catch {}
 const TABLE = 'emargements';
 
 function afficherSync(genre, texte, titre) {

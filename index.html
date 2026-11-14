@@ -511,6 +511,21 @@ dialog.scan:not([open]) { display: none; }
 </dialog>
 
 <!-- Robot BatiConnect : favori à placer dans Chrome -->
+<dialog id="dlgCle">
+  <form class="dlg" id="formCle" method="dialog">
+    <div class="sourcil">Sécurité</div>
+    <h3>Code d’accès de l’app</h3>
+    <p id="cleTexte">Les chantiers ne sont plus lisibles sans ce code. Saisissez-le une fois sur cet appareil : il y reste mémorisé.</p>
+    <div class="champ"><label for="cleCode">Code d’accès</label><input type="password" id="cleCode" autocomplete="current-password" minlength="8" required></div>
+    <div id="cleCreation" hidden>
+      <div class="champ" style="margin-top:10px"><label for="cleCode2">Confirmez le code</label><input type="password" id="cleCode2" autocomplete="new-password"></div>
+      <div class="champ" style="margin-top:10px"><label for="cleAdmin">Mot de passe administrateur du portail</label><input type="password" id="cleAdmin" autocomplete="off"></div>
+    </div>
+    <p class="aide" id="cleMessage"></p>
+    <div class="dlg-actions"><button type="button" class="btn" id="cleFermer">Plus tard</button><button type="submit" class="btn btn-or" id="cleValider">Valider</button></div>
+  </form>
+</dialog>
+
 <dialog id="dlgRobot">
   <div class="dlg">
     <div class="sourcil">Centrale Vigik Noralsy</div>
@@ -796,6 +811,19 @@ const SUPA_URL = 'https://bqzebkobyfktemnwfwbt.supabase.co';
 const SUPA_KEY = 'sb_publishable_vh62KxFcG1NuLcnya6WpMg_oFRtY-2v';
 const SB = { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY };
 const TABLE = 'emargements';
+// Code d'accès de l'app (en-tête x-harmonie-cle) : sans lui, la table emargements est fermée.
+const CLE_CODE_APP = 'he.cle-app';
+try { const k = localStorage.getItem(CLE_CODE_APP); if (k) SB['x-harmonie-cle'] = k; } catch {}
+let cleValide = null; // null : pas encore vérifié (ou hors ligne) ; on n'efface alors aucune copie locale
+let cleDefinie = true;
+async function verifierCle() {
+  try {
+    const r = await fetch(SUPA_URL + '/rest/v1/rpc/em_cle_etat', { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json' }, body: '{}' });
+    if (r.status === 404) return (cleValide = true); // script de sécurité pas encore exécuté : table encore ouverte
+    if (!r.ok) return null;
+    const e = await r.json(); cleDefinie = !!e.definie; return (cleValide = !!e.valide);
+  } catch { return null; }
+}
 const ENVOI_GMAIL_URL = 'https://send-email-harmonie.harmonie-electricite.workers.dev';
 
 // Jeton Google de l'app (localStorage, sinon Supabase), comme dans bon.html.
@@ -2292,7 +2320,8 @@ async function chargerChantier(id) {
 async function supprimeEnLigne(id) {
   try {
     const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?select=id&id=eq.${encodeURIComponent(id)}`, { headers: SB });
-    return r.ok && (await r.json()).length === 0;
+    // Sans code d'accès valide la table paraît vide : surtout ne rien oublier.
+    return cleValide === true && r.ok && (await r.json()).length === 0;
   } catch { return false; } // hors ligne : on ne peut pas savoir, on garde
 }
 function oublierChantier(id) {
@@ -2330,7 +2359,7 @@ async function ouvrirChantiers() {
     if (r.ok) {
       const enLigne = await r.json(), ids = new Set(enLigne.map(c => c.id));
       // Copies locales d'un chantier supprimé en ligne, sans modification à envoyer : on les oublie.
-      for (const c of [...parId.values()]) if (c.local && !ids.has(c.id) && !c.aEnvoyer && c.id !== etat.id) { parId.delete(c.id); oublierChantier(c.id); }
+      if (cleValide === true) for (const c of [...parId.values()]) if (c.local && !ids.has(c.id) && !c.aEnvoyer && c.id !== etat.id) { parId.delete(c.id); oublierChantier(c.id); }
       for (const c of enLigne) parId.set(c.id, c);
     }
     else if (r.status === 404) $('alerteTable').hidden = false;
@@ -3289,7 +3318,8 @@ const CENTRALES = ['Noralsy EasyConnect', 'Noralsy (autre centrale)', 'Intratone
 document.querySelectorAll('.choix-centrale').forEach(sel => { sel.innerHTML = '<option value="">— Non précisée —</option>' + CENTRALES.map(m => `<option>${esc(m)}</option>`).join(''); });
 const estNoralsy = () => /^noralsy/i.test(etat.centrale || '');
 const URL_ROBOT = new URL('robot-baticonnect.js', location.href).href;
-const FAVORI_ROBOT = `javascript:(function(){var s=document.createElement('script');s.src='${URL_ROBOT}?v='+Date.now();document.body.appendChild(s);})();`;
+const CLE_ROBOT = (() => { try { return btoa(unescape(encodeURIComponent(localStorage.getItem(CLE_CODE_APP) || ''))); } catch { return ''; } })();
+const FAVORI_ROBOT = `javascript:(function(){window.HE_CLE=decodeURIComponent(escape(atob('${CLE_ROBOT}')));var s=document.createElement('script');s.src='${URL_ROBOT}?v='+Date.now();document.body.appendChild(s);})();`;
 function majVigik() {
   $('c-centrale').value = etat.centrale || '';
   $('blocNoralsy').hidden = !estNoralsy();
@@ -4089,8 +4119,46 @@ courantId = trier(etat.logements).find(l => l.statut === 'afaire')?.id || null;
 rendreTout();
 // App installable sur l'écran d'accueil, utilisable sans réseau.
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+// ---------- Code d'accès ----------
+function ouvrirCle(texte) {
+  $('cleCreation').hidden = cleDefinie;
+  $('cleCode').autocomplete = cleDefinie ? 'current-password' : 'new-password';
+  $('cleTexte').textContent = texte || (cleDefinie
+    ? 'Les chantiers ne sont plus lisibles sans ce code. Saisissez-le une fois sur cet appareil : il y reste mémorisé.'
+    : 'Premier réglage : choisissez le code d’accès de l’app (8 caractères au moins). Il protège les chantiers, les listings et les signatures. Vous le saisirez une fois sur chaque appareil.');
+  $('cleMessage').textContent = '';
+  ['cleCode', 'cleCode2', 'cleAdmin'].forEach(id => $(id).value = '');
+  if (!$('dlgCle').open) $('dlgCle').showModal();
+}
+$('cleFermer').onclick = () => $('dlgCle').close();
+$('formCle').onsubmit = async e => {
+  e.preventDefault();
+  const code = $('cleCode').value;
+  const dire = t => { $('cleMessage').textContent = t; };
+  if (code.length < 8) return dire('8 caractères au moins.');
+  $('cleValider').disabled = true;
+  try {
+    if (!cleDefinie) {
+      if (code !== $('cleCode2').value) return dire('Les deux codes sont différents.');
+      if (!$('cleAdmin').value) return dire('Saisissez le mot de passe administrateur du portail.');
+      const r = await fetch(SUPA_URL + '/rest/v1/rpc/em_cle_definir', { method: 'POST', headers: { ...SB, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_admin: $('cleAdmin').value, p_cle: code }) });
+      if (!r.ok) return dire(/ADMIN_REFUSE/.test(await r.text()) ? 'Mot de passe administrateur incorrect.' : 'Enregistrement impossible : réessayez.');
+    }
+    SB['x-harmonie-cle'] = code;
+    const ok = await verifierCle();
+    if (ok === null) return dire('Pas de connexion : réessayez une fois en ligne.');
+    if (!ok) { delete SB['x-harmonie-cle']; return dire('Code incorrect.'); }
+    try { localStorage.setItem(CLE_CODE_APP, code); } catch {}
+    toast('Code enregistré sur cet appareil.');
+    setTimeout(() => location.reload(), 600);
+  } finally { $('cleValider').disabled = false; }
+};
+const controleCle = verifierCle().then(ok => { if (ok === false) ouvrirCle(); return ok; });
+
 if (!stock.lire(CLE_COURANT)) ouvrirChantiers();
 else if (!etat.exemple) (async () => {
+  if (await controleCle !== true) return; // hors ligne ou sans code : on garde tout tel quel
   if (!etat.aEnvoyer && await supprimeEnLigne(etat.id)) {
     // Le chantier ouvert a été supprimé (depuis un autre appareil) : on l'oublie et on propose la liste.
     oublierChantier(etat.id); etat = chantierVide(); courantId = null; rendreTout();
