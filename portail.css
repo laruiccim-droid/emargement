@@ -43,7 +43,7 @@ h3 { margin: 0; font-weight: 400; font-size: 19px; color: var(--he-white); }
 
 label, .lab { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey-300); margin: 12px 0 6px; }
 .grille-2 label { margin-top: 4px; }
-input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search], input[type=number], select, textarea {
+input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search], input[type=number], input[type=date], input[type=time], select, textarea {
   width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 4px; border: 1px solid var(--border-subtle); background: var(--ink-800); color: var(--he-white); font-size: 16px; }
 textarea { min-height: 90px; resize: vertical; line-height: 1.4; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--he-gold); box-shadow: var(--glow-gold-sm); }

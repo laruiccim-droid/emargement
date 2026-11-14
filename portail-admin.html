@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=5">
+<link rel="stylesheet" href="portail.css?v=6">
 <style>
   .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
@@ -83,6 +83,42 @@
     <div id="dFrise"></div>
     <div class="actions" id="dJalons"></div>
     <div class="tuiles" id="dTuiles"></div>
+    <div class="bloc" id="dFourniture" hidden>
+      <h2>Commande du matériel</h2>
+      <p class="aide" style="margin-top:0" id="foInfo"></p>
+      <ul class="liste" id="foListe"></ul>
+      <div id="foEnvoi">
+        <label for="foEmail">E-mail du fournisseur</label>
+        <input type="email" id="foEmail" placeholder="commandes@fournisseur.fr" autocomplete="off">
+        <div class="actions">
+          <button type="button" class="btn btn-or" id="foEnvoyer">Envoyer la commande au fournisseur</button>
+          <button type="button" class="btn" id="foCsv">Télécharger le listing (CSV)</button>
+        </div>
+      </div>
+      <div class="actions" id="foSuite"></div>
+      <p class="message" id="foMsg"></p>
+    </div>
+    <div class="bloc" id="dCampagne" hidden>
+      <h2>Intervention et rendez-vous</h2>
+      <p class="aide" style="margin-top:0">Fixez les jours d’intervention : le gestionnaire envoie ensuite la campagne d’information aux propriétaires occupants et affiche la feuille de rendez-vous (QR code) pour les locataires.</p>
+      <div id="caJoursAdmin"></div>
+      <div class="actions" style="margin-top:8px"><button type="button" class="btn btn-petit" id="caAjouterJour">+ Ajouter un jour</button></div>
+      <div class="grille-2" style="margin-top:6px">
+        <div><label for="caDuree">Durée d’un rendez-vous (minutes)</label><input type="number" id="caDuree" min="10" max="480" step="5" inputmode="numeric"></div>
+        <div><label for="caCapacite">Équipes en parallèle (rendez-vous par créneau)</label><input type="number" id="caCapacite" min="1" max="20" inputmode="numeric"></div>
+      </div>
+      <label for="caMessage">Message affiché sur la page de rendez-vous (facultatif)</label>
+      <textarea id="caMessage" rows="2" placeholder="Laissé vide : texte standard (date, durée, présence d’un adulte)."></textarea>
+      <div class="actions">
+        <button type="button" class="btn btn-or" id="caEnregistrer">Enregistrer les jours d’intervention</button>
+        <button type="button" class="btn" id="caAfficheAdmin">Feuille d’affichage (PDF)</button>
+        <button type="button" class="btn" id="caIcs">Exporter vers mon agenda (.ics)</button>
+      </div>
+      <p class="message" id="caMsgAdmin"></p>
+      <p class="aide" id="caResume"></p>
+      <ul class="liste" id="caRattacherAdmin"></ul>
+      <ul class="liste" id="caPlanningAdmin"></ul>
+    </div>
     <div class="bloc" id="dRecensement" hidden>
       <h2>Recensement et sondage (espace syndic)</h2>
       <p class="aide" id="dRecInfo" style="margin-top:0"></p>
@@ -231,7 +267,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=11"></script>
+<script src="portail-commun.js?v=13"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -636,6 +672,148 @@ $('formChantier').onsubmit = async e => {
   } catch {}
 };
 
+// ---------- Commande du matériel au fournisseur ----------
+const FO = { lignes: [], manquants: 0, copro: null };
+async function rendreFournitureAdmin(c) {
+  $('dFourniture').hidden = c.type !== 'complet';
+  if (c.type !== 'complet') return;
+  FO.copro = c;
+  let so = null, rec = null;
+  try { [so, rec] = await Promise.all([PS.rpc('ps_admin_sondage', { p_admin: A.mdp, p_copro: c.id }), PS.rpc('ps_admin_recensement', { p_admin: A.mdp, p_copro: c.id })]); } catch {}
+  if (A.copro !== c.id) return;
+  const fo = c.fourniture || {}, lg = so?.logements || [];
+  // Total par référence : postes, plaques et badges des bons signés.
+  const tot = new Map();
+  for (const l of lg) for (const x of l.commande?.lignes || []) {
+    const t = tot.get(x.ref) || { ref: x.ref, marque: x.marque || '', nom: x.nom, type: x.type, qte: 0 }; t.qte += x.qte; tot.set(x.ref, t);
+  }
+  // Badges hors logements (stock syndic, entreprises) : ajoutés aux badges.
+  const hors = (rec?.logements || []).filter(h => h.type !== 'logement').reduce((t, h) => t + (h.badges || 0), 0);
+  if (hors) { const b = [...tot.values()].find(t => t.type === 'badge'); if (b) { b.qte += hors; b.dont = hors; } else tot.set('BADGES-HORS', { ref: '', marque: '', nom: 'Badges (stock syndic et entreprises)', type: 'badge', qte: hors }); }
+  const ordre = { moniteur: 1, combine: 0, plaque: 2, badge: 3 };
+  FO.lignes = [...tot.values()].sort((a, b) => (ordre[a.type] ?? 9) - (ordre[b.type] ?? 9) || a.nom.localeCompare(b.nom));
+  FO.manquants = lg.filter(l => !l.commande).length;
+  const sondageFini = so?.sondage?.clos_le || (lg.length && !FO.manquants);
+  $('foInfo').textContent = !lg.length ? 'Le listing apparaîtra quand le recensement et le sondage seront faits.'
+    : `${lg.length - FO.manquants} / ${lg.length} bons de commande signés${FO.manquants ? ` — ${FO.manquants} appartement${FO.manquants > 1 ? 's' : ''} sans réponse : clôturez le sondage ou complétez avant de commander` : ''}.`
+      + (sondageFini ? '' : ' Sondage encore ouvert.');
+  $('foListe').innerHTML = FO.lignes.map(t => `<li><div class="principal"><b>${esc([t.marque, t.ref].filter(Boolean).join(' '))}${t.ref ? ' — ' : ''}${esc(t.nom)}</b>${t.dont ? `<div class="sous">dont ${t.dont} pour le stock syndic et les entreprises</div>` : ''}</div><div class="droite"><b>${t.qte}</b></div></li>`).join('')
+    || '<li><div class="principal">Aucun matériel commandé pour l’instant.</div></li>';
+  let memo = ''; try { memo = localStorage.getItem('he.fournisseur.' + (c.marque_interphone || '')) || ''; } catch {}
+  $('foEmail').value = fo.fournisseur || memo;
+  $('foEnvoi').hidden = !!fo.envoyee_le || !FO.lignes.length;
+  $('foSuite').innerHTML = fo.envoyee_le
+    ? `<span class="pastille ok">Commande envoyée le ${esc(dateCourte(fo.envoyee_le))}${fo.fournisseur ? ' à ' + esc(fo.fournisseur) : ''}</span>`
+      + (fo.recu_le ? ` <span class="pastille ok">Matériel reçu le ${esc(dateCourte(fo.recu_le))}</span> <button type="button" class="btn btn-petit btn-discret" data-fo="fourniture_recue" data-fait="0">Annuler la réception</button>`
+        : ` <button type="button" class="btn btn-or" data-fo="fourniture_recue" data-fait="1">Matériel reçu</button> <button type="button" class="btn btn-petit btn-discret" data-fo="fourniture_envoyee" data-fait="0">Annuler l’envoi</button>`)
+    : '';
+  $('foSuite').querySelectorAll('[data-fo]').forEach(b => b.onclick = async () => {
+    const fait = b.dataset.fait === '1';
+    if (!fait && !confirm('Annuler cette étape ?')) return;
+    b.disabled = true;
+    try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: b.dataset.fo, p_fait: fait, p_info: '' }); toast(fait ? 'Matériel noté comme reçu.' : 'Étape annulée.'); await charger(); ouvrirChantier(c.id); }
+    catch { b.disabled = false; }
+  });
+  msg('foMsg', '');
+}
+function texteCommandeFournisseur() {
+  const c = FO.copro;
+  return `Bonjour,\n\nMerci de nous faire parvenir le matériel suivant pour le chantier ${c.nom}${c.ville ? ' (' + c.ville + ')' : ''}${c.reference ? ', réf. ' + c.reference : ''} :\n\n`
+    + FO.lignes.map(t => `- ${t.qte} × ${[t.marque, t.ref].filter(Boolean).join(' ')}${t.ref ? ' — ' : ''}${t.nom}`).join('\n')
+    + `\n\nMerci de nous confirmer le délai de livraison.\n\nCordialement,\n${PS.ENTREPRISE.nom}\n${PS.ENTREPRISE.tel}`;
+}
+$('foEnvoyer').onclick = async () => {
+  const email = $('foEmail').value.trim(), c = FO.copro;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('foMsg', 'Indiquez l’adresse e-mail du fournisseur.');
+  if (FO.manquants && !confirm(`${FO.manquants} appartement(s) n’ont pas encore de bon de commande. Envoyer quand même la commande ?`)) return;
+  try { localStorage.setItem('he.fournisseur.' + (c.marque_interphone || ''), email); } catch {}
+  location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Commande matériel — ' + c.nom + (c.reference ? ' — ' + c.reference : ''))}&body=${encodeURIComponent(texteCommandeFournisseur())}`;
+  try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: 'fourniture_envoyee', p_fait: true, p_info: email }, 'foMsg'); toast('Commande notée comme envoyée.'); await charger(); ouvrirChantier(c.id); } catch {}
+};
+$('foCsv').onclick = () => {
+  const c = FO.copro, sep = ';', q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lignes = [['Marque', 'Référence', 'Désignation', 'Quantité'].map(q).join(sep), ...FO.lignes.map(t => [t.marque, t.ref, t.nom, t.qte].map(q).join(sep))];
+  PS.telecharger(new Blob(['﻿' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Commande matériel - ${c.nom}.csv`.replace(/[\\/:*?"<>|]+/g, ' '));
+};
+
+// ---------- Intervention et rendez-vous ----------
+const CAA = { d: null, jours: [] };
+const fmtJ = t => new Date(t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const fmtHh = t => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+async function rendreCampagneAdmin(c) {
+  $('dCampagne').hidden = c.type !== 'complet';
+  if (c.type !== 'complet') return;
+  try { CAA.d = await PS.rpc('ps_admin_campagne', { p_admin: A.mdp, p_copro: c.id }); }
+  catch { $('caResume').textContent = 'Module indisponible (script SQL n° 15 à exécuter ?).'; return; }
+  if (A.copro !== c.id) return;
+  const camp = CAA.d.campagne || {};
+  const pret = !!(c.fourniture || {}).recu_le || (camp.jours || []).length > 0;
+  [...$('dCampagne').children].forEach(el => { if (!['H2', 'P'].includes(el.tagName) || el.id) el.hidden = !pret && el.id !== 'caResume'; });
+  $('dCampagne').querySelector('p.aide').textContent = pret
+    ? 'Fixez les jours d’intervention : le gestionnaire envoie ensuite la campagne d’information aux propriétaires occupants et affiche la feuille de rendez-vous (QR code) pour les locataires.'
+    : 'La campagne d’information se planifie une fois le matériel reçu (bouton « Matériel reçu » ci-dessus).';
+  CAA.jours = (camp.jours || []).map(j => ({ ...j }));
+  $('caDuree').value = camp.duree || 30; $('caCapacite').value = camp.capacite || 1; $('caMessage').value = camp.message || '';
+  rendreJoursAdmin(); rendreSuiviCampagneAdmin(); msg('caMsgAdmin', '');
+}
+function rendreJoursAdmin() {
+  $('caJoursAdmin').innerHTML = CAA.jours.map((j, i) => `<div class="grille-2" style="grid-template-columns:1.4fr 1fr 1fr 44px;align-items:end;margin-top:6px">
+    <div><label>Jour</label><input type="date" data-j="${i}" data-k="date" value="${esc(j.date)}"></div>
+    <div><label>De</label><input type="time" data-j="${i}" data-k="debut" value="${esc(j.debut)}"></div>
+    <div><label>À</label><input type="time" data-j="${i}" data-k="fin" value="${esc(j.fin)}"></div>
+    <button type="button" class="btn btn-discret btn-petit" data-jsuppr="${i}" aria-label="Retirer ce jour">✕</button></div>`).join('')
+    || '<p class="aide">Aucun jour d’intervention fixé.</p>';
+  $('caJoursAdmin').querySelectorAll('[data-j]').forEach(inp => inp.oninput = () => { CAA.jours[+inp.dataset.j][inp.dataset.k] = inp.value; });
+  $('caJoursAdmin').querySelectorAll('[data-jsuppr]').forEach(b => b.onclick = () => { CAA.jours.splice(+b.dataset.jsuppr, 1); rendreJoursAdmin(); });
+}
+$('caAjouterJour').onclick = () => {
+  const der = CAA.jours[CAA.jours.length - 1];
+  let date = '';
+  if (der?.date) { const d = new Date(der.date + 'T12:00:00'); d.setDate(d.getDate() + 1); date = d.toISOString().slice(0, 10); }
+  CAA.jours.push({ date, debut: der?.debut || '08:30', fin: der?.fin || '17:00' }); rendreJoursAdmin();
+};
+$('caEnregistrer').onclick = async () => {
+  const jours = CAA.jours.filter(j => j.date && j.debut && j.fin);
+  if (jours.some(j => j.fin <= j.debut)) return msg('caMsgAdmin', 'L’heure de fin doit être après l’heure de début.');
+  try {
+    CAA.d = await appel('ps_admin_campagne_planifier', { p_copro: A.copro, p: { jours, duree: +$('caDuree').value || 30, capacite: +$('caCapacite').value || 1, message: $('caMessage').value.trim() } }, 'caMsgAdmin');
+    msg('caMsgAdmin', 'Jours d’intervention enregistrés : le gestionnaire peut lancer la campagne.', false);
+    CAA.jours = (CAA.d.campagne.jours || []).map(j => ({ ...j })); rendreJoursAdmin(); rendreSuiviCampagneAdmin();
+  } catch {}
+};
+function rendreSuiviCampagneAdmin() {
+  const d = CAA.d, lg = d.logements, avec = lg.filter(l => l.rdv).length, libres = d.creneaux.reduce((t, s) => t + Math.max(0, s.places), 0);
+  $('caResume').textContent = (d.campagne.jours || []).length
+    ? `${avec} / ${lg.length} appartements ont rendez-vous • ${libres} place${libres > 1 ? 's' : ''} libre${libres > 1 ? 's' : ''}${d.campagne.envoyee_le ? ' • campagne envoyée le ' + dateCourte(d.campagne.envoyee_le) : ' • campagne pas encore envoyée'}`
+    : '';
+  const options = '<option value="">— Rattacher à —</option>' + lg.map(l => `<option value="${esc(l.id)}">Appt ${esc(l.numero)} — ${esc(l.nom || '')}</option>`).join('');
+  $('caRattacherAdmin').innerHTML = d.a_rattacher.map(r => `<li><div class="principal"><b>À rattacher : ${esc(r.prenom + ' ' + r.nom)} — « appt ${esc(r.numero_appt)} »</b>
+    <div class="sous">${esc(fmtJ(r.debut))} à ${esc(fmtHh(r.debut))} • ${esc([r.telephone, r.email].filter(Boolean).join(' • '))}</div></div>
+    <div class="droite"><select data-rattadm="${esc(r.id)}" style="min-height:38px;width:auto">${options}</select></div></li>`).join('');
+  $('caRattacherAdmin').querySelectorAll('[data-rattadm]').forEach(sel => sel.onchange = async () => {
+    if (!sel.value) return;
+    try { await appel('ps_admin_rdv_rattacher', { p_rdv: sel.dataset.rattadm, p_logement: sel.value }); toast('Rendez-vous rattaché.'); rendreCampagneAdmin({ id: A.copro, type: 'complet' }); } catch {}
+  });
+  $('caPlanningAdmin').innerHTML = d.rdv.map(r => `<li><div class="principal"><b>${esc(fmtJ(r.debut))} — ${esc(fmtHh(r.debut))} à ${esc(fmtHh(r.fin))}</b>
+    <div class="sous">Appt ${esc(r.logement || r.numero_appt || '?')} • ${esc(r.prenom + ' ' + r.nom)}${r.qualite === 'locataire' ? ' (locataire)' : ''} • ${esc(r.telephone || '')}</div></div>
+    <div class="droite"><button type="button" class="btn btn-petit btn-discret" data-rdvannul="${esc(r.id)}">Annuler</button></div></li>`).join('');
+  $('caPlanningAdmin').querySelectorAll('[data-rdvannul]').forEach(b => b.onclick = async () => {
+    if (!confirm('Annuler ce rendez-vous ? Pensez à prévenir la personne.')) return;
+    try { await appel('ps_admin_rdv_annuler', { p_rdv: b.dataset.rdvannul }); rendreCampagneAdmin({ id: A.copro, type: 'complet' }); } catch {}
+  });
+}
+$('caAfficheAdmin').onclick = async () => {
+  if (!CAA.d?.campagne?.jeton_public) return msg('caMsgAdmin', 'Enregistrez d’abord les jours d’intervention.');
+  try { PS.telecharger(await PS.pdfAffiche(CAA.d), `Affiche rendez-vous - ${CAA.d.copro.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ')); } catch { toast('Création de la feuille impossible.'); }
+};
+// Export des rendez-vous vers Google Agenda / Outlook (import du fichier .ics).
+$('caIcs').onclick = () => {
+  const d = CAA.d; if (!d?.rdv?.length) return msg('caMsgAdmin', 'Aucun rendez-vous à exporter.');
+  const c = d.copro, lieu = [c.adresse, c.cp, c.ville].filter(Boolean).join(' ');
+  PS.telecharger(PS.icsBlob(d.rdv.map(r => ({ uid: r.id, debut: r.debut, fin: r.fin, titre: `${c.nom} — appt ${r.logement || r.numero_appt || '?'} — ${r.prenom} ${r.nom}`, lieu,
+    description: [r.qualite === 'locataire' ? 'Locataire' : 'Propriétaire occupant', r.telephone, r.email].filter(Boolean).join(' • ') }))), `Rendez-vous ${c.nom}.ics`);
+};
+
 // Avancement du chantier et jalons validés par Harmonie (étiquettes posées, campagne d'information).
 function rendreAvancementAdmin(c, k) {
   const e = A.etat.copros.find(x => x.id === c.id) || {};
@@ -644,7 +822,6 @@ function rendreAvancementAdmin(c, k) {
   const rec = c.recensement || {}, camp = c.campagne || {};
   const jalons = [
     ['etiquettes', rec.etiquettes_le, 'Valider la pose des étiquettes', 'Étiquettes validées le '],
-    ['campagne', camp.envoyee_le, 'Campagne d’information envoyée', 'Campagne envoyée le '],
   ];
   $('dJalons').innerHTML = jalons.map(([j, le, oui, fait]) => le
     ? `<button type="button" class="btn btn-petit btn-discret" data-jalon="${j}" data-fait="0" title="Annuler cette validation">✓ ${esc(fait + dateCourte(le))}</button>`
@@ -701,7 +878,7 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k);
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreFournitureAdmin(c); rendreCampagneAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));

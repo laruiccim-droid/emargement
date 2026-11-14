@@ -33,6 +33,9 @@ const PS = (() => {
     POSTE_OBLIGATOIRE: 'Choisissez au moins un poste.',
     ARTICLE_INCONNU: 'Un article choisi n’est plus proposé : rechargez la page.',
     SIGNATURE_INVALIDE: 'Signez dans le cadre prévu.',
+    TELEPHONE_OBLIGATOIRE: 'Indiquez votre numéro de téléphone.',
+    CRENEAU_INDISPONIBLE: 'Ce créneau n’est plus proposé : choisissez-en un autre.',
+    CRENEAU_COMPLET: 'Ce créneau vient d’être pris : choisissez-en un autre.',
   };
 
   async function rpc(fonction, args = {}) {
@@ -195,7 +198,7 @@ const PS = (() => {
   // ---------- Avancement d'un chantier : étapes, étape en cours, pourcentage ----------
   // Chaque étape vaut de 0 à 1 (fraction pour les étapes « x sur n ») ; le pourcentage est la moyenne.
   function avancement(c) {
-    const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, camp = c.campagne || {}, etat = c.etat || 'commence';
+    const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, camp = c.campagne || {}, fo = c.fourniture || {}, etat = c.etat || 'commence';
     const apres = (...e) => e.includes(etat);
     const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, ni = Math.max(c.nb_invites || 0, nc), nr = c.nb_rdv || 0;
     const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
@@ -220,11 +223,12 @@ const PS = (() => {
           enCours: `Envoi du sondage : ${ni} / ${n} copropriétaires invités`, attente: 'Sondage à envoyer aux copropriétaires' },
         { cle: 'reponses', titre: 'Réponses des copropriétaires', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
           enCours: `Sondage en cours : ${nc} / ${n} bons de commande signés`, attente: 'En attente des réponses au sondage' },
-        { cle: 'commande', titre: 'Matériel commandé', fait: commande ? 1 : 0, attente: 'Commande du matériel' },
-        { cle: 'campagne', titre: 'Campagne d’information envoyée (date d’intervention, affichage)', fait: camp.envoyee_le || surSite ? 1 : 0,
-          attente: 'Envoi de la campagne d’information : date d’intervention et feuille d’affichage' },
+        { cle: 'commande', titre: 'Commande envoyée au fournisseur', fait: fo.envoyee_le || commande ? 1 : 0, attente: 'Listing du matériel à envoyer au fournisseur' },
+        { cle: 'reception', titre: 'Matériel reçu', fait: fo.recu_le || surSite ? 1 : 0, attente: 'En attente de la livraison du matériel' },
+        { cle: 'campagne', titre: 'Campagne d’information (date d’intervention, affichage)', fait: camp.planifiee_le || (camp.jours || []).length || surSite ? 1 : 0,
+          attente: 'Planification de la campagne d’information : date d’intervention et feuille d’affichage' },
         { cle: 'rdv', titre: 'Rendez-vous validés par tous les appartements', fait: surSite || (n && nr >= n) ? 1 : n ? nr / n : 0,
-          enCours: `Rendez-vous : ${nr} / ${n} appartements`, attente: 'En attente des rendez-vous des appartements' },
+          enCours: `Rendez-vous : ${nr} / ${n} appartements`, attente: 'En attente des rendez-vous des copropriétaires et locataires' },
         { cle: 'installation', titre: 'Installation', fait: apres('reserves', 'termine') ? 1 : etat === 'installation' ? 0.5 : 0,
           enCours: 'Installation en cours', attente: 'En attente de l’installation' },
       ];
@@ -410,6 +414,64 @@ const PS = (() => {
   }
   const nomFichierCommande = k => `Bon de commande ${k.numero} - ${(k.copro && k.copro.nom) || ''} - appt ${k.numero_appt || (k.logement && k.logement.numero) || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
 
+  // ---------- Agenda : fichier .ics (Google Agenda, Outlook, iPhone) ----------
+  function icsBlob(evts) {
+    const d = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const e = t => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
+    const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Harmonie Electricite//Portail//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    for (const v of evts) L.push('BEGIN:VEVENT', 'UID:' + (v.uid || Math.random().toString(36).slice(2)) + '@harmonie-electricite', 'DTSTAMP:' + d(Date.now()),
+      'DTSTART:' + d(v.debut), 'DTEND:' + d(v.fin), 'SUMMARY:' + e(v.titre), 'LOCATION:' + e(v.lieu), 'DESCRIPTION:' + e(v.description), 'END:VEVENT');
+    L.push('END:VCALENDAR');
+    return new Blob([L.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  }
+
+  // ---------- Feuille d'affichage des parties communes (QR code de prise de rendez-vous) ----------
+  async function pdfAffiche(d) {
+    const JsPDF = await jsPdf();
+    if (!window.qrcode) await chargerScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js');
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = 210, M = 18, ENC = [23, 24, 28], GRIS = [90, 86, 78], OR = [168, 132, 63], ROUGE = [166, 64, 44];
+    const c = d.copro || {}, camp = d.campagne || {}, vigikSeul = c.travaux === 'vigik';
+    const lien = urlPage('rdv.html') + '?j=' + camp.jeton_public;
+    const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 12); doc.setTextColor(...(o.c || ENC)); doc.text(t, x, y, o.al ? { align: o.al, maxWidth: o.mw } : { maxWidth: o.mw }); };
+    let y = 16;
+    if (typeof LOGO_NOIR_OR !== 'undefined') { try { doc.addImage(LOGO_NOIR_OR, 'PNG', W / 2 - 25, y, 50, 50 * LOGO_NOIR_OR_RATIO); } catch {} }
+    y += 30;
+    T('RÉSIDENCE ' + String(c.nom || '').toUpperCase(), W / 2, y, { s: 13, b: true, c: OR, al: 'center' }); y += 12;
+    T(vigikSeul ? 'Installation du nouveau contrôle d’accès' : 'Remplacement de l’interphone', W / 2, y, { s: 26, b: true, al: 'center' }); y += 10;
+    T('Intervention dans chaque appartement', W / 2, y, { s: 15, c: GRIS, al: 'center' }); y += 14;
+    // Jours d'intervention
+    const jours = (camp.jours || []).map(j => {
+      const dt = new Date(j.date + 'T12:00:00');
+      return `${dt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}`;
+    });
+    doc.setFillColor(243, 235, 221); doc.roundedRect(M, y, W - 2 * M, 10 + jours.length * 9, 3, 3, 'F'); y += 9;
+    jours.forEach(j => { T(j.charAt(0).toUpperCase() + j.slice(1), W / 2, y, { s: 17, b: true, al: 'center' }); y += 9; });
+    y += 10;
+    T('Prenez rendez-vous :', W / 2, y, { s: 16, b: true, al: 'center' }); y += 7;
+    T('scannez ce QR code avec l’appareil photo de votre téléphone', W / 2, y, { s: 13, al: 'center' }); y += 5;
+    // QR code dessiné en carrés (net à l'impression)
+    const q = window.qrcode(0, 'M'); q.addData(lien); q.make();
+    const n = q.getModuleCount(), taille = 74, cell = taille / n, x0 = W / 2 - taille / 2;
+    doc.setFillColor(0, 0, 0);
+    for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) if (q.isDark(yy, xx)) doc.rect(x0 + xx * cell, y + yy * cell, cell + 0.02, cell + 0.02, 'F');
+    y += taille + 7;
+    T(lien, W / 2, y, { s: 8.5, c: GRIS, al: 'center' }); y += 11;
+    const txt = [
+      'Locataires et occupants : indiquez votre nom, votre téléphone et le numéro de votre appartement (étiquette blanche collée sur le cadre de votre porte), puis choisissez un créneau.',
+      'Une personne majeure doit être présente pendant le rendez-vous.',
+    ];
+    txt.forEach(t => { doc.setFont('helvetica', 'normal'); doc.setFontSize(12.5); doc.setTextColor(...ENC); const l = doc.splitTextToSize(t, W - 2 * M - 6); doc.text(l, W / 2, y, { align: 'center' }); y += l.length * 6 + 3; });
+    if (vigikSeul) {
+      y += 2; doc.setDrawColor(...ROUGE); doc.setLineWidth(0.6); doc.roundedRect(M, y, W - 2 * M, 16, 2, 2);
+      T('Après l’intervention, les anciens badges ne fonctionneront plus.', W / 2, y + 10, { s: 13, b: true, c: ROUGE, al: 'center' }); y += 22;
+    }
+    y = Math.max(y + 4, 262);
+    doc.setDrawColor(...OR); doc.setLineWidth(0.4); doc.line(M, y, W - M, y); y += 7;
+    T(`Sans téléphone ? Appelez ${ENTREPRISE.nom} au ${ENTREPRISE.tel}${d.syndic?.nom ? ' ou votre syndic, ' + d.syndic.nom + (d.syndic.tel ? ' (' + d.syndic.tel + ')' : '') : ''}.`, W / 2, y, { s: 11, c: GRIS, al: 'center', mw: W - 2 * M });
+    return doc.output('blob');
+  }
+
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
 
   // Ouvre / télécharge / partage un PDF.
@@ -454,5 +516,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();
