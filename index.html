@@ -545,6 +545,10 @@ dialog.scan:not([open]) { display: none; }
       <div class="champ"><label for="lst-type">Travaux</label><select id="lst-type" class="choix-type"></select></div>
       <div class="champ"><label for="lst-centrale">Centrale Vigik</label><select id="lst-centrale"></select></div>
     </div>
+    <div class="ligne" id="lst-blocAcces">
+      <div class="champ"><label for="lst-nbPortes">Portes équipées de Vigik</label><input type="number" id="lst-nbPortes" min="1" max="20" value="1" inputmode="numeric"></div>
+      <div class="champ"><label for="lst-nbAutorisations">Droits d’accès à créer</label><input type="number" id="lst-nbAutorisations" min="0" max="30" value="1" inputmode="numeric"></div>
+    </div>
     <p class="aide" id="lst-resume"></p>
     <div class="tableau-listing"><table>
       <thead><tr><th></th><th>Bât. / montée</th><th>Appt / lot</th><th>Étage</th><th>Propriétaire</th><th>Téléphone</th><th>Modèle choisi</th><th>Badges</th><th>Plaque</th></tr></thead>
@@ -715,7 +719,14 @@ dialog.scan:not([open]) { display: none; }
     <div class="champ" id="nc-blocResidence" hidden><label for="nc-residence">Résidence</label><select id="nc-residence"></select></div>
     <div class="champ"><label for="nc-marque">Marque d’interphone installée</label><select id="nc-marque" class="choix-marque"></select></div>
     <div class="champ"><label for="nc-type">Travaux</label><select id="nc-type" class="choix-type"></select></div>
-    <div class="champ" id="nc-blocCentrale" hidden><label for="nc-centrale">Centrale Vigik</label><select id="nc-centrale" class="choix-centrale"></select></div>
+    <div id="nc-blocCentrale" hidden>
+      <div class="champ"><label for="nc-centrale">Centrale Vigik</label><select id="nc-centrale" class="choix-centrale"></select></div>
+      <div class="ligne">
+        <div class="champ"><label for="nc-nbPortes">Portes équipées de Vigik</label><input type="number" id="nc-nbPortes" min="1" max="20" value="1" inputmode="numeric"></div>
+        <div class="champ"><label for="nc-nbAutorisations">Droits d’accès à créer</label><input type="number" id="nc-nbAutorisations" min="0" max="30" value="1" inputmode="numeric"></div>
+      </div>
+      <p class="aide">Ex. 2 portes → 3 droits : porte d’entrée, porte de garage, entrée + garage. Vous les nommez juste après la création.</p>
+    </div>
     <div class="dlg-actions" style="justify-content:space-between">
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-discret" id="chantierExemple">Exemple</button></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="fermerChantiers">Fermer</button><button type="button" class="btn btn-or" id="creerChantier">Créer le chantier</button></div>
@@ -2364,6 +2375,7 @@ $('creerChantier').onclick = async () => {
     donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null, residenceId: r ? r.id : null,
     marque: $('nc-marque').value, typeTravaux: $('nc-type').value, centrale: $('nc-type').value === 'interphone' ? '' : $('nc-centrale').value,
   });
+  if ($('nc-type').value !== 'interphone') etat.vigik = construireAcces($('nc-nbPortes').value, $('nc-nbAutorisations').value);
   courantId = null; sauver(); rendreTout();
   $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = ''; $('nc-type').value = 'interphone'; $('nc-blocCentrale').hidden = true; $('nc-blocResidence').hidden = true;
   $('ouvrirChantier').click(); // compléter la référence et importer la liste des logements
@@ -3575,7 +3587,8 @@ async function ouvrirListing(f) {
     $('lst-adresse').value = r.adresse || ''; $('lst-reference').value = r.reference || '';
     $('lst-marque').innerHTML = MARQUES.map(m => `<option ${m === marque ? 'selected' : ''}>${esc(m)}</option>`).join('');
     $('lst-centrale').innerHTML = '<option value="">— Non précisée —</option>' + CENTRALES.map(m => `<option ${m === $('nc-centrale').value ? 'selected' : ''}>${esc(m)}</option>`).join('');
-    $('lst-type').value = $('nc-type').value; $('lst-centrale').closest('.champ').hidden = $('lst-type').value === 'interphone';
+    $('lst-type').value = $('nc-type').value; $('lst-centrale').closest('.champ').hidden = $('lst-blocAcces').hidden = $('lst-type').value === 'interphone';
+    $('lst-nbPortes').value = $('nc-nbPortes').value; $('lst-nbAutorisations').value = $('nc-nbAutorisations').value;
     $('lst-fichier').textContent = f.name;
     rendreListing(); $('dlgListing').showModal();
   } catch (e) { toast('Lecture impossible : ' + e.message); }
@@ -3606,6 +3619,7 @@ $('lst-creer').onclick = async () => {
   etat = chantierVide({
     residence: copro, copropriete: copro, adresse: $('lst-adresse').value.trim(), reference: $('lst-reference').value.trim(),
     marque: $('lst-marque').value, typeTravaux: $('lst-type').value, centrale: $('lst-type').value === 'interphone' ? '' : $('lst-centrale').value,
+    ...($('lst-type').value !== 'interphone' ? { vigik: construireAcces($('lst-nbPortes').value, $('lst-nbAutorisations').value) } : {}),
     donneur: c ? c.name : '', donneurEmail: c ? (c.email || '') : '', clientId: c ? c.id : null,
     listingSyndic: L.fichier,
   });
@@ -3621,6 +3635,7 @@ $('lst-creer').onclick = async () => {
   $('dlgListing').close(); $('dlgChantiers').close(); $('nc-client').value = ''; $('nc-marque').value = ''; $('nc-centrale').value = ''; $('nc-type').value = 'interphone'; $('nc-blocCentrale').hidden = true;
   toast(`Chantier créé : ${gardes.length} appartements + Stock syndic + Entreprise de nettoyage.`);
   $('ouvrirChantier').click();
+  if (avecVigik()) setTimeout(() => $('blocVigik').scrollIntoView({ block: 'start' }), 300);
 };
 
 /* ---------- Titulaires hors logement (fenêtre Chantier) ---------- */
@@ -3668,7 +3683,19 @@ $('c-typeTravaux').addEventListener('change', e => {
   sauver(); majTypeTravaux(); majVigik();
 });
 $('nc-type').addEventListener('change', e => { $('nc-blocCentrale').hidden = e.target.value === 'interphone'; });
-$('lst-type').addEventListener('change', e => { $('lst-centrale').closest('.champ').hidden = e.target.value === 'interphone'; });
+$('lst-type').addEventListener('change', e => { $('lst-centrale').closest('.champ').hidden = $('lst-blocAcces').hidden = e.target.value === 'interphone'; });
+// Portes et droits d'accès préparés à la création : une autorisation par porte, puis toutes les portes ensemble,
+// puis des lignes à nommer s'il en faut davantage.
+function construireAcces(nbPortes, nbAutos) {
+  const np = Math.max(1, Math.min(20, parseInt(nbPortes, 10) || 1)), na = Math.max(0, Math.min(30, parseInt(nbAutos, 10) || 0));
+  const portes = Array.from({ length: np }, (_, i) => ['Porte d’entrée', 'Porte de garage'][i] || '');
+  const propositions = portes.map((p, i) => [i]);
+  if (np > 1) propositions.push(portes.map((p, i) => i));
+  const autorisations = Array.from({ length: na }, (_, k) => ({ id: uid(), nom: '', portes: propositions[k] || [] }));
+  return { portes, autorisations };
+}
+// 2 portes → 3 droits proposés ; le nombre reste modifiable.
+['nc', 'lst'].forEach(pre => $(pre + '-nbPortes').addEventListener('input', e => { const n = parseInt(e.target.value, 10) || 1; $(pre + '-nbAutorisations').value = n > 1 ? n + 1 : 1; }));
 
 function rendreAcces() {
   const v = accesVigik();
