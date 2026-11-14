@@ -297,9 +297,27 @@ const PS = (() => {
       try { await navigator.share({ files: [fichier], title: objet, text: texte }); if (dest) toast('Adresse ' + dest + ' copiée : collez-la comme destinataire.'); return; }
       catch (e) { if (e.name === 'AbortError') return; }
     }
+    // Ordinateur : un message « mailto » ne peut pas porter de pièce jointe. Le PDF est déposé en ligne
+    // (adresse impossible à deviner) et le message prérempli contient son lien de téléchargement.
+    toast('Préparation du message…');
+    const url = await deposerPdf(blob);
+    if (url) {
+      location.href = `mailto:${encodeURIComponent(dest || '')}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(texte + '\n\nVotre bon (PDF) : ' + url)}`;
+      toast('Le message s’ouvre avec le lien du bon : il ne reste qu’à l’envoyer.', 5000);
+      return;
+    }
     telecharger(blob, nom);
     location.href = `mailto:${encodeURIComponent(dest || '')}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(texte + '\n\n(PDF joint : ' + nom + ')')}`;
-    toast('PDF téléchargé : joignez-le au message qui s’ouvre.', 5000);
+    toast('Dépôt en ligne impossible : PDF téléchargé, joignez-le au message qui s’ouvre.', 6000);
+  }
+  // Dépôt du PDF dans le stockage Supabase, sous un nom aléatoire ; renvoie son adresse publique (ou null).
+  async function deposerPdf(blob) {
+    const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+    const chemin = `emargement/remises/${cle}.pdf`;
+    try {
+      const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/pdf', 'x-upsert': 'false' }, body: blob });
+      return r.ok ? `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}` : null;
+    } catch { return null; }
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
