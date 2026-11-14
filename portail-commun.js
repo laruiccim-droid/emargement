@@ -99,7 +99,9 @@ const PS = (() => {
       if (image) dessiner(image);
     }
     function dessiner(src) {
-      const i = new Image(); i.onload = () => { const r = canvas.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height); ctx.drawImage(i, 0, 0, r.width, r.height); }; i.src = src;
+      // Image posée sans déformation (signature importée), centrée dans le cadre.
+      const i = new Image(); i.onload = () => { const r = canvas.getBoundingClientRect(); ctx.clearRect(0, 0, r.width, r.height);
+        const k = Math.min(r.width / i.width, r.height / i.height), w = i.width * k, h = i.height * k; ctx.drawImage(i, (r.width - w) / 2, (r.height - h) / 2, w, h); }; i.src = src;
     }
     canvas.addEventListener('pointerdown', e => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); dernier = pos(e); actif = true; });
     canvas.addEventListener('pointermove', e => {

@@ -277,7 +277,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=15"></script>
+<script src="portail-commun.js?v=16"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -363,12 +363,19 @@ function rendreSyndics() {
       <div class="droite">
         <button type="button" class="btn btn-petit" data-inviter="${u.id}">${u.statut === 'actif' ? 'Nouveau lien' : u.invitation ? 'Voir le lien' : 'Créer l’accès'}</button>
         <button type="button" class="btn btn-petit btn-discret" data-modifier-user="${u.id}">Modifier</button>
-        <button type="button" class="btn btn-petit btn-discret" data-actif="${u.id}" data-val="${!u.actif}">${u.actif ? 'Désactiver' : 'Réactiver'}</button></div></li>`).join('') || '<li><span class="aide">Aucun gestionnaire : ajoutez-en un pour lui créer un accès.</span></li>'}</ul>
+        <button type="button" class="btn btn-petit btn-discret" data-actif="${u.id}" data-val="${!u.actif}">${u.actif ? 'Désactiver' : 'Réactiver'}</button>
+        <button type="button" class="btn btn-petit btn-danger" data-suppr-user="${u.id}" data-nom="${esc(u.nom || u.email)}">Supprimer</button></div></li>`).join('') || '<li><span class="aide">Aucun gestionnaire : ajoutez-en un pour lui créer un accès.</span></li>'}</ul>
   </div>`).join('') : '<div class="vide">Aucun syndic. Créez le premier cabinet.</div>';
   document.querySelectorAll('[data-modifier-syndic]').forEach(b => b.onclick = () => ouvrirSyndic(ss.find(s => s.id === b.dataset.modifierSyndic)));
   document.querySelectorAll('[data-ajouter-user]').forEach(b => b.onclick = () => ouvrirUser(ss.find(s => s.id === b.dataset.ajouterUser)));
   document.querySelectorAll('[data-modifier-user]').forEach(b => b.onclick = () => { const s = ss.find(x => x.users.some(u => u.id === b.dataset.modifierUser)); ouvrirUser(s, s.users.find(u => u.id === b.dataset.modifierUser)); });
   document.querySelectorAll('[data-inviter]').forEach(b => b.onclick = () => inviter(b.dataset.inviter));
+  document.querySelectorAll('[data-suppr-user]').forEach(b => b.onclick = async () => {
+    if (!confirm(`Supprimer définitivement le gestionnaire « ${b.dataset.nom} » ?
+
+Son accès est supprimé. Ses chantiers passent à tous les gestionnaires du cabinet ; les remises de badges qu’il a signées sont conservées.`)) return;
+    try { await appel('ps_admin_user_supprimer', { p_user: b.dataset.supprUser }); toast('Gestionnaire supprimé.'); await charger(); rendreSyndics(); } catch {}
+  });
   document.querySelectorAll('[data-actif]').forEach(b => b.onclick = async () => {
     try { await appel('ps_admin_user_actif', { p_user: b.dataset.actif, p_actif: b.dataset.val === 'true' }); await charger(); rendreSyndics(); } catch {}
   });

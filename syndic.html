@@ -124,7 +124,12 @@
       <input type="text" id="pSignataire">
       <label>Signez dans le cadre</label>
       <div class="papier"><canvas id="pPad"></canvas><div class="ligne"></div><span class="mention">Pour le syndic</span></div>
-      <div class="actions"><button type="button" class="btn btn-discret" id="pEffacer">Effacer la signature</button></div>
+      <div class="actions">
+        <label class="btn" for="pSignatureFichier" style="margin:0">Importer une signature</label>
+        <input type="file" id="pSignatureFichier" accept="image/*" hidden>
+        <button type="button" class="btn btn-discret" id="pEffacer">Effacer la signature</button>
+      </div>
+      <p class="aide">Ou importez une photo de votre signature sur une feuille blanche : le fond blanc est retiré automatiquement, comme pour le tampon.</p>
     </div>
 
     <div class="bloc" id="pMdpBloc" hidden>
@@ -445,7 +450,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=15"></script>
+<script src="portail-commun.js?v=16"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -561,6 +566,10 @@ $('pTamponFichier').onchange = async e => {
 };
 $('pTamponRetirer').onclick = () => { tamponCourant = ''; afficherTampon(); };
 $('pEffacer').onclick = () => { padProfil.effacer(); majEtapes(); };
+$('pSignatureFichier').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { padProfil.poser(await PS.tamponDetoure(f)); majEtapes(); toast('Signature importée.'); } catch (err) { toast(err.message); }
+};
 $('pAnnuler').onclick = () => rendreAccueil();
 $('btnParametres').onclick = () => ouvrirProfil(false);
 $('pEnregistrer').onclick = async () => {
