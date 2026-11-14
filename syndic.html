@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0A0A">
+<link rel="icon" href="assets/icone-192.png">
+<title>Espace syndic · Harmonie Électricité</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="portail.css?v=1">
+</head>
+<body>
+<main id="main">
+  <header class="haut">
+    <img class="logo" src="assets/logo-wordmark.png" alt="Harmonie Électricité">
+    <div class="qui" id="qui" hidden><b id="quiSyndic"></b><span id="quiNom"></span></div>
+    <div class="outils" id="outils" hidden>
+      <button type="button" class="btn btn-petit" id="btnParametres">Paramètres</button>
+      <button type="button" class="btn btn-petit btn-discret" id="btnDeconnexion">Déconnexion</button>
+    </div>
+  </header>
+  <div class="trace"></div>
+
+  <section id="vChargement"><p>Chargement…</p></section>
+
+  <!-- Connexion -->
+  <section id="vConnexion" hidden>
+    <div class="sourcil">Espace syndic</div>
+    <h1>Connexion</h1>
+    <p class="intro">Gérez la remise des badges de vos copropriétés installées par Harmonie Électricité.</p>
+    <form class="bloc" id="formConnexion" autocomplete="on">
+      <label for="cEmail">Adresse e-mail</label>
+      <input type="email" id="cEmail" autocomplete="username" required>
+      <label for="cMdp">Mot de passe</label>
+      <input type="password" id="cMdp" autocomplete="current-password" required>
+      <div class="actions"><button class="btn btn-or" type="submit">Se connecter</button></div>
+      <p class="message" id="cMessage" role="status"></p>
+      <p class="aide">Mot de passe oublié ou premier accès : demandez un lien à Harmonie Électricité au 06 31 13 47 01.</p>
+    </form>
+  </section>
+
+  <!-- Activation depuis le lien d'invitation -->
+  <section id="vActivation" hidden>
+    <div class="sourcil">Bienvenue</div>
+    <h1 id="aTitre">Créer votre accès</h1>
+    <p class="intro" id="aIntro"></p>
+    <form class="bloc" id="formActivation">
+      <label for="aEmail">Votre identifiant</label>
+      <input type="email" id="aEmail" autocomplete="username" readonly>
+      <label for="aMdp">Choisissez un mot de passe (8 caractères minimum)</label>
+      <input type="password" id="aMdp" autocomplete="new-password" minlength="8" required>
+      <label for="aMdp2">Confirmez le mot de passe</label>
+      <input type="password" id="aMdp2" autocomplete="new-password" minlength="8" required>
+      <div class="actions"><button class="btn btn-or" type="submit">Activer mon accès</button></div>
+      <p class="message" id="aMessage" role="status"></p>
+    </form>
+  </section>
+
+  <!-- Premier démarrage / paramètres du cabinet -->
+  <section id="vProfil" hidden>
+    <div class="sourcil" id="pSourcil">Premier démarrage</div>
+    <h1 id="pTitre">Votre cabinet</h1>
+    <div class="etapes" id="pEtapes"><i></i><i></i><i></i></div>
+
+    <div class="bloc" data-etape="1">
+      <h2>1 · Coordonnées du cabinet</h2>
+      <p class="aide">Elles apparaissent en en-tête de chaque bon de remise.</p>
+      <div class="grille-2" style="margin-top:10px">
+        <div><label for="pNom">Raison sociale</label><input type="text" id="pNom"></div>
+        <div><label for="pSiret">SIRET</label><input type="text" id="pSiret" inputmode="numeric"></div>
+        <div style="grid-column:1/-1"><label for="pAdresse">Adresse</label><input type="text" id="pAdresse"></div>
+        <div><label for="pCp">Code postal</label><input type="text" id="pCp" inputmode="numeric"></div>
+        <div><label for="pVille">Ville</label><input type="text" id="pVille"></div>
+        <div><label for="pTel">Téléphone de l’agence</label><input type="tel" id="pTel"></div>
+        <div><label for="pEmail">E-mail de l’agence</label><input type="email" id="pEmail"></div>
+        <div><label for="pUserNom">Votre nom</label><input type="text" id="pUserNom"></div>
+        <div><label for="pUserTel">Votre téléphone</label><input type="tel" id="pUserTel"></div>
+      </div>
+    </div>
+
+    <div class="bloc" data-etape="2">
+      <h2>2 · Tampon du cabinet</h2>
+      <p class="aide">Photographiez ou importez votre tampon apposé sur une feuille blanche : le fond blanc est retiré automatiquement.</p>
+      <div class="apercu-img" style="margin-top:10px"><img id="pTamponApercu" alt="Aperçu du tampon" hidden><span id="pTamponVide" class="aide">Aucun tampon</span></div>
+      <div class="actions">
+        <label class="btn" for="pTamponFichier" style="margin:0">Importer ou photographier</label>
+        <input type="file" id="pTamponFichier" accept="image/*" hidden>
+        <button type="button" class="btn btn-discret" id="pTamponRetirer">Retirer</button>
+      </div>
+    </div>
+
+    <div class="bloc" data-etape="3">
+      <h2>3 · Signature du gestionnaire</h2>
+      <p class="aide">Elle est apposée avec le tampon sur les bons de remise, à côté de la signature du résident.</p>
+      <label for="pSignataire">Nom sous la signature</label>
+      <input type="text" id="pSignataire">
+      <label>Signez dans le cadre</label>
+      <div class="papier"><canvas id="pPad"></canvas><div class="ligne"></div><span class="mention">Pour le syndic</span></div>
+      <div class="actions"><button type="button" class="btn btn-discret" id="pEffacer">Effacer la signature</button></div>
+    </div>
+
+    <div class="bloc" id="pMdpBloc" hidden>
+      <h2>Changer de mot de passe</h2>
+      <div class="grille-2" style="margin-top:10px">
+        <div><label for="pMdpAncien">Mot de passe actuel</label><input type="password" id="pMdpAncien" autocomplete="current-password"></div>
+        <div><label for="pMdpNouveau">Nouveau mot de passe</label><input type="password" id="pMdpNouveau" autocomplete="new-password"></div>
+      </div>
+      <div class="actions"><button type="button" class="btn" id="pMdpChanger">Changer le mot de passe</button></div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-discret" id="pAnnuler" hidden>Annuler</button>
+      <button type="button" class="btn btn-or" id="pEnregistrer">Enregistrer</button>
+    </div>
+    <p class="message" id="pMessage" role="status"></p>
+  </section>
+
+  <!-- Accueil : copropriétés -->
+  <section id="vAccueil" hidden>
+    <div class="titre-ligne"><div><div class="sourcil">Vos copropriétés</div><h1>Badges</h1></div></div>
+    <div class="grille" id="listeCopros"></div>
+  </section>
+
+  <!-- Copropriété -->
+  <section id="vCopro" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-retour="accueil">‹ Copropriétés</button>
+    <div class="titre-ligne" style="margin-top:8px">
+      <div><div class="sourcil" id="coEtat"></div><h1 id="coNom"></h1><p class="aide" id="coAdresse"></p></div>
+      <button type="button" class="btn btn-or" id="btnNouvelleRemise">+ Remettre des badges</button>
+    </div>
+    <div class="tuiles" id="coTuiles"></div>
+    <div class="barre-prog"><i id="coProg"></i></div>
+    <div class="onglets" role="tablist">
+      <button type="button" role="tab" data-onglet="remises" aria-selected="true">Remises</button>
+      <button type="button" role="tab" data-onglet="badges" aria-selected="false">Badges</button>
+    </div>
+    <div id="ongRemises">
+      <input type="search" id="rRecherche" placeholder="Rechercher un nom, un logement, un n° de badge…" style="margin-top:14px">
+      <ul class="liste" id="listeRemises"></ul>
+    </div>
+    <div id="ongBadges" hidden>
+      <div class="seg" id="bFiltre" style="margin-top:14px">
+        <button type="button" data-f="tous" aria-pressed="true">Tous</button><button type="button" data-f="stock" aria-pressed="false">En stock</button>
+        <button type="button" data-f="remis" aria-pressed="false">Remis</button><button type="button" data-f="reserve" aria-pressed="false">En attente</button>
+      </div>
+      <input type="search" id="bRecherche" placeholder="N° de badge…" style="margin-top:10px">
+      <ul class="liste" id="listeBadges"></ul>
+    </div>
+  </section>
+
+  <!-- Nouvelle remise -->
+  <section id="vRemise" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
+    <div class="sourcil" style="margin-top:8px" id="reCopro"></div>
+    <h1>Remise de badges</h1>
+
+    <div class="bloc">
+      <h2>1 · Badges remis</h2>
+      <input type="search" id="reRecherche" placeholder="Tapez ou scannez un n° puis Entrée…" autocomplete="off">
+      <p class="aide" id="reStockInfo"></p>
+      <div class="zone-puces"><div class="puces" id="reBadges"></div></div>
+      <p class="aide" id="reChoisis">Aucun badge sélectionné.</p>
+    </div>
+
+    <div class="bloc">
+      <h2>2 · Bénéficiaire</h2>
+      <label for="reNom">Nom du propriétaire ou de l’occupant *</label>
+      <input type="text" id="reNom" autocomplete="off">
+      <label>Qualité</label>
+      <div class="seg" id="reQualite">
+        <button type="button" data-q="proprietaire" aria-pressed="true">Propriétaire</button>
+        <button type="button" data-q="locataire" aria-pressed="false">Locataire</button>
+        <button type="button" data-q="autre" aria-pressed="false">Autre</button>
+      </div>
+      <div class="grille-2" style="margin-top:10px">
+        <div><label for="reBatiment">Bâtiment</label><input type="text" id="reBatiment"></div>
+        <div><label for="reLot">Logement / n° de lot</label><input type="text" id="reLot"></div>
+        <div><label for="reTel">Téléphone (pour la signature à distance)</label><input type="tel" id="reTel"></div>
+        <div><label for="reEmail">E-mail (pour lui envoyer le bon)</label><input type="email" id="reEmail"></div>
+      </div>
+    </div>
+
+    <div class="bloc">
+      <h2>3 · Commentaire et photo</h2>
+      <label for="reCommentaire">Commentaire (facultatif)</label>
+      <textarea id="reCommentaire" placeholder="Ex. : badges remis à la fille du propriétaire, sur présentation d’une procuration."></textarea>
+      <div class="actions">
+        <label class="btn" for="rePhoto" style="margin:0">Photographier les badges</label>
+        <input type="file" id="rePhoto" accept="image/*" capture="environment" multiple hidden>
+      </div>
+      <div class="miniatures" id="rePhotos"></div>
+    </div>
+    <p class="message" id="reMessage" role="status"></p>
+  </section>
+
+  <!-- Signature -->
+  <section id="vSigner" hidden>
+    <button type="button" class="btn btn-discret btn-petit" id="sRetour">‹ Modifier la remise</button>
+    <div class="sourcil" style="margin-top:8px">Signature du bénéficiaire</div>
+    <h1 id="sTitre"></h1>
+    <div class="bloc"><h2>Récapitulatif</h2><div id="sRecap"></div></div>
+
+    <div class="bloc" id="sChoix">
+      <h2>Comment le bénéficiaire signe-t-il ?</h2>
+      <div class="choix-signature">
+        <button type="button" data-mode="qr"><b>Sur son téléphone : QR code</b><span>Il scanne le code affiché ici, relit et signe sur son téléphone. Votre écran se met à jour tout seul.</span></button>
+        <button type="button" data-mode="ecran"><b>Sur cet écran</b><span>Tablette, téléphone ou écran tactile de l’agence.</span></button>
+        <button type="button" data-mode="lien"><b>Lui envoyer le lien</b><span>Par e-mail ou par SMS, s’il n’est pas présent. La remise reste « en attente » jusqu’à sa signature.</span></button>
+      </div>
+    </div>
+
+    <div class="bloc" id="sEcran" hidden>
+      <h2>Signature sur cet écran</h2>
+      <label class="case"><input type="checkbox" id="sAccord"> Je reconnais avoir reçu les badges listés ci-dessus.</label>
+      <label for="sNom">Nom du signataire</label>
+      <input type="text" id="sNom">
+      <label>Signez dans le cadre</label>
+      <div class="papier"><canvas id="sPad"></canvas><div class="ligne"></div><span class="mention">Lu et approuvé</span></div>
+      <div class="actions"><button type="button" class="btn" id="sEffacer">Effacer</button><button type="button" class="btn btn-or" id="sValider">Valider la remise</button></div>
+    </div>
+
+    <div class="bloc" id="sAttente" hidden>
+      <h2 id="sAttenteTitre">Signature sur le téléphone du bénéficiaire</h2>
+      <div class="qr" id="sQr"></div>
+      <div class="lien" id="sLien"></div>
+      <div class="actions" id="sEnvois">
+        <button type="button" class="btn" id="sMail">Par e-mail</button>
+        <a class="btn" id="sSms" href="#">Par SMS</a>
+        <button type="button" class="btn" id="sCopier">Copier le lien</button>
+      </div>
+      <p style="margin-top:14px"><span class="attente-signal" id="sSignal">En attente de la signature…</span></p>
+      <div class="actions">
+        <button type="button" class="btn btn-discret" id="sPlusTard">Terminer plus tard</button>
+        <button type="button" class="btn btn-danger" id="sAnnuler">Annuler la remise</button>
+      </div>
+    </div>
+    <p class="message" id="sMessage" role="status"></p>
+  </section>
+
+  <!-- Remise signée -->
+  <section id="vFin" hidden>
+    <div class="fin"><div class="noeud"></div><div class="sourcil">Remise signée</div><h1 id="fTitre"></h1><p class="intro" id="fTexte"></p></div>
+    <div class="bloc">
+      <h2>Bon de remise émargé</h2>
+      <div class="actions">
+        <button type="button" class="btn" id="fOuvrir">Ouvrir le PDF</button>
+        <button type="button" class="btn" id="fImprimer">Imprimer</button>
+      </div>
+      <label for="fEmail">Envoyer au bénéficiaire par e-mail</label>
+      <div style="display:flex;gap:8px"><input type="email" id="fEmail" placeholder="adresse@exemple.fr"><button type="button" class="btn" id="fEnvoyer">Envoyer</button></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" data-retour="copro">Retour à la copropriété</button>
+      <button type="button" class="btn btn-or" id="fNouvelle">Nouvelle remise</button>
+    </div>
+  </section>
+
+  <footer class="pied">Portail réalisé par Harmonie Électricité • 225 chemin des Bochets, 73170 Yenne<br>06 31 13 47 01 • contact@harmonie-electricite.com</footer>
+</main>
+
+<div class="barre-bas" id="barreRemise" hidden>
+  <div class="int"><span class="resume" id="barreResume"></span><button type="button" class="btn btn-or" id="btnVersSignature">Continuer vers la signature</button></div>
+</div>
+
+<!-- Annulation -->
+<dialog id="dlgAnnuler"><div class="dlg">
+  <div class="sourcil">Annuler une remise</div><h3 id="anTitre"></h3>
+  <p class="aide">Rien n’est effacé : la remise reste visible comme « annulée » et ses badges reviennent en stock.</p>
+  <label for="anMotif">Motif</label><input type="text" id="anMotif" placeholder="Ex. : erreur de badge, remise en double…">
+  <div class="actions"><button type="button" class="btn btn-discret" id="anFermer">Retour</button><button type="button" class="btn btn-danger" id="anValider">Annuler la remise</button></div>
+</div></dialog>
+
+<script src="portail-commun.js?v=1"></script>
+<script>
+'use strict';
+const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
+const CLE_SESSION = 'ps_session';
+const S = { session: null, etat: null, copro: null, detail: null, remise: null, choisis: new Set(), photos: [], qualite: 'proprietaire', attente: null, suivi: null, filtreBadges: 'tous' };
+let padProfil = null, padSigne = null;
+let tamponCourant = '';
+
+const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRemise', 'vSigner', 'vFin'];
+function montrer(v) {
+  vues.forEach(x => { $(x).hidden = x !== v; });
+  $('barreRemise').hidden = v !== 'vRemise';
+  const connecte = !!S.session && !['vConnexion', 'vActivation'].includes(v);
+  $('qui').hidden = $('outils').hidden = !connecte;
+  if (v !== 'vSigner') arreterSuivi();
+  window.scrollTo({ top: 0 });
+}
+function message(id, txt, err = true) { $(id).textContent = txt || ''; $(id).className = 'message' + (err ? ' erreur' : ''); }
+async function appel(fn, args, idMessage) {
+  try { return await rpc(fn, args); }
+  catch (e) {
+    if (e.code === 'SESSION_INVALIDE') { deconnecter(); toast(e.message); throw e; }
+    if (idMessage) message(idMessage, e.message); else toast(e.message, 5000);
+    throw e;
+  }
+}
+
+// ---------- Démarrage ----------
+async function demarrer() {
+  const params = new URLSearchParams(location.search);
+  const invitation = params.get('invitation');
+  if (invitation) return ouvrirActivation(invitation);
+  try { S.session = localStorage.getItem(CLE_SESSION); } catch {}
+  if (!S.session) return montrer('vConnexion');
+  await chargerEtat();
+}
+async function chargerEtat() {
+  try { S.etat = await rpc('ps_syndic_etat', { p_session: S.session }); }
+  catch (e) { if (e.code === 'SESSION_INVALIDE') return deconnecter(); montrer('vConnexion'); return message('cMessage', e.message); }
+  $('quiSyndic').textContent = S.etat.syndic.nom; $('quiNom').textContent = S.etat.user.nom || S.etat.user.email;
+  const s = S.etat.syndic;
+  if (!s.signature || !s.adresse) return ouvrirProfil(true);
+  rendreAccueil();
+}
+function deconnecter() {
+  if (S.session) rpc('ps_deconnexion', { p_session: S.session }).catch(() => {});
+  S.session = null; try { localStorage.removeItem(CLE_SESSION); } catch {}
+  montrer('vConnexion');
+}
+$('btnDeconnexion').onclick = deconnecter;
+
+$('formConnexion').onsubmit = async e => {
+  e.preventDefault(); message('cMessage', 'Connexion…', false);
+  try {
+    const r = await rpc('ps_connexion', { p_email: $('cEmail').value, p_mdp: $('cMdp').value });
+    S.session = r.session; try { localStorage.setItem(CLE_SESSION, S.session); } catch {}
+    $('cMdp').value = ''; message('cMessage', '');
+    await chargerEtat();
+  } catch (err) { message('cMessage', err.message); }
+};
+
+async function ouvrirActivation(invitation) {
+  try {
+    const i = await rpc('ps_invitation_lire', { p_invitation: invitation });
+    $('aTitre').textContent = 'Bienvenue' + (i.nom ? ' ' + i.nom : '');
+    $('aIntro').textContent = `Harmonie Électricité vous a ouvert un accès pour le cabinet ${i.syndic}. Choisissez votre mot de passe pour l’activer.`;
+    $('aEmail').value = i.email;
+    montrer('vActivation');
+  } catch (e) { montrer('vConnexion'); message('cMessage', e.message); }
+  $('formActivation').onsubmit = async e => {
+    e.preventDefault();
+    if ($('aMdp').value !== $('aMdp2').value) return message('aMessage', 'Les deux mots de passe ne sont pas identiques.');
+    try {
+      const r = await rpc('ps_activer', { p_invitation: invitation, p_mdp: $('aMdp').value });
+      S.session = r.session; try { localStorage.setItem(CLE_SESSION, S.session); } catch {}
+      history.replaceState(null, '', location.pathname);
+      await chargerEtat();
+    } catch (err) { message('aMessage', err.message); }
+  };
+}
+
+// ---------- Profil (premier démarrage / paramètres) ----------
+function ouvrirProfil(premier) {
+  const s = S.etat.syndic, u = S.etat.user;
+  $('pSourcil').textContent = premier ? 'Premier démarrage' : 'Paramètres';
+  $('pTitre').textContent = premier ? 'Votre cabinet' : s.nom;
+  $('pEtapes').hidden = !premier; $('pAnnuler').hidden = premier; $('pMdpBloc').hidden = premier;
+  $('pEnregistrer').textContent = premier ? 'Enregistrer et commencer' : 'Enregistrer';
+  [['pNom', s.nom], ['pSiret', s.siret], ['pAdresse', s.adresse], ['pCp', s.cp], ['pVille', s.ville], ['pTel', s.tel], ['pEmail', s.email],
+    ['pUserNom', u.nom], ['pUserTel', u.tel], ['pSignataire', s.signataire || u.nom]].forEach(([id, v]) => { $(id).value = v || ''; });
+  tamponCourant = s.tampon || ''; afficherTampon();
+  montrer('vProfil');
+  if (!padProfil) padProfil = PS.pad($('pPad'));
+  setTimeout(() => { padProfil.taille(); padProfil.poser(s.signature || ''); majEtapes(); }, 50);
+  message('pMessage', '');
+}
+function afficherTampon() {
+  $('pTamponApercu').hidden = !tamponCourant; $('pTamponVide').hidden = !!tamponCourant;
+  if (tamponCourant) $('pTamponApercu').src = tamponCourant;
+  majEtapes();
+}
+function majEtapes() {
+  const e = $('pEtapes').children;
+  e[0].className = $('pNom').value && $('pAdresse').value ? 'fait' : '';
+  e[1].className = tamponCourant ? 'fait' : '';
+  e[2].className = padProfil && !padProfil.estVide() ? 'fait' : '';
+}
+['pNom', 'pAdresse'].forEach(id => $(id).addEventListener('input', majEtapes));
+$('pPad').addEventListener('pointerup', () => setTimeout(majEtapes, 30));
+$('pTamponFichier').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { tamponCourant = await PS.tamponDetoure(f); afficherTampon(); } catch (err) { toast(err.message); }
+};
+$('pTamponRetirer').onclick = () => { tamponCourant = ''; afficherTampon(); };
+$('pEffacer').onclick = () => { padProfil.effacer(); majEtapes(); };
+$('pAnnuler').onclick = () => rendreAccueil();
+$('btnParametres').onclick = () => ouvrirProfil(false);
+$('pEnregistrer').onclick = async () => {
+  if (!$('pNom').value.trim() || !$('pAdresse').value.trim()) return message('pMessage', 'Indiquez au moins la raison sociale et l’adresse du cabinet.');
+  if (padProfil.estVide()) return message('pMessage', 'Signez dans le cadre de l’étape 3 : la signature est apposée sur chaque bon.');
+  const p = { nom: $('pNom').value.trim(), siret: $('pSiret').value.trim(), adresse: $('pAdresse').value.trim(), cp: $('pCp').value.trim(), ville: $('pVille').value.trim(),
+    tel: $('pTel').value.trim(), email: $('pEmail').value.trim(), user_nom: $('pUserNom').value.trim(), user_tel: $('pUserTel').value.trim(),
+    signataire: $('pSignataire').value.trim(), tampon: tamponCourant, signature: padProfil.image() };
+  $('pEnregistrer').disabled = true;
+  try { await appel('ps_syndic_profil', { p_session: S.session, p }, 'pMessage'); toast('Paramètres enregistrés.'); await chargerEtat(); }
+  catch {} finally { $('pEnregistrer').disabled = false; }
+};
+$('pMdpChanger').onclick = async () => {
+  try { await appel('ps_syndic_mdp', { p_session: S.session, p_ancien: $('pMdpAncien').value, p_nouveau: $('pMdpNouveau').value }, 'pMessage');
+    $('pMdpAncien').value = $('pMdpNouveau').value = ''; message('pMessage', 'Mot de passe changé.', false); } catch {}
+};
+
+// ---------- Accueil ----------
+function rendreAccueil() {
+  const cs = S.etat.copros;
+  $('listeCopros').innerHTML = cs.length ? cs.map(c => {
+    const k = c.compteurs, pc = k.livres ? Math.round(k.remis / k.livres * 100) : 0;
+    return `<button type="button" class="carte" data-copro="${esc(c.id)}">
+      <div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
+      <div class="meta">${esc([c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</div>
+      <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.reserves ? `<span class="pastille attente">${k.attente} en attente de signature</span>` : ''}</div>
+      <div class="barre-prog"><i style="width:${pc}%"></i></div></button>`;
+  }).join('') : '<div class="vide">Aucune copropriété n’est encore rattachée à votre cabinet. Harmonie Électricité l’ajoutera lors de la livraison des badges.</div>';
+  document.querySelectorAll('[data-copro]').forEach(b => b.onclick = () => ouvrirCopro(b.dataset.copro));
+  montrer('vAccueil');
+  if (cs.length === 1 && !rendreAccueil.deja) { rendreAccueil.deja = true; ouvrirCopro(cs[0].id); }
+}
+document.querySelectorAll('[data-retour]').forEach(b => b.onclick = () => {
+  if (b.dataset.retour === 'accueil') chargerEtat(); else ouvrirCopro(S.copro);
+});
+
+// ---------- Copropriété ----------
+async function ouvrirCopro(id) {
+  S.copro = id;
+  try { S.detail = await appel('ps_syndic_copro', { p_session: S.session, p_copro: id }); } catch { return; }
+  const c = S.detail.copro, k = S.detail.compteurs;
+  $('coNom').textContent = c.nom; $('coEtat').textContent = PS.ETATS[c.etat] || c.etat;
+  $('coAdresse').textContent = [c.adresse, [c.cp, c.ville].filter(Boolean).join(' '), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • ');
+  $('coTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente de signature', k.attente]]
+    .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
+  $('coProg').style.width = (k.livres ? Math.round(k.remis / k.livres * 100) : 0) + '%';
+  $('btnNouvelleRemise').disabled = !k.stock;
+  rendreRemises(); rendreBadges();
+  montrer('vCopro');
+}
+document.querySelectorAll('[data-onglet]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-onglet]').forEach(x => x.setAttribute('aria-selected', x === b));
+  $('ongRemises').hidden = b.dataset.onglet !== 'remises'; $('ongBadges').hidden = b.dataset.onglet !== 'badges';
+});
+const pastilleRemise = r => r.statut === 'signe' ? '<span class="pastille ok">Signée</span>' : r.statut === 'attente' ? '<span class="pastille attente">En attente</span>' : '<span class="pastille erreur">Annulée</span>';
+function rendreRemises() {
+  const q = $('rRecherche').value.trim().toLowerCase();
+  const rs = S.detail.remises.filter(r => !q || [r.proprietaire, r.lot, r.batiment, r.numero, ...(r.badges || [])].join(' ').toLowerCase().includes(q));
+  $('listeRemises').innerHTML = rs.length ? rs.map(r => `<li>
+    <div class="principal"><b>${esc(r.proprietaire)}</b> ${pastilleRemise(r)}
+      <div class="sous">${esc([r.batiment && 'Bât. ' + r.batiment, r.lot, PS.QUALITES[r.qualite]].filter(Boolean).join(' • '))} — ${r.badges.length} badge${r.badges.length > 1 ? 's' : ''} : <span class="mono">${esc(r.badges.join(', '))}</span></div>
+      <div class="sous">${esc(r.numero)} • ${r.statut === 'signe' ? 'signée le ' + horodatage(r.signe_le) : r.statut === 'annule' ? 'annulée : ' + esc(r.annule_motif) : 'créée le ' + horodatage(r.cree_le)}</div></div>
+    <div class="droite">
+      ${r.statut === 'attente' ? `<button type="button" class="btn btn-petit" data-reprendre="${r.id}">Faire signer</button>` : ''}
+      ${r.statut !== 'annule' ? `<button type="button" class="btn btn-petit" data-pdf="${r.id}">PDF</button>` : ''}
+      ${r.statut !== 'annule' ? `<button type="button" class="btn btn-petit btn-discret" data-annuler="${r.id}">Annuler</button>` : ''}
+    </div></li>`).join('') : `<li><div class="vide" style="grid-column:1/-1">${q ? 'Aucun résultat.' : 'Aucune remise pour l’instant.'}</div></li>`;
+  document.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => ouvrirPdf(b.dataset.pdf));
+  document.querySelectorAll('[data-annuler]').forEach(b => b.onclick = () => demanderAnnulation(S.detail.remises.find(r => r.id === b.dataset.annuler)));
+  document.querySelectorAll('[data-reprendre]').forEach(b => b.onclick = () => reprendreAttente(b.dataset.reprendre));
+}
+$('rRecherche').oninput = rendreRemises;
+function rendreBadges() {
+  const q = $('bRecherche').value.trim().toUpperCase(), f = S.filtreBadges;
+  const remises = Object.fromEntries(S.detail.remises.map(r => [r.id, r]));
+  const bs = S.detail.badges.filter(b => (f === 'tous' || b.statut === f) && (!q || b.numero.includes(q)));
+  $('listeBadges').innerHTML = bs.length ? bs.map(b => {
+    const r = remises[b.remise_id];
+    return `<li><div class="principal"><b class="mono">${esc(b.numero)}</b><div class="sous">${r ? esc(r.proprietaire + (r.lot ? ' • ' + r.lot : '')) : ''}</div></div>
+      <div class="droite"><span class="pastille ${b.statut === 'remis' ? 'ok' : b.statut === 'reserve' ? 'attente' : b.statut === 'stock' ? 'or' : 'erreur'}">${PS.STATUTS_BADGE[b.statut] || b.statut}</span></div></li>`;
+  }).join('') : '<li><div class="vide" style="grid-column:1/-1">Aucun badge.</div></li>';
+}
+$('bRecherche').oninput = rendreBadges;
+document.querySelectorAll('#bFiltre button').forEach(b => b.onclick = () => {
+  S.filtreBadges = b.dataset.f; document.querySelectorAll('#bFiltre button').forEach(x => x.setAttribute('aria-pressed', x === b)); rendreBadges();
+});
+
+async function ouvrirPdf(id) {
+  toast('Préparation du PDF…');
+  try { const r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); }
+  catch (e) { if (e.message) toast(e.message); }
+}
+let aAnnuler = null;
+function demanderAnnulation(r) {
+  aAnnuler = r; $('anTitre').textContent = `${r.numero} • ${r.proprietaire}`; $('anMotif').value = ''; $('dlgAnnuler').showModal();
+}
+$('anFermer').onclick = () => $('dlgAnnuler').close();
+$('anValider').onclick = async () => {
+  if (!$('anMotif').value.trim()) return $('anMotif').focus();
+  try { await appel('ps_syndic_remise_annuler', { p_session: S.session, p_remise: aAnnuler.id, p_motif: $('anMotif').value.trim() }); }
+  catch { return; }
+  $('dlgAnnuler').close(); toast('Remise annulée, badges remis en stock.');
+  if (!$('vSigner').hidden) { S.attente = null; } ouvrirCopro(S.copro);
+};
+
+// ---------- Nouvelle remise ----------
+$('btnNouvelleRemise').onclick = () => nouvelleRemise();
+$('fNouvelle').onclick = async () => { await ouvrirCopro(S.copro); nouvelleRemise(); };
+function nouvelleRemise() {
+  S.choisis = new Set(); S.photos = []; S.qualite = 'proprietaire'; S.attente = null;
+  ['reNom', 'reBatiment', 'reLot', 'reTel', 'reEmail', 'reCommentaire', 'reRecherche'].forEach(id => { $(id).value = ''; });
+  document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x.dataset.q === 'proprietaire'));
+  $('reCopro').textContent = S.detail.copro.nom;
+  rendreChoixBadges(); rendrePhotos(); message('reMessage', '');
+  montrer('vRemise');
+  setTimeout(() => $('reRecherche').focus(), 50);
+}
+const stockDispo = () => S.detail.badges.filter(b => b.statut === 'stock').map(b => b.numero);
+function rendreChoixBadges() {
+  const q = $('reRecherche').value.trim().toUpperCase(), stock = stockDispo();
+  const affiches = stock.filter(n => !q || n.includes(q) || S.choisis.has(n));
+  $('reStockInfo').textContent = `${stock.length} badge${stock.length > 1 ? 's' : ''} en stock${q ? ` • ${affiches.length} correspondant${affiches.length > 1 ? 's' : ''}` : ''}. Touchez un n° pour le sélectionner.`;
+  $('reBadges').innerHTML = affiches.slice(0, 400).map(n => `<button type="button" class="puce" data-b="${esc(n)}" aria-pressed="${S.choisis.has(n)}">${esc(n)}</button>`).join('') || '<span class="aide">Aucun badge en stock ne correspond.</span>';
+  document.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { basculer(b.dataset.b); });
+  majChoisis();
+}
+function basculer(n) { if (S.choisis.has(n)) S.choisis.delete(n); else S.choisis.add(n); rendreChoixBadges(); }
+function majChoisis() {
+  const t = [...S.choisis];
+  $('reChoisis').innerHTML = t.length ? `<b style="color:var(--he-white)">${t.length} badge${t.length > 1 ? 's' : ''} sélectionné${t.length > 1 ? 's' : ''}</b> : <span class="mono">${esc(t.join(', '))}</span>` : 'Aucun badge sélectionné.';
+  $('barreResume').textContent = t.length ? `${t.length} badge${t.length > 1 ? 's' : ''}` : '';
+}
+$('reRecherche').oninput = rendreChoixBadges;
+$('reRecherche').onkeydown = e => {
+  if (e.key !== 'Enter') return; e.preventDefault();
+  const v = $('reRecherche').value.trim().toUpperCase(); if (!v) return;
+  const stock = stockDispo(), exact = stock.find(n => n === v) || (stock.filter(n => n.includes(v)).length === 1 ? stock.find(n => n.includes(v)) : null);
+  if (exact) { S.choisis.add(exact); $('reRecherche').value = ''; rendreChoixBadges(); toast(exact + ' sélectionné'); }
+  else toast(S.detail.badges.some(b => b.numero === v) ? `Le badge ${v} n’est pas en stock (déjà remis ou réservé).` : `Badge ${v} introuvable dans cette copropriété.`, 4000);
+};
+document.querySelectorAll('#reQualite button').forEach(b => b.onclick = () => { S.qualite = b.dataset.q; document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+$('rePhoto').onchange = async e => {
+  for (const f of [...e.target.files]) { try { S.photos.push(await PS.photoCompressee(f)); } catch (err) { toast(err.message); } }
+  e.target.value = ''; rendrePhotos();
+};
+function rendrePhotos() {
+  $('rePhotos').innerHTML = S.photos.map((p, i) => `<figure><img src="${p}" alt="Photo ${i + 1}"><button type="button" data-suppr="${i}" aria-label="Retirer la photo">×</button></figure>`).join('');
+  document.querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => { S.photos.splice(+b.dataset.suppr, 1); rendrePhotos(); });
+}
+function donneesRemise() {
+  return { copro_id: S.copro, badges: [...S.choisis], proprietaire: $('reNom').value.trim(), qualite: S.qualite, batiment: $('reBatiment').value.trim(), lot: $('reLot').value.trim(),
+    tel: $('reTel').value.trim(), email: $('reEmail').value.trim(), commentaire: $('reCommentaire').value.trim(), photos: S.photos };
+}
+$('btnVersSignature').onclick = () => {
+  const d = donneesRemise();
+  if (!d.badges.length) return message('reMessage', 'Sélectionnez au moins un badge (étape 1).');
+  if (!d.proprietaire) { $('reNom').focus(); return message('reMessage', 'Indiquez le nom du bénéficiaire (étape 2).'); }
+  if (d.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) { $('reEmail').focus(); return message('reMessage', 'Adresse e-mail invalide.'); }
+  message('reMessage', '');
+  ouvrirSignature(d);
+};
+
+// ---------- Signature ----------
+function recapHtml(d) {
+  return `<dl style="display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0">
+    <dt class="aide" style="margin:0">Bénéficiaire</dt><dd style="margin:0;color:var(--he-white)">${esc(d.proprietaire)} <span class="aide">(${esc(PS.QUALITES[d.qualite])})</span></dd>
+    ${d.batiment || d.lot ? `<dt class="aide" style="margin:0">Logement</dt><dd style="margin:0">${esc([d.batiment && 'Bât. ' + d.batiment, d.lot].filter(Boolean).join(' • '))}</dd>` : ''}
+    <dt class="aide" style="margin:0">Badges</dt><dd style="margin:0" class="mono">${d.badges.length} : ${esc(d.badges.join(', '))}</dd>
+    ${d.commentaire ? `<dt class="aide" style="margin:0">Commentaire</dt><dd style="margin:0">${esc(d.commentaire)}</dd>` : ''}
+    ${d.photos.length ? `<dt class="aide" style="margin:0">Photos</dt><dd style="margin:0">${d.photos.length}</dd>` : ''}</dl>`;
+}
+function ouvrirSignature(d) {
+  S.brouillon = d;
+  $('sTitre').textContent = d.proprietaire; $('sRecap').innerHTML = recapHtml(d);
+  $('sChoix').hidden = false; $('sEcran').hidden = true; $('sAttente').hidden = true; $('sRetour').hidden = false;
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  message('sMessage', '');
+  montrer('vSigner');
+}
+$('sRetour').onclick = () => { montrer('vRemise'); };
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = async () => {
+  document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  if (b.dataset.mode === 'ecran') {
+    $('sEcran').hidden = false; $('sAttente').hidden = true;
+    $('sNom').value = S.brouillon.proprietaire; $('sAccord').checked = false;
+    if (!padSigne) padSigne = PS.pad($('sPad'));
+    setTimeout(() => { padSigne.taille(); padSigne.effacer(); $('sEcran').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+  } else {
+    $('sEcran').hidden = true;
+    await creerAttente(b.dataset.mode);
+  }
+});
+$('sEffacer').onclick = () => padSigne.effacer();
+$('sValider').onclick = async () => {
+  if (!$('sAccord').checked) return message('sMessage', 'Le bénéficiaire doit cocher la case de réception.');
+  if (!$('sNom').value.trim()) return message('sMessage', 'Indiquez le nom du signataire.');
+  if (padSigne.estVide()) return message('sMessage', 'Le bénéficiaire doit signer dans le cadre.');
+  $('sValider').disabled = true; message('sMessage', 'Enregistrement…', false);
+  try {
+    const r = await appel('ps_syndic_remise_creer', { p_session: S.session, p: { ...S.brouillon, signature: padSigne.image(), signataire: $('sNom').value.trim(), navigateur: navigator.userAgent } }, 'sMessage');
+    message('sMessage', ''); await terminer(r.id);
+  } catch {} finally { $('sValider').disabled = false; }
+};
+
+// Remise « en attente » : QR code ou lien envoyé, la signature arrive depuis le téléphone du bénéficiaire.
+async function creerAttente(mode) {
+  if (!S.attente) {
+    message('sMessage', 'Création de la demande de signature…', false);
+    try { const r = await appel('ps_syndic_remise_creer', { p_session: S.session, p: S.brouillon }, 'sMessage'); S.attente = { id: r.id, jeton: r.jeton, brouillon: S.brouillon }; }
+    catch { return; }
+    message('sMessage', '');
+  }
+  afficherAttente(mode);
+}
+async function afficherAttente(mode) {
+  const lien = PS.lienSignature(S.attente.jeton), d = S.attente.brouillon;
+  $('sAttente').hidden = false; $('sRetour').hidden = true;
+  $('sAttenteTitre').textContent = mode === 'qr' ? 'Faites scanner ce code au bénéficiaire' : 'Envoyez le lien au bénéficiaire';
+  $('sQr').hidden = mode !== 'qr';
+  if (mode === 'qr') { try { $('sQr').innerHTML = `<div class="cadre">${await PS.qrSvg(lien, 240)}</div><span class="aide">Appareil photo du téléphone → le lien s’ouvre → relire et signer.</span>`; } catch (e) { $('sQr').textContent = e.message; } }
+  $('sLien').textContent = lien;
+  const texte = `Bonjour, voici votre bon de remise de badges (${S.detail.copro.nom}${d.lot ? ', ' + d.lot : ''}) à relire et signer en ligne : ${lien}\n${S.etat.syndic.nom}`;
+  $('sMail').onclick = () => { location.href = `mailto:${encodeURIComponent(d.email || '')}?subject=${encodeURIComponent('Remise de badges – ' + S.detail.copro.nom + ' – à signer')}&body=${encodeURIComponent(texte)}`; };
+  $('sSms').hidden = !PS.estTel(); $('sSms').href = PS.lienSms(d.tel, texte);
+  $('sCopier').onclick = () => PS.copier(lien);
+  $('sSignal').textContent = 'En attente de la signature…';
+  $('sAttente').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  suivre();
+}
+function suivre() {
+  arreterSuivi();
+  const id = S.attente.id;
+  S.suivi = setInterval(async () => {
+    try {
+      const st = await rpc('ps_syndic_remise_statut', { p_session: S.session, p_remise: id });
+      if (st && st.statut === 'signe') { arreterSuivi(); toast('Signature reçue.'); await terminer(id); }
+      else if (st && st.statut === 'annule') { arreterSuivi(); }
+    } catch {}
+  }, 3000);
+}
+function arreterSuivi() { if (S.suivi) { clearInterval(S.suivi); S.suivi = null; } }
+$('sPlusTard').onclick = () => { toast('La remise reste en attente : la signature s’ajoutera dès qu’elle arrivera.', 4500); ouvrirCopro(S.copro); };
+$('sAnnuler').onclick = () => { const r = { id: S.attente.id, numero: '', proprietaire: S.attente.brouillon.proprietaire }; demanderAnnulation(r); };
+async function reprendreAttente(id) {
+  let r; try { r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); } catch { return; }
+  if (r.statut !== 'attente') return terminer(id);
+  const d = { proprietaire: r.proprietaire, qualite: r.qualite, batiment: r.batiment, lot: r.lot, badges: r.badges, commentaire: r.commentaire, photos: r.photos || [], email: r.email, tel: r.tel };
+  S.brouillon = d; S.attente = { id: r.id, jeton: r.jeton, brouillon: d };
+  $('sTitre').textContent = d.proprietaire; $('sRecap').innerHTML = recapHtml(d);
+  $('sChoix').hidden = true; $('sEcran').hidden = true; message('sMessage', '');
+  montrer('vSigner'); afficherAttente(PS.estTel() ? 'lien' : 'qr');
+}
+
+// ---------- Fin ----------
+async function terminer(id) {
+  let r; try { r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); } catch { return; }
+  S.remise = r; S.attente = null;
+  $('fTitre').textContent = r.proprietaire;
+  $('fTexte').textContent = `Bon ${r.numero} • ${r.badges.length} badge${r.badges.length > 1 ? 's' : ''} (${r.badges.join(', ')}) • signé le ${horodatage(r.signe_le)}${r.mode_signature === 'distance' ? ' sur son téléphone' : ''}.`;
+  $('fEmail').value = r.email || '';
+  montrer('vFin');
+  // rafraîchit la copro en arrière-plan pour le stock
+  rpc('ps_syndic_copro', { p_session: S.session, p_copro: S.copro }).then(d => { S.detail = d; }).catch(() => {});
+}
+async function pdfCourant() { return PS.pdfRemise(S.remise); }
+$('fOuvrir').onclick = async () => { const b = await pdfCourant(); window.open(URL.createObjectURL(b), '_blank') || PS.telecharger(b, PS.nomFichierRemise(S.remise)); };
+$('fImprimer').onclick = async () => PS.imprimer(await pdfCourant());
+$('fEnvoyer').onclick = async () => {
+  const dest = $('fEmail').value.trim();
+  if (dest && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dest)) return toast('Adresse e-mail invalide.');
+  const r = S.remise;
+  await PS.envoyerParEmail(await pdfCourant(), PS.nomFichierRemise(r), dest, `Bon de remise de badges ${r.numero} – ${r.copro.nom}`,
+    `Bonjour,\n\nVeuillez trouver ci-joint votre bon de remise de badges signé (${r.copro.nom}${r.lot ? ', ' + r.lot : ''}).\n\nEn cas de perte ou de vol d’un badge, merci de nous le signaler sans délai afin qu’il soit désactivé.\n\nCordialement,\n${r.syndic.signataire || r.agent_nom || ''}\n${r.syndic.nom}${r.syndic.tel ? '\n' + r.syndic.tel : ''}`);
+};
+
+demarrer();
+</script>
+</body>
+</html>

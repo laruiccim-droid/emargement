@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0A0A">
+<link rel="icon" href="assets/icone-192.png">
+<title>Remise de badges · signature</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="portail.css?v=1">
+</head>
+<body>
+<main class="etroit">
+  <header class="haut"><img class="logo" src="assets/logo-wordmark.png" alt="Harmonie Électricité"></header>
+  <div class="trace"></div>
+
+  <section id="chargement"><p>Chargement…</p></section>
+
+  <section id="erreur" class="fin" hidden>
+    <div class="noeud"></div>
+    <h1>Lien indisponible</h1>
+    <p class="intro" id="erreurTexte"></p>
+  </section>
+
+  <section id="formulaire" hidden>
+    <div class="sourcil" id="fSyndic"></div>
+    <h1 id="titre"></h1>
+    <p class="intro">Merci de vérifier les badges qui vous sont remis, puis de signer pour confirmer leur réception.</p>
+    <div class="bloc">
+      <h2>Remise de badges</h2>
+      <dl id="details" style="display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 14px;margin:0"></dl>
+    </div>
+    <div class="bloc">
+      <h2>Signature</h2>
+      <label class="case"><input type="checkbox" id="accord"> <span id="accordTexte">Je reconnais avoir reçu les badges listés ci-dessus.</span></label>
+      <label for="nom">Nom du signataire</label>
+      <input type="text" id="nom" autocomplete="name">
+      <label>Signez dans le cadre</label>
+      <div class="papier"><canvas id="pad"></canvas><div class="ligne"></div><span class="mention">Lu et approuvé</span></div>
+      <div class="actions">
+        <button type="button" class="btn" id="effacer">Effacer</button>
+        <button type="button" class="btn btn-or" id="signer">Signer</button>
+      </div>
+      <p class="message" id="message" role="status"></p>
+    </div>
+  </section>
+
+  <section id="merci" class="fin" hidden>
+    <div class="noeud"></div>
+    <div class="sourcil">Signature transmise</div>
+    <h1>Merci</h1>
+    <p class="intro" id="merciTexte">Votre signature a bien été transmise. Votre syndic peut vous remettre le bon signé.</p>
+  </section>
+
+  <footer class="pied" id="pied">Portail réalisé par Harmonie Électricité</footer>
+</main>
+
+<script src="portail-commun.js?v=1"></script>
+<script>
+'use strict';
+const { rpc, $, horodatage } = PS;
+const jeton = new URLSearchParams(location.search).get('t') || '';
+let pad = null;
+
+function montrer(id) { ['chargement', 'erreur', 'formulaire', 'merci'].forEach(x => { $(x).hidden = x !== id; }); window.scrollTo({ top: 0 }); }
+function erreur(txt) { $('erreurTexte').textContent = txt; montrer('erreur'); }
+function message(txt, err = true) { $('message').textContent = txt; $('message').className = 'message' + (err ? ' erreur' : ''); }
+
+async function charger() {
+  if (!/^[0-9a-f]{32}$/.test(jeton)) return erreur('Ce lien est incomplet. Ouvrez-le à nouveau depuis le message reçu ou rescannez le QR code.');
+  let r;
+  try { r = await rpc('ps_remise_lire', { p_jeton: jeton }); }
+  catch (e) { return erreur(e.message); }
+  const contact = r && r.syndic ? [r.syndic.nom, r.syndic.tel].filter(Boolean).join(' • ') : '';
+  if (contact) $('pied').textContent = `${contact} • Portail réalisé par Harmonie Électricité`;
+  if (!r) return erreur('Ce lien n’est plus valide.' + (contact ? ' Contactez votre syndic : ' + contact : ''));
+  if (r.statut === 'annule') return erreur('Cette remise a été annulée par votre syndic.' + (contact ? ' Contact : ' + contact : ''));
+  if (r.statut === 'signe') { $('merciTexte').textContent = `Cette remise a déjà été signée le ${horodatage(r.signe_le)}.`; return montrer('merci'); }
+  $('fSyndic').textContent = r.syndic ? r.syndic.nom : '';
+  $('titre').textContent = r.copro.nom;
+  const n = r.badges.length;
+  $('accordTexte').textContent = `Je reconnais avoir reçu ${n > 1 ? 'les ' + n + ' badges listés' : 'le badge listé'} ci-dessus.`;
+  const lignes = [
+    ['Résidence', [r.copro.nom, r.copro.adresse, [r.copro.cp, r.copro.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')],
+    ['Bénéficiaire', r.proprietaire + ' (' + (PS.QUALITES[r.qualite] || r.qualite) + ')'],
+    ['Logement', [r.batiment && 'Bât. ' + r.batiment, r.lot].filter(Boolean).join(' • ')],
+    ['Badges', String(n)], ['N° des badges', r.badges.join(' • ')], ['Commentaire', r.commentaire], ['Bon', r.numero],
+  ];
+  for (const [k, v] of lignes) {
+    if (!v) continue;
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = k; dt.className = 'aide'; dt.style.margin = '0';
+    dd.textContent = v; dd.style.margin = '0'; dd.style.color = 'var(--he-white)'; dd.style.overflowWrap = 'anywhere'; if (k === 'N° des badges') dd.className = 'mono';
+    $('details').append(dt, dd);
+  }
+  $('nom').value = r.proprietaire || '';
+  montrer('formulaire');
+  pad = PS.pad($('pad')); setTimeout(() => pad.taille(), 30);
+}
+
+$('effacer').onclick = () => pad && pad.effacer();
+$('signer').onclick = async () => {
+  if (!$('accord').checked) return message('Cochez la case pour confirmer la réception des badges.');
+  if (!$('nom').value.trim()) { $('nom').focus(); return message('Indiquez le nom du signataire.'); }
+  if (pad.estVide()) return message('Signez dans le cadre blanc.');
+  $('signer').disabled = true; message('Envoi de la signature…', false);
+  try {
+    await rpc('ps_remise_signer', { p_jeton: jeton, p_nom: $('nom').value.trim(), p_signature: pad.image(), p_navigateur: navigator.userAgent });
+    montrer('merci');
+  } catch (e) {
+    $('signer').disabled = false;
+    message(e.message || 'La signature n’a pas pu être envoyée. Vérifiez votre connexion puis réessayez.');
+  }
+};
+charger();
+</script>
+</body>
+</html>

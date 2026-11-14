@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0A0A">
+<link rel="icon" href="assets/icone-192.png">
+<title>Portail syndic · Administration Harmonie</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="portail.css?v=1">
+</head>
+<body>
+<main>
+  <header class="haut">
+    <img class="logo" src="assets/logo-wordmark.png" alt="Harmonie Électricité">
+    <div class="qui"><b>Portail syndic</b><span>Administration</span></div>
+    <div class="outils">
+      <a class="btn btn-petit" href="index.html">‹ Émargement</a>
+      <button type="button" class="btn btn-petit btn-discret" id="btnVerrouiller" hidden>Verrouiller</button>
+    </div>
+  </header>
+  <div class="trace"></div>
+
+  <section id="vChargement"><p>Chargement…</p></section>
+
+  <!-- Mot de passe administrateur -->
+  <section id="vAdmin" hidden>
+    <div class="sourcil">Administration</div>
+    <h1 id="adTitre">Accès administrateur</h1>
+    <p class="intro" id="adIntro"></p>
+    <form class="bloc" id="formAdmin">
+      <label for="adMdp">Mot de passe administrateur</label>
+      <input type="password" id="adMdp" autocomplete="current-password" required>
+      <div id="adConfirmeBloc" hidden><label for="adMdp2">Confirmez le mot de passe</label><input type="password" id="adMdp2" autocomplete="new-password"></div>
+      <div class="actions"><button class="btn btn-or" type="submit" id="adBouton">Ouvrir</button></div>
+      <p class="message" id="adMessage" role="status"></p>
+    </form>
+  </section>
+
+  <!-- Accueil -->
+  <section id="vAccueil" hidden>
+    <div class="grille" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <button type="button" class="carte" data-aller="chantiers"><div class="sourcil">Copropriétés</div><h3>Chantiers</h3><div class="meta" id="resumeChantiers"></div></button>
+      <button type="button" class="carte" data-aller="syndics"><div class="sourcil">Cabinets et gestionnaires</div><h3>Syndics</h3><div class="meta" id="resumeSyndics"></div></button>
+      <a class="carte" href="index.html" style="text-decoration:none"><div class="sourcil">Pose et signatures</div><h3>Émargement</h3><div class="meta">Retour à l’app du technicien</div></a>
+    </div>
+    <div class="bloc" id="aFaire"></div>
+  </section>
+
+  <!-- Syndics -->
+  <section id="vSyndics" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-aller="accueil">‹ Accueil</button>
+    <div class="titre-ligne" style="margin-top:8px"><div><div class="sourcil">Cabinets</div><h1>Syndics</h1></div>
+      <button type="button" class="btn btn-or" id="btnNouveauSyndic">+ Nouveau syndic</button></div>
+    <div id="listeSyndics"></div>
+  </section>
+
+  <!-- Chantiers -->
+  <section id="vChantiers" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-aller="accueil">‹ Accueil</button>
+    <div class="titre-ligne" style="margin-top:8px"><div><div class="sourcil">Copropriétés</div><h1>Chantiers</h1></div>
+      <button type="button" class="btn btn-or" id="btnNouveauChantier">+ Nouveau chantier</button></div>
+    <input type="search" id="chRecherche" placeholder="Rechercher une copropriété, un syndic, une ville…">
+    <div class="grille" id="listeChantiers" style="margin-top:12px"></div>
+  </section>
+
+  <!-- Détail d'un chantier -->
+  <section id="vChantier" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-aller="chantiers">‹ Chantiers</button>
+    <div class="titre-ligne" style="margin-top:8px">
+      <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p></div>
+      <button type="button" class="btn" id="btnModifierChantier">Modifier</button>
+    </div>
+    <div class="tuiles" id="dTuiles"></div>
+    <div class="onglets" role="tablist">
+      <button type="button" role="tab" data-ong="livrer" aria-selected="true">Livrer des badges</button>
+      <button type="button" role="tab" data-ong="remises" aria-selected="false">Remises</button>
+      <button type="button" role="tab" data-ong="badges" aria-selected="false">Badges</button>
+      <button type="button" role="tab" data-ong="livraisons" aria-selected="false">Livraisons</button>
+    </div>
+
+    <div id="ongLivrer">
+      <div class="bloc">
+        <h2>1 · Listing des badges livrés à l’agence</h2>
+        <p class="aide">Collez une colonne copiée depuis Excel, des n° séparés par des espaces, ou une plage « 10001-10080 ». Vous pouvez aussi importer un fichier ou reprendre les badges d’un chantier de l’app d’émargement.</p>
+        <textarea id="lvTexte" rows="6" placeholder="10001&#10;10002&#10;…" class="mono"></textarea>
+        <div class="actions">
+          <label class="btn" for="lvFichier" style="margin:0">Importer un fichier (Excel, CSV)</label>
+          <input type="file" id="lvFichier" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt" hidden>
+          <select id="lvChantierApp" style="flex:1;min-width:220px"><option value="">Reprendre les badges d’un chantier de l’app…</option></select>
+        </div>
+        <div id="lvColonneBloc" hidden><label for="lvColonne">Colonne contenant les n° de badge</label><select id="lvColonne"></select></div>
+        <div id="lvApercu" style="margin-top:12px"></div>
+      </div>
+      <div class="bloc">
+        <h2>2 · Réception par le gestionnaire (facultatif)</h2>
+        <p class="aide">Si le gestionnaire est présent, il signe ici la réception des badges : le bon de livraison sera signé.</p>
+        <label for="lvSignataire">Nom du gestionnaire</label><input type="text" id="lvSignataire">
+        <label>Signature</label>
+        <div class="papier"><canvas id="lvPad"></canvas><div class="ligne"></div><span class="mention">Reçu par le syndic</span></div>
+        <div class="actions"><button type="button" class="btn btn-discret" id="lvEffacer">Effacer</button></div>
+        <label for="lvCommentaire">Commentaire</label><input type="text" id="lvCommentaire" placeholder="Ex. : badges programmés, livrés à l’agence de Chambéry">
+      </div>
+      <div class="actions"><button type="button" class="btn btn-or btn-large" id="lvLivrer" disabled>Livrer les badges</button></div>
+      <div id="lvResultat"></div>
+    </div>
+
+    <div id="ongRemises" hidden>
+      <div class="actions"><button type="button" class="btn" id="btnExportCsv">Export CSV pour le contrôle d’accès</button></div>
+      <div class="defile"><table class="tab" style="margin-top:10px"><thead><tr><th>Bon</th><th>Bénéficiaire</th><th>Logement</th><th>Badges</th><th>Statut</th><th>Créé dans le contrôle d’accès</th><th></th></tr></thead><tbody id="tRemises"></tbody></table></div>
+    </div>
+    <div id="ongBadges" hidden>
+      <input type="search" id="bdRecherche" placeholder="N° de badge…" style="margin-top:14px">
+      <ul class="liste" id="listeBadges"></ul>
+    </div>
+    <div id="ongLivraisons" hidden><ul class="liste" id="listeLivraisons"></ul></div>
+  </section>
+</main>
+
+<!-- Syndic -->
+<dialog id="dlgSyndic"><form class="dlg" id="formSyndic">
+  <div class="sourcil">Cabinet</div><h3 id="sdTitre">Nouveau syndic</h3>
+  <div class="grille-2">
+    <div style="grid-column:1/-1"><label for="sdNom">Raison sociale *</label><input type="text" id="sdNom" required></div>
+    <div style="grid-column:1/-1"><label for="sdAdresse">Adresse</label><input type="text" id="sdAdresse"></div>
+    <div><label for="sdCp">Code postal</label><input type="text" id="sdCp"></div>
+    <div><label for="sdVille">Ville</label><input type="text" id="sdVille"></div>
+    <div><label for="sdTel">Téléphone</label><input type="tel" id="sdTel"></div>
+    <div><label for="sdEmail">E-mail</label><input type="email" id="sdEmail"></div>
+    <div><label for="sdSiret">SIRET</label><input type="text" id="sdSiret"></div>
+  </div>
+  <p class="aide">Le gestionnaire pourra compléter ces coordonnées, son tampon et sa signature à sa première connexion.</p>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Enregistrer</button></div>
+  <p class="message" id="sdMessage"></p>
+</form></dialog>
+
+<!-- Gestionnaire -->
+<dialog id="dlgUser"><form class="dlg" id="formUser">
+  <div class="sourcil" id="usSyndic"></div><h3 id="usTitre">Nouveau gestionnaire</h3>
+  <label for="usNom">Nom</label><input type="text" id="usNom">
+  <label for="usEmail">E-mail * (son identifiant)</label><input type="email" id="usEmail" required>
+  <label for="usTel">Téléphone</label><input type="tel" id="usTel">
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or" id="usBouton">Enregistrer et créer l’accès</button></div>
+  <p class="message" id="usMessage"></p>
+</form></dialog>
+
+<!-- Invitation -->
+<dialog id="dlgInvitation"><div class="dlg">
+  <div class="sourcil">Accès syndic</div><h3 id="ivTitre"></h3>
+  <p class="aide">Ce lien, valable 14 jours, permet au gestionnaire de choisir son mot de passe. Il se connectera ensuite avec son e-mail.</p>
+  <div class="lien" id="ivLien"></div>
+  <div class="actions"><button type="button" class="btn btn-or" id="ivMail">Envoyer par e-mail</button><a class="btn" id="ivSms" href="#">Par SMS</a><button type="button" class="btn" id="ivCopier">Copier</button></div>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Fermer</button></div>
+</div></dialog>
+
+<!-- Chantier -->
+<dialog id="dlgChantier"><form class="dlg" id="formChantier">
+  <div class="sourcil">Copropriété</div><h3 id="chTitre">Nouveau chantier</h3>
+  <div class="grille-2">
+    <div style="grid-column:1/-1"><label for="chNom">Nom de la copropriété *</label><input type="text" id="chNom" required placeholder="Saint Antoine"></div>
+    <div style="grid-column:1/-1"><label for="chAdresse">Adresse</label><input type="text" id="chAdresse"></div>
+    <div><label for="chCp">Code postal</label><input type="text" id="chCp"></div>
+    <div><label for="chVille">Ville</label><input type="text" id="chVille" placeholder="Le Bourget-du-Lac"></div>
+    <div><label for="chReference">Référence dossier</label><input type="text" id="chReference"></div>
+    <div><label for="chSyndic">Syndic</label><select id="chSyndic"></select></div>
+    <div><label for="chType">Type de chantier</label><select id="chType"><option value="badges">Badges seuls</option><option value="complet">Complet (recensement, pose, badges)</option></select></div>
+    <div><label for="chEtat">État du dossier</label><select id="chEtat"></select></div>
+    <div style="grid-column:1/-1"><label for="chLien">Chantier lié dans l’app d’émargement</label><select id="chLien"><option value="">— Aucun —</option></select></div>
+    <div style="grid-column:1/-1"><label for="chNotes">Notes internes</label><textarea id="chNotes" rows="3"></textarea></div>
+  </div>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Enregistrer</button></div>
+  <p class="message" id="chMessage"></p>
+</form></dialog>
+
+<script src="logos.js"></script>
+<script src="portail-commun.js?v=1"></script>
+<script>
+'use strict';
+const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
+const CLE_ADMIN = 'ps_admin';
+const { SUPA_URL, SUPA_KEY } = PS;
+const A = { mdp: '', etat: null, copro: null, detail: null, edition: null, syndicPourUser: null, apercu: [], fichierLignes: null };
+let lvPad = null;
+
+const vues = ['vChargement', 'vAdmin', 'vAccueil', 'vSyndics', 'vChantiers', 'vChantier'];
+function montrer(v) { vues.forEach(x => { $(x).hidden = x !== v; }); $('btnVerrouiller').hidden = !A.mdp; window.scrollTo({ top: 0 }); }
+function msg(id, t, err = true) { $(id).textContent = t || ''; $(id).className = 'message' + (err ? ' erreur' : ''); }
+document.querySelectorAll('dialog [data-fermer]').forEach(b => b.onclick = () => b.closest('dialog').close());
+async function appel(fn, args, idMsg) {
+  try { return await rpc(fn, { p_admin: A.mdp, ...args }); }
+  catch (e) {
+    if (e.code === 'ADMIN_REFUSE') { verrouiller(); toast(e.message); throw e; }
+    if (idMsg) msg(idMsg, e.message); else toast(e.message, 5000);
+    throw e;
+  }
+}
+
+// ---------- Accès administrateur ----------
+async function demarrer() {
+  try { A.mdp = localStorage.getItem(CLE_ADMIN) || ''; } catch {}
+  let statut;
+  try { statut = await rpc('ps_admin_statut'); }
+  catch (e) { montrer('vAdmin'); $('adIntro').textContent = ''; return msg('adMessage', e.message); }
+  if (!statut.initialise) {
+    A.mdp = ''; $('adTitre').textContent = 'Créer le mot de passe administrateur';
+    $('adIntro').textContent = 'Première ouverture du portail : choisissez le mot de passe qui protège l’administration (8 caractères minimum). Gardez-le précieusement.';
+    $('adConfirmeBloc').hidden = false; $('adBouton').textContent = 'Créer'; A.creation = true;
+    return montrer('vAdmin');
+  }
+  if (A.mdp) { try { await charger(); return montrer('vAccueil'); } catch { /* mot de passe périmé */ } }
+  $('adIntro').textContent = 'Saisissez votre mot de passe administrateur. Il reste mémorisé sur cet appareil jusqu’à « Verrouiller ».';
+  montrer('vAdmin');
+}
+$('formAdmin').onsubmit = async e => {
+  e.preventDefault();
+  const m = $('adMdp').value;
+  try {
+    if (A.creation) {
+      if (m !== $('adMdp2').value) return msg('adMessage', 'Les deux mots de passe ne sont pas identiques.');
+      await rpc('ps_admin_initialiser', { p_mdp: m }); A.creation = false;
+    }
+    A.mdp = m; await charger();
+    try { localStorage.setItem(CLE_ADMIN, m); } catch {}
+    $('adMdp').value = $('adMdp2').value = ''; msg('adMessage', '');
+    montrer('vAccueil');
+  } catch (err) { A.mdp = ''; msg('adMessage', err.message); }
+};
+function verrouiller() { A.mdp = ''; try { localStorage.removeItem(CLE_ADMIN); } catch {} demarrer(); }
+$('btnVerrouiller').onclick = verrouiller;
+
+async function charger() {
+  A.etat = await rpc('ps_admin_etat', { p_admin: A.mdp });
+  const cs = A.etat.copros, ss = A.etat.syndics;
+  $('resumeChantiers').textContent = `${cs.length} chantier${cs.length > 1 ? 's' : ''}`;
+  $('resumeSyndics').textContent = `${ss.length} cabinet${ss.length > 1 ? 's' : ''} • ${ss.reduce((t, s) => t + s.users.length, 0)} accès`;
+  const aCreer = cs.filter(c => c.compteurs.a_creer);
+  $('aFaire').innerHTML = `<h2>À faire</h2>` + (aCreer.length ? `<ul class="liste">${aCreer.map(c => `<li><div class="principal"><b>${esc(c.nom)}</b><div class="sous">${c.compteurs.a_creer} remise${c.compteurs.a_creer > 1 ? 's' : ''} signée${c.compteurs.a_creer > 1 ? 's' : ''} à créer dans le contrôle d’accès</div></div><div class="droite"><button type="button" class="btn btn-petit" data-ouvrir="${c.id}">Ouvrir</button></div></li>`).join('')}</ul>` : '<p class="aide">Rien en attente : toutes les remises signées sont créées dans le contrôle d’accès.</p>');
+  document.querySelectorAll('#aFaire [data-ouvrir]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.ouvrir, 'remises'));
+}
+document.querySelectorAll('[data-aller]').forEach(b => b.onclick = async () => {
+  const v = b.dataset.aller;
+  if (v === 'accueil') { await charger().catch(() => {}); montrer('vAccueil'); }
+  if (v === 'syndics') { await charger().catch(() => {}); rendreSyndics(); montrer('vSyndics'); }
+  if (v === 'chantiers') { await charger().catch(() => {}); rendreChantiers(); montrer('vChantiers'); }
+});
+
+// ---------- Syndics ----------
+const nomSyndic = id => (A.etat.syndics.find(s => s.id === id) || {}).nom || '';
+const pastilleUser = u => u.statut === 'actif' ? '<span class="pastille ok">Actif</span>' : u.statut === 'invite' ? '<span class="pastille attente">Invité</span>' : '<span class="pastille erreur">Désactivé</span>';
+function rendreSyndics() {
+  const ss = A.etat.syndics;
+  $('listeSyndics').innerHTML = ss.length ? ss.map(s => `<div class="bloc">
+    <div class="titre-ligne" style="margin:0"><div><h3>${esc(s.nom)}</h3><div class="aide">${esc([s.adresse, [s.cp, s.ville].filter(Boolean).join(' '), s.tel, s.email].filter(Boolean).join(' • ')) || 'Coordonnées à compléter'}</div>
+      <div class="aide">${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => esc(c.nom)).join(', ') || 'Aucun chantier lié'}</div></div>
+      <div class="droite" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-petit" data-modifier-syndic="${s.id}">Modifier</button><button type="button" class="btn btn-petit btn-or" data-ajouter-user="${s.id}">+ Gestionnaire</button></div></div>
+    <ul class="liste" style="margin-top:8px">${s.users.map(u => `<li><div class="principal"><b>${esc(u.nom || u.email)}</b> ${pastilleUser(u)}
+        <div class="sous">${esc(u.email)}${u.tel ? ' • ' + esc(u.tel) : ''}${u.derniere_connexion ? ' • dernière connexion ' + horodatage(u.derniere_connexion) : ''}</div></div>
+      <div class="droite">
+        <button type="button" class="btn btn-petit" data-inviter="${u.id}">${u.statut === 'actif' ? 'Nouveau lien' : u.invitation ? 'Voir le lien' : 'Créer l’accès'}</button>
+        <button type="button" class="btn btn-petit btn-discret" data-modifier-user="${u.id}">Modifier</button>
+        <button type="button" class="btn btn-petit btn-discret" data-actif="${u.id}" data-val="${!u.actif}">${u.actif ? 'Désactiver' : 'Réactiver'}</button></div></li>`).join('') || '<li><span class="aide">Aucun gestionnaire : ajoutez-en un pour lui créer un accès.</span></li>'}</ul>
+  </div>`).join('') : '<div class="vide">Aucun syndic. Créez le premier cabinet.</div>';
+  document.querySelectorAll('[data-modifier-syndic]').forEach(b => b.onclick = () => ouvrirSyndic(ss.find(s => s.id === b.dataset.modifierSyndic)));
+  document.querySelectorAll('[data-ajouter-user]').forEach(b => b.onclick = () => ouvrirUser(ss.find(s => s.id === b.dataset.ajouterUser)));
+  document.querySelectorAll('[data-modifier-user]').forEach(b => b.onclick = () => { const s = ss.find(x => x.users.some(u => u.id === b.dataset.modifierUser)); ouvrirUser(s, s.users.find(u => u.id === b.dataset.modifierUser)); });
+  document.querySelectorAll('[data-inviter]').forEach(b => b.onclick = () => inviter(b.dataset.inviter));
+  document.querySelectorAll('[data-actif]').forEach(b => b.onclick = async () => {
+    try { await appel('ps_admin_user_actif', { p_user: b.dataset.actif, p_actif: b.dataset.val === 'true' }); await charger(); rendreSyndics(); } catch {}
+  });
+}
+$('btnNouveauSyndic').onclick = () => ouvrirSyndic(null);
+function ouvrirSyndic(s) {
+  A.edition = s;
+  $('sdTitre').textContent = s ? s.nom : 'Nouveau syndic';
+  [['sdNom', 'nom'], ['sdAdresse', 'adresse'], ['sdCp', 'cp'], ['sdVille', 'ville'], ['sdTel', 'tel'], ['sdEmail', 'email'], ['sdSiret', 'siret']].forEach(([id, k]) => { $(id).value = s ? s[k] || '' : ''; });
+  msg('sdMessage', ''); $('dlgSyndic').showModal();
+}
+$('formSyndic').onsubmit = async e => {
+  e.preventDefault();
+  const p = { id: A.edition?.id || '', nom: $('sdNom').value.trim(), adresse: $('sdAdresse').value.trim(), cp: $('sdCp').value.trim(), ville: $('sdVille').value.trim(),
+    tel: $('sdTel').value.trim(), email: $('sdEmail').value.trim(), siret: $('sdSiret').value.trim() };
+  try {
+    const r = await appel('ps_admin_syndic_enregistrer', { p }, 'sdMessage');
+    $('dlgSyndic').close(); await charger(); rendreSyndics();
+    if (!A.edition) { const s = A.etat.syndics.find(x => x.id === r.id); if (s) ouvrirUser(s); }
+  } catch {}
+};
+function ouvrirUser(s, u) {
+  A.syndicPourUser = s; A.edition = u || null;
+  $('usSyndic').textContent = s.nom; $('usTitre').textContent = u ? 'Modifier le gestionnaire' : 'Nouveau gestionnaire';
+  $('usNom').value = u?.nom || ''; $('usEmail').value = u?.email || ''; $('usTel').value = u?.tel || '';
+  $('usBouton').textContent = u ? 'Enregistrer' : 'Enregistrer et créer l’accès';
+  msg('usMessage', ''); $('dlgUser').showModal();
+}
+$('formUser').onsubmit = async e => {
+  e.preventDefault();
+  const p = { id: A.edition?.id || '', syndic_id: A.syndicPourUser.id, nom: $('usNom').value.trim(), email: $('usEmail').value.trim(), tel: $('usTel').value.trim() };
+  try {
+    const r = await appel('ps_admin_user_enregistrer', { p }, 'usMessage');
+    $('dlgUser').close(); await charger(); rendreSyndics();
+    if (!A.edition) inviter(r.id);
+  } catch {}
+};
+async function inviter(userId) {
+  const s = A.etat.syndics.find(x => x.users.some(u => u.id === userId)), u = s.users.find(x => x.id === userId);
+  let jeton = u.statut === 'invite' && u.invitation;
+  if (!jeton) { try { jeton = (await appel('ps_admin_user_inviter', { p_user: userId })).invitation; } catch { return; } }
+  const lien = PS.urlPage('syndic.html') + '?invitation=' + jeton;
+  $('ivTitre').textContent = `${u.nom || u.email} • ${s.nom}`; $('ivLien').textContent = lien;
+  const texte = `Bonjour${u.nom ? ' ' + u.nom : ''},\n\nHarmonie Électricité vous ouvre l’espace syndic pour gérer la remise des badges de vos copropriétés (${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => c.nom).join(', ') || s.nom}).\n\nCliquez sur ce lien pour choisir votre mot de passe (valable 14 jours) :\n${lien}\n\nVous vous connecterez ensuite avec votre adresse e-mail (${u.email}) sur ${PS.urlPage('syndic.html')}\nÀ la première connexion, l’espace vous demandera les coordonnées du cabinet, votre tampon et votre signature : ils seront apposés automatiquement sur les bons de remise.\n\nCordialement,\nMathieu Laruicci\nHarmonie Électricité • 06 31 13 47 01`;
+  $('ivMail').onclick = () => { location.href = `mailto:${encodeURIComponent(u.email)}?subject=${encodeURIComponent('Votre accès à l’espace syndic Harmonie Électricité')}&body=${encodeURIComponent(texte)}`; };
+  $('ivSms').hidden = !(u.tel && PS.estTel()); $('ivSms').href = PS.lienSms(u.tel, `Harmonie Électricité : votre accès à l’espace syndic (badges). Choisissez votre mot de passe ici : ${lien}`);
+  $('ivCopier').onclick = () => PS.copier(lien);
+  $('dlgInvitation').showModal();
+  charger().then(() => { if (!$('vSyndics').hidden) rendreSyndics(); }).catch(() => {});
+}
+
+// ---------- Chantiers ----------
+function rendreChantiers() {
+  const q = $('chRecherche').value.trim().toLowerCase();
+  const cs = A.etat.copros.filter(c => !q || [c.nom, c.ville, c.reference, nomSyndic(c.syndic_id)].join(' ').toLowerCase().includes(q));
+  $('listeChantiers').innerHTML = cs.length ? cs.map(c => {
+    const k = c.compteurs, pc = k.livres ? Math.round(k.remis / k.livres * 100) : 0;
+    return `<button type="button" class="carte" data-chantier="${c.id}"><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
+      <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
+      <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.a_creer ? `<span class="pastille attente">${k.a_creer} à créer dans le contrôle d’accès</span>` : ''}</div>
+      <div class="barre-prog"><i style="width:${pc}%"></i></div></button>`;
+  }).join('') : `<div class="vide">${q ? 'Aucun résultat.' : 'Aucun chantier. Créez le premier.'}</div>`;
+  document.querySelectorAll('[data-chantier]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.chantier));
+}
+$('chRecherche').oninput = rendreChantiers;
+
+let chantiersApp = null;
+async function listeChantiersApp() {
+  if (chantiersApp) return chantiersApp;
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=id,residence:payload->>residence,reference:payload->>reference&id=like.CH_*&order=created_at.desc`, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
+    chantiersApp = r.ok ? await r.json() : [];
+  } catch { chantiersApp = []; }
+  return chantiersApp;
+}
+async function remplirChantiersApp(select, premier) {
+  const ls = await listeChantiersApp();
+  select.innerHTML = `<option value="">${premier}</option>` + ls.map(c => `<option value="${esc(c.id)}">${esc(c.residence || c.id)}${c.reference ? ' • ' + esc(c.reference) : ''}</option>`).join('');
+}
+$('btnNouveauChantier').onclick = () => ouvrirFormChantier(null);
+$('btnModifierChantier').onclick = () => ouvrirFormChantier(A.detail.copro);
+async function ouvrirFormChantier(c) {
+  A.edition = c;
+  $('chTitre').textContent = c ? c.nom : 'Nouveau chantier';
+  $('chSyndic').innerHTML = '<option value="">— À choisir —</option>' + A.etat.syndics.map(s => `<option value="${s.id}">${esc(s.nom)}</option>`).join('');
+  $('chEtat').innerHTML = Object.entries(PS.ETATS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+  [['chNom', 'nom'], ['chAdresse', 'adresse'], ['chCp', 'cp'], ['chVille', 'ville'], ['chReference', 'reference'], ['chNotes', 'notes']].forEach(([id, k]) => { $(id).value = c ? c[k] || '' : ''; });
+  $('chSyndic').value = c?.syndic_id || ''; $('chType').value = c?.type || 'badges'; $('chEtat').value = c?.etat || 'commence';
+  await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';
+  msg('chMessage', ''); $('dlgChantier').showModal();
+}
+$('formChantier').onsubmit = async e => {
+  e.preventDefault();
+  const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
+    reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim() };
+  try {
+    const r = await appel('ps_admin_copro_enregistrer', { p }, 'chMessage');
+    $('dlgChantier').close(); await charger(); ouvrirChantier(r.id);
+  } catch {}
+};
+
+async function ouvrirChantier(id, onglet) {
+  A.copro = id;
+  try { A.detail = await appel('ps_admin_copro_detail', { p_copro: id }); } catch { return; }
+  const c = A.detail.copro, k = A.detail.compteurs, s = A.detail.syndic;
+  $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' ? ' • chantier complet' : ' • badges seuls');
+  $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference, s ? 'Syndic : ' + s.nom : 'Aucun syndic lié'].filter(Boolean).join(' • ');
+  $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
+    .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu();
+  $('lvResultat').innerHTML = '';
+  montrer('vChantier');
+  if (!lvPad) lvPad = PS.pad($('lvPad'));
+  if (onglet) choisirOnglet(onglet);
+  setTimeout(() => lvPad.taille(), 50);
+  remplirChantiersApp($('lvChantierApp'), 'Reprendre les badges d’un chantier de l’app…');
+}
+function choisirOnglet(o) {
+  document.querySelectorAll('[data-ong]').forEach(x => x.setAttribute('aria-selected', x.dataset.ong === o));
+  ['livrer', 'remises', 'badges', 'livraisons'].forEach(k => { $('ong' + k.charAt(0).toUpperCase() + k.slice(1)).hidden = k !== o; });
+  if (o === 'livrer') setTimeout(() => lvPad && lvPad.taille(), 30);
+}
+document.querySelectorAll('[data-ong]').forEach(b => b.onclick = () => choisirOnglet(b.dataset.ong));
+
+// ---------- Livraison de badges ----------
+function majApercu() {
+  const nums = PS.analyserNumeros($('lvTexte').value), vus = new Set(), doublons = new Set();
+  for (const n of nums) { if (vus.has(n)) doublons.add(n); vus.add(n); }
+  const existants = new Set((A.detail?.badges || []).map(b => b.numero));
+  const uniques = [...vus], nouveaux = uniques.filter(n => !existants.has(n)), deja = uniques.filter(n => existants.has(n));
+  A.apercu = nouveaux;
+  $('lvApercu').innerHTML = uniques.length ? `<p style="margin:0"><b style="color:var(--he-white);font-size:18px">${nouveaux.length}</b> badge${nouveaux.length > 1 ? 's' : ''} à livrer
+      ${doublons.size ? ` • <span class="pastille attente">${doublons.size} en double dans la liste (comptés une fois)</span>` : ''}
+      ${deja.length ? ` • <span class="pastille erreur">${deja.length} déjà dans ce chantier (ignorés)</span>` : ''}</p>
+    <div class="puces" style="margin-top:8px;max-height:180px;overflow:auto">${nouveaux.slice(0, 300).map(n => `<span class="puce" style="cursor:default">${esc(n)}</span>`).join('')}${nouveaux.length > 300 ? `<span class="aide">… et ${nouveaux.length - 300} autres</span>` : ''}</div>
+    ${deja.length ? `<p class="aide">Déjà présents : <span class="mono">${esc(deja.join(', '))}</span></p>` : ''}` : '';
+  $('lvLivrer').disabled = !nouveaux.length;
+  $('lvLivrer').textContent = nouveaux.length ? `Livrer ${nouveaux.length} badge${nouveaux.length > 1 ? 's' : ''} au syndic` : 'Livrer les badges';
+}
+$('lvTexte').oninput = majApercu;
+$('lvEffacer').onclick = () => lvPad.effacer();
+$('lvChantierApp').onchange = async e => {
+  const id = e.target.value; if (!id) return;
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/emargements?select=payload&id=eq.${encodeURIComponent(id)}`, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
+    const p = r.ok ? (await r.json())[0]?.payload : null;
+    const badges = (p?.logements || []).flatMap(l => (l.badges || []).filter(Boolean));
+    if (!badges.length) { toast('Aucun n° de badge saisi dans ce chantier.'); return; }
+    $('lvTexte').value = [$('lvTexte').value.trim(), ...badges].filter(Boolean).join('\n'); majApercu();
+    toast(`${badges.length} badge${badges.length > 1 ? 's' : ''} repris de « ${p.residence || id} ».`);
+  } catch { toast('Lecture du chantier impossible.'); }
+  e.target.value = '';
+};
+// Import Excel / CSV : on choisit la colonne qui contient les n° (devinée automatiquement).
+$('lvFichier').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    let lignes;
+    if (/\.(csv|txt)$/i.test(f.name)) lignes = (await f.text()).split(/\r?\n/).map(l => l.split(/[;,\t]/));
+    else {
+      if (!window.XLSX) await PS.chargerScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = window.XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      lignes = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+    }
+    lignes = lignes.filter(l => l.some(v => String(v).trim()));
+    const nbCol = Math.max(...lignes.map(l => l.length));
+    const ressemble = v => /^[A-Za-z]{0,3}\d{3,}[A-Za-z0-9]*$/.test(String(v).trim());
+    let meilleure = 0, score = -1;
+    for (let c = 0; c < nbCol; c++) { const s = lignes.filter(l => ressemble(l[c] ?? '')).length; if (s > score) { score = s; meilleure = c; } }
+    const lettre = c => String.fromCharCode(65 + (c % 26));
+    $('lvColonne').innerHTML = Array.from({ length: nbCol }, (_, c) => `<option value="${c}">Colonne ${lettre(c)} — ${esc(String(lignes.find(l => String(l[c] ?? '').trim())?.[c] ?? '').slice(0, 30))}</option>`).join('');
+    $('lvColonne').value = meilleure; $('lvColonneBloc').hidden = false;
+    A.fichierLignes = lignes; appliquerColonne();
+    toast(`Fichier lu : ${lignes.length} lignes. Vérifiez la colonne choisie.`);
+  } catch (err) { toast('Fichier illisible : ' + err.message, 5000); }
+};
+function appliquerColonne() {
+  const c = +$('lvColonne').value;
+  const vals = A.fichierLignes.map(l => String(l[c] ?? '').trim()).filter(v => /^[A-Za-z]{0,3}\d{3,}[A-Za-z0-9]*$/.test(v));
+  $('lvTexte').value = vals.join('\n'); majApercu();
+}
+$('lvColonne').onchange = appliquerColonne;
+$('lvLivrer').onclick = async () => {
+  if (!A.apercu.length) return;
+  if (!A.detail.syndic && !confirm('Ce chantier n’est lié à aucun syndic : les badges ne seront visibles par personne côté syndic. Livrer quand même ?')) return;
+  const sig = lvPad.estVide() ? '' : lvPad.image();
+  if (sig && !$('lvSignataire').value.trim()) { $('lvSignataire').focus(); return toast('Indiquez le nom du gestionnaire qui signe.'); }
+  $('lvLivrer').disabled = true;
+  try {
+    const r = await appel('ps_admin_livrer', { p_copro: A.copro, p_badges: A.apercu, p_commentaire: $('lvCommentaire').value.trim(), p_signataire: $('lvSignataire').value.trim(), p_signature: sig });
+    const livraison = { badges: r.ajoutes, signataire: $('lvSignataire').value.trim(), signature: sig, commentaire: $('lvCommentaire').value.trim(), cree_le: new Date().toISOString(), signe_le: sig ? new Date().toISOString() : null };
+    $('lvTexte').value = ''; $('lvCommentaire').value = ''; $('lvSignataire').value = ''; lvPad.effacer(); $('lvColonneBloc').hidden = true;
+    await ouvrirChantier(A.copro, 'livrer');
+    $('lvResultat').innerHTML = `<div class="bloc"><h2>Livraison enregistrée</h2><p style="margin:0"><b style="color:var(--he-white)">${r.ajoutes.length}</b> badge${r.ajoutes.length > 1 ? 's' : ''} ajouté${r.ajoutes.length > 1 ? 's' : ''} au stock du syndic.</p>
+      ${r.ailleurs.length ? `<p class="aide">Attention, ${r.ailleurs.length} n° existe${r.ailleurs.length > 1 ? 'nt' : ''} aussi dans un autre chantier : ${esc(r.ailleurs.map(a => a.numero + ' (' + a.copro + ')').join(', '))}</p>` : ''}
+      <div class="actions"><button type="button" class="btn" id="lvBon">Bon de livraison PDF</button></div></div>`;
+    $('lvBon').onclick = async () => { const b = await pdfLivraison(livraison); window.open(URL.createObjectURL(b), '_blank') || PS.telecharger(b, 'Bon de livraison badges.pdf'); };
+  } catch { $('lvLivrer').disabled = false; }
+};
+
+// Bon de livraison Harmonie → syndic
+async function pdfLivraison(l) {
+  await PS.chargerScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  const W = 210, M = 15, ENC = [23, 24, 28], GRIS = [107, 102, 88], OR = [168, 132, 63], FILET = [217, 212, 200];
+  const c = A.detail.copro, s = A.detail.syndic || {}, E = PS.ENTREPRISE;
+  const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 10); doc.setTextColor(...(o.c || ENC)); doc.text(String(t ?? ''), x, y, o.al ? { align: o.al } : undefined); };
+  try { doc.addImage(LOGO_WORDMARK, 'PNG', M, 10, 48, 48 * 418 / 1232); } catch { T(E.nom, M, 18, { s: 15, b: true }); }
+  T(`${E.adresse} • ${E.tel} • ${E.email}`, M, 29, { s: 8, c: GRIS });
+  T('BON DE LIVRAISON DE BADGES', W - M, 15, { s: 9, c: OR, al: 'right' });
+  T('Le ' + dateCourte(l.cree_le), W - M, 21, { s: 11, b: true, al: 'right' });
+  doc.setDrawColor(...OR); doc.setLineWidth(0.5); doc.line(M, 33, W - M, 33);
+  let y = 42;
+  T('COPROPRIÉTÉ', M, y, { s: 7.5, b: true, c: OR }); T('SYNDIC DESTINATAIRE', W / 2 + 4, y, { s: 7.5, b: true, c: OR }); y += 5.5;
+  T(c.nom, M, y, { s: 11, b: true }); T(s.nom || '—', W / 2 + 4, y, { s: 11, b: true }); y += 5;
+  T([c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), M, y, { s: 9, c: GRIS });
+  T([s.adresse, [s.cp, s.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), W / 2 + 4, y, { s: 9, c: GRIS }); y += 4.5;
+  if (c.reference) T('Réf. ' + c.reference, M, y, { s: 9, c: GRIS });
+  y += 10;
+  T(`BADGES LIVRÉS (${l.badges.length})`, M, y, { s: 8, b: true, c: OR }); y += 2; doc.setDrawColor(...FILET); doc.setLineWidth(0.2); doc.line(M, y, W - M, y); y += 6;
+  const per = 5, cw = (W - 2 * M) / per;
+  l.badges.forEach((b, i) => { if (y > 250) { doc.addPage(); y = 20; } const x = M + (i % per) * cw; T(`${i + 1}.`, x, y, { s: 7.5, c: GRIS }); T(b, x + 7, y, { s: 10 }); if (i % per === per - 1 || i === l.badges.length - 1) y += 5.6; });
+  y += 4;
+  if (l.commentaire) { T('Commentaire : ' + l.commentaire, M, y, { s: 9, c: GRIS }); y += 7; }
+  if (y > 225) { doc.addPage(); y = 20; }
+  const bw = (W - 2 * M - 8) / 2;
+  T('LIVRÉ PAR HARMONIE ÉLECTRICITÉ', M, y, { s: 7.5, b: true, c: OR }); doc.rect(M, y + 3, bw, 34);
+  T('REÇU PAR LE SYNDIC', M + bw + 8, y, { s: 7.5, b: true, c: OR }); T(l.signataire || '', M + bw + 8, y + 41, { s: 9 }); doc.rect(M + bw + 8, y + 3, bw, 34);
+  if (l.signature) { try { doc.addImage(l.signature, 'PNG', M + bw + 10, y + 5, bw - 4, 30); } catch {} }
+  if (l.signe_le) T('Reçu le ' + horodatage(l.signe_le), M + bw + 8, y + 46, { s: 8, c: GRIS });
+  doc.setDrawColor(...FILET); doc.line(M, 284, W - M, 284); T(`${E.nom} • ${E.adresse} • ${E.web}`, W / 2, 289, { s: 7.5, c: GRIS, al: 'center' });
+  return doc.output('blob');
+}
+
+// ---------- Remises, badges, livraisons ----------
+function rendreRemisesAdmin() {
+  const rs = A.detail.remises;
+  $('tRemises').innerHTML = rs.length ? rs.map(r => `<tr>
+    <td class="mono">${esc(r.numero)}<div class="aide">${dateCourte(r.signe_le || r.cree_le)}</div></td>
+    <td>${esc(r.proprietaire)}<div class="aide">${esc(PS.QUALITES[r.qualite] || '')}${r.agent_nom ? ' • par ' + esc(r.agent_nom) : ''}</div></td>
+    <td>${esc([r.batiment && 'Bât. ' + r.batiment, r.lot].filter(Boolean).join(' • '))}</td>
+    <td class="mono">${esc(r.badges.join(', '))}</td>
+    <td>${r.statut === 'signe' ? '<span class="pastille ok">Signée</span>' : r.statut === 'attente' ? '<span class="pastille attente">En attente</span>' : `<span class="pastille erreur">Annulée</span><div class="aide">${esc(r.annule_motif)}</div>`}</td>
+    <td>${r.statut === 'signe' ? `<label class="case" style="margin:0"><input type="checkbox" data-controle="${r.id}" ${r.controle_acces ? 'checked' : ''}> ${r.controle_acces ? 'Fait le ' + dateCourte(r.controle_le) : 'À faire'}</label>` : ''}</td>
+    <td>${r.statut !== 'annule' ? `<button type="button" class="btn btn-petit" data-pdf="${r.id}">PDF</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="7"><div class="vide">Aucune remise pour l’instant.</div></td></tr>';
+  document.querySelectorAll('[data-controle]').forEach(c => c.onchange = async () => {
+    try { await appel('ps_admin_controle', { p_remise: c.dataset.controle, p_fait: c.checked }); await ouvrirChantier(A.copro, 'remises'); } catch { c.checked = !c.checked; }
+  });
+  document.querySelectorAll('#tRemises [data-pdf]').forEach(b => b.onclick = async () => {
+    try { const r = await appel('ps_admin_remise', { p_remise: b.dataset.pdf }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {}
+  });
+}
+$('btnExportCsv').onclick = () => {
+  const rs = A.detail.remises.filter(r => r.statut === 'signe');
+  if (!rs.length) return toast('Aucune remise signée à exporter.');
+  const cel = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lignes = [['Bâtiment', 'Logement', 'Nom', 'Qualité', 'Nombre de badges', 'Badges', 'N° de bon', 'Signé le', 'Créé dans le contrôle d’accès'].map(cel).join(';'),
+    ...rs.map(r => [r.batiment, r.lot, r.proprietaire, PS.QUALITES[r.qualite] || r.qualite, r.badges.length, r.badges.join(' '), r.numero, dateCourte(r.signe_le), r.controle_acces ? 'oui' : 'non'].map(cel).join(';'))];
+  PS.telecharger(new Blob(['﻿' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Remises badges - ${A.detail.copro.nom}.csv`);
+};
+function rendreBadgesAdmin() {
+  const q = $('bdRecherche').value.trim().toUpperCase();
+  const remises = Object.fromEntries(A.detail.remises.map(r => [r.id, r]));
+  const bs = A.detail.badges.filter(b => !q || b.numero.includes(q));
+  $('listeBadges').innerHTML = bs.length ? bs.slice(0, 600).map(b => { const r = remises[b.remise_id]; return `<li><div class="principal"><b class="mono">${esc(b.numero)}</b><div class="sous">${r ? esc(r.proprietaire + (r.lot ? ' • ' + r.lot : '') + ' • ' + r.numero) : ''}</div></div>
+    <div class="droite"><span class="pastille ${b.statut === 'remis' ? 'ok' : b.statut === 'reserve' ? 'attente' : b.statut === 'stock' ? 'or' : 'erreur'}">${PS.STATUTS_BADGE[b.statut] || b.statut}</span>
+    ${b.statut === 'stock' ? `<button type="button" class="btn btn-petit btn-discret" data-retirer="${esc(b.numero)}">Retirer</button>` : ''}</div></li>`; }).join('') : '<li><div class="vide" style="grid-column:1/-1">Aucun badge.</div></li>';
+  document.querySelectorAll('[data-retirer]').forEach(b => b.onclick = async () => {
+    if (!confirm(`Retirer le badge ${b.dataset.retirer} du stock du syndic ?`)) return;
+    try { await appel('ps_admin_badge_retirer', { p_copro: A.copro, p_numero: b.dataset.retirer }); await ouvrirChantier(A.copro, 'badges'); } catch {}
+  });
+}
+$('bdRecherche').oninput = rendreBadgesAdmin;
+function rendreLivraisons() {
+  const ls = A.detail.livraisons;
+  $('listeLivraisons').innerHTML = ls.length ? ls.map((l, i) => `<li><div class="principal"><b>${dateCourte(l.cree_le)} • ${l.badges.length} badge${l.badges.length > 1 ? 's' : ''}</b>
+      <div class="sous">${l.signataire ? 'Reçu par ' + esc(l.signataire) : 'Sans signature de réception'}${l.commentaire ? ' • ' + esc(l.commentaire) : ''}</div>
+      <div class="sous mono">${esc(l.badges.join(', '))}</div></div>
+    <div class="droite"><button type="button" class="btn btn-petit" data-bl="${i}">Bon PDF</button></div></li>`).join('') : '<li><div class="vide" style="grid-column:1/-1">Aucune livraison.</div></li>';
+  document.querySelectorAll('[data-bl]').forEach(b => b.onclick = async () => {
+    const l = A.detail.livraisons[+b.dataset.bl];
+    const blob = await pdfLivraison(l); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, 'Bon de livraison badges.pdf');
+  });
+}
+
+demarrer();
+</script>
+</body>
+</html>
