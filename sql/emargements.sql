@@ -39,3 +39,11 @@ create policy "Allow anon all on emargements"
 --    payload = { "type": "signature", "statut": "attente" | "signe", "chantierId", "logementId",
 --                "bon": { résumé du bon affiché au client }, "creeLe",
 --                "signature" (PNG data URL), "signataire", "signeLe" }   -- écrits par signer.html
+--
+-- 3. Un relevé des compteurs des bornes de recharge (releves.html) : id = 'RB_…' (ex. RB_LANDART)
+--    payload = { "type": "releves-bornes", "modifieLe", "config": { "id", "residence", "syndic", "consignes", "niveaux", "modifieLe" },
+--                "resume": { "faits" },
+--                "releves": { "RDC-37": { "index", "date", "compteur", "note", "photoUrl", "modifieLe" }
+--                             "R1-90": { "supprime": true, "modifieLe" } } }   -- place effacée
+--    Fusion place par place entre appareils : la version (modifieLe) la plus récente l'emporte.
+--    Photos : bon-photos/emargement/releves-bornes/<RB_…>/<place>-<modifieLe>.jpg
