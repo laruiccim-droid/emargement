@@ -25,6 +25,7 @@ const PS = (() => {
     LIEN_INVALIDE: 'Ce lien n’est pas valide.',
     REMISE_ANNULEE: 'Cette remise a été annulée.',
     SIGNATURE_INCOMPLETE: 'Indiquez votre nom et signez dans le cadre.',
+    GESTIONNAIRE_AUTRE_SYNDIC: 'Ce gestionnaire n’appartient pas au syndic choisi.',
   };
 
   async function rpc(fonction, args = {}) {

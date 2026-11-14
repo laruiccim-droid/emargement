@@ -70,7 +70,7 @@
     <button type="button" class="btn btn-discret btn-petit" data-aller="chantiers">‹ Chantiers</button>
     <div class="titre-ligne" style="margin-top:8px">
       <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p></div>
-      <button type="button" class="btn" id="btnModifierChantier">Modifier</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button></div>
     </div>
     <div class="tuiles" id="dTuiles"></div>
     <div class="onglets" role="tablist">
@@ -155,6 +155,17 @@
   <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Fermer</button></div>
 </div></dialog>
 
+<!-- Transfert d'un chantier -->
+<dialog id="dlgTransfert"><form class="dlg" id="formTransfert">
+  <div class="sourcil">Transférer le chantier</div><h3 id="trTitre"></h3>
+  <p class="aide" id="trActuel"></p>
+  <label for="trSyndic">Syndic</label><select id="trSyndic"></select>
+  <label for="trGestionnaire">Gestionnaire en charge</label><select id="trGestionnaire"></select>
+  <p class="aide" id="trAide"></p>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Transférer</button></div>
+  <p class="message" id="trMessage"></p>
+</form></dialog>
+
 <!-- Chantier -->
 <dialog id="dlgChantier"><form class="dlg" id="formChantier">
   <div class="sourcil">Copropriété</div><h3 id="chTitre">Nouveau chantier</h3>
@@ -175,7 +186,7 @@
 </form></dialog>
 
 <script src="logos.js"></script>
-<script src="portail-commun.js?v=3"></script>
+<script src="portail-commun.js?v=4"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -248,6 +259,7 @@ document.querySelectorAll('[data-aller]').forEach(b => b.onclick = async () => {
 
 // ---------- Syndics ----------
 const nomSyndic = id => (A.etat.syndics.find(s => s.id === id) || {}).nom || '';
+const nomGestionnaire = id => { for (const s of A.etat.syndics) { const u = s.users.find(x => x.id === id); if (u) return u.nom || u.email; } return ''; };
 const pastilleUser = u => u.statut === 'actif' ? '<span class="pastille ok">Actif</span>' : u.statut === 'invite' ? '<span class="pastille attente">Invité</span>' : '<span class="pastille erreur">Désactivé</span>';
 function rendreSyndics() {
   const ss = A.etat.syndics;
@@ -324,7 +336,7 @@ function rendreChantiers() {
   $('listeChantiers').innerHTML = cs.length ? cs.map(c => {
     const k = c.compteurs, pc = k.livres ? Math.round(k.remis / k.livres * 100) : 0;
     return `<button type="button" class="carte" data-chantier="${c.id}"><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
-      <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
+      <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.gestionnaire_id && nomGestionnaire(c.gestionnaire_id), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
       <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.a_creer ? `<span class="pastille attente">${k.a_creer} à créer dans le contrôle d’accès</span>` : ''}</div>
       <div class="barre-prog"><i style="width:${pc}%"></i></div></button>`;
   }).join('') : `<div class="vide">${q ? 'Aucun résultat.' : 'Aucun chantier. Créez le premier.'}</div>`;
@@ -372,7 +384,9 @@ async function ouvrirChantier(id, onglet) {
   try { A.detail = await appel('ps_admin_copro_detail', { p_copro: id }); } catch { return; }
   const c = A.detail.copro, k = A.detail.compteurs, s = A.detail.syndic;
   $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' ? ' • chantier complet' : ' • badges seuls');
-  $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference, s ? 'Syndic : ' + s.nom : 'Aucun syndic lié'].filter(Boolean).join(' • ');
+  const g = A.detail.gestionnaire;
+  $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference,
+    s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet')].filter(Boolean).join(' • ');
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu();
@@ -389,6 +403,42 @@ function choisirOnglet(o) {
   if (o === 'livrer') setTimeout(() => lvPad && lvPad.taille(), 30);
 }
 document.querySelectorAll('[data-ong]').forEach(b => b.onclick = () => choisirOnglet(b.dataset.ong));
+
+// ---------- Transfert vers un autre gestionnaire ou un autre syndic ----------
+$('btnTransfert').onclick = () => {
+  const c = A.detail.copro;
+  if (!A.etat.syndics.length) return toast('Créez d’abord un syndic.');
+  $('trTitre').textContent = c.nom;
+  $('trActuel').textContent = 'Actuellement : ' + (A.detail.syndic ? A.detail.syndic.nom + ' • ' + (A.detail.gestionnaire ? (A.detail.gestionnaire.nom || A.detail.gestionnaire.email) : 'tous les gestionnaires du cabinet') : 'aucun syndic');
+  $('trSyndic').innerHTML = A.etat.syndics.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('');
+  $('trSyndic').value = c.syndic_id || A.etat.syndics[0].id;
+  remplirGestionnaires(c.gestionnaire_id || '');
+  msg('trMessage', ''); $('dlgTransfert').showModal();
+};
+function remplirGestionnaires(choisi) {
+  const sy = A.etat.syndics.find(x => x.id === $('trSyndic').value);
+  $('trGestionnaire').innerHTML = '<option value="">Tous les gestionnaires du cabinet</option>'
+    + (sy ? sy.users.filter(u => u.actif).map(u => `<option value="${u.id}">${esc(u.nom || u.email)}${u.statut === 'invite' ? ' (invité)' : ''}</option>`).join('') : '');
+  $('trGestionnaire').value = sy && sy.users.some(u => u.id === choisi) ? choisi : '';
+  majAideTransfert();
+}
+function majAideTransfert() {
+  const autre = $('trSyndic').value !== A.detail.copro.syndic_id;
+  $('trAide').textContent = ($('trGestionnaire').value ? 'Seul ce gestionnaire verra le chantier dans son espace.' : 'Tous les gestionnaires de ce cabinet verront le chantier.')
+    + (autre ? ' L’ancien syndic n’y aura plus accès. Les bons déjà signés gardent l’en-tête et le tampon du syndic qui les a émis ; le stock et les remises suivent le chantier.' : '');
+}
+$('trSyndic').onchange = () => remplirGestionnaires('');
+$('trGestionnaire').onchange = majAideTransfert;
+$('formTransfert').onsubmit = async e => {
+  e.preventDefault();
+  const syndic = $('trSyndic').value, gest = $('trGestionnaire').value || null;
+  if (syndic === A.detail.copro.syndic_id && (gest || null) === (A.detail.copro.gestionnaire_id || null)) return msg('trMessage', 'Rien ne change.');
+  try {
+    await appel('ps_admin_copro_transferer', { p_copro: A.copro, p_syndic: syndic, p_gestionnaire: gest }, 'trMessage');
+    $('dlgTransfert').close(); await charger(); await ouvrirChantier(A.copro);
+    toast(`Chantier transféré à ${nomSyndic(syndic)}${gest ? ' • ' + nomGestionnaire(gest) : ''}.`, 4500);
+  } catch {}
+};
 
 // ---------- Livraison de badges ----------
 function majApercu() {
