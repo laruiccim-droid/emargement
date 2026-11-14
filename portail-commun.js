@@ -192,6 +192,51 @@ const PS = (() => {
   const QUALITES = { proprietaire: 'Propriétaire', locataire: 'Locataire', autre: 'Autre' };
   const ETATS = { commence: 'Commencé', livres: 'Badges livrés au syndic', distribution: 'Distribution en cours', recensement: 'Recensement en cours',
     recensement_termine: 'Recensement terminé', commande: 'Matériel commandé', installation: 'Installation en cours', reserves: 'Réserves à lever', termine: 'Terminé' };
+  // ---------- Avancement d'un chantier : étapes, étape en cours, pourcentage ----------
+  // Chaque étape vaut de 0 à 1 (fraction pour les étapes « x sur n ») ; le pourcentage est la moyenne.
+  function avancement(c) {
+    const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, etat = c.etat || 'commence';
+    const apres = (...e) => e.includes(etat);
+    const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0;
+    const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+    const badges = { cle: 'badges', titre: 'Remise des badges', fait: k.livres > 0 && k.remis >= k.livres ? 1 : k.livres ? k.remis / k.livres : 0,
+      enCours: `Remise des badges : ${k.remis || 0} / ${k.livres || 0} remis`, attente: 'En attente de la livraison des badges' };
+    let E;
+    if (c.type !== 'complet') {
+      E = [
+        { cle: 'livres', titre: 'Badges livrés au syndic', fait: k.livres > 0 || apres('livres', 'distribution', 'termine') ? 1 : 0, attente: 'En attente de la livraison des badges au syndic' },
+        badges,
+        { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
+      ];
+    } else {
+      const commande = apres('commande', 'installation', 'reserves', 'termine');
+      E = [
+        { cle: 'etiquettes', titre: 'Étiquettes de numérotation', fait: rec.etiquettes_le ? 1 : 0, attente: 'En attente des étiquettes de numérotation des appartements' },
+        { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
+          enCours: `Création du fichier des copropriétaires par le syndic (${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
+        { cle: 'sondage', titre: 'Sondage envoyé', fait: so.ouvert_le ? 1 : 0, attente: 'Sondage à envoyer aux copropriétaires' },
+        { cle: 'reponses', titre: 'Réponses des copropriétaires', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
+          enCours: `Sondage en cours : ${nc} / ${n} bons de commande signés`, attente: 'En attente des réponses au sondage' },
+        { cle: 'commande', titre: 'Matériel commandé', fait: commande ? 1 : 0, attente: 'Commande du matériel' },
+        { cle: 'installation', titre: 'Installation', fait: apres('reserves', 'termine') ? 1 : etat === 'installation' ? 0.5 : 0,
+          enCours: 'Installation en cours', attente: 'En attente de l’installation' },
+      ];
+      if (vigik) E.push(badges);
+      E.push({ cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: etat === 'reserves' ? 'Réserves à lever' : 'Clôture du chantier' });
+    }
+    E.forEach(e => { e.fait = Math.max(0, Math.min(1, +e.fait || 0)); });
+    const i = E.findIndex(e => e.fait < 1);
+    const pc = Math.round(E.reduce((t, e) => t + e.fait, 0) / E.length * 100);
+    const courante = i < 0 ? null : E[i];
+    return { etapes: E, index: i, pc, libelle: !courante ? 'Chantier terminé' : courante.fait > 0 && courante.enCours ? courante.enCours : courante.attente };
+  }
+  function friseHtml(c) {
+    const a = avancement(c);
+    const seg = a.etapes.map((e, j) => `<i class="${e.fait >= 1 ? 'fait' : e.fait > 0 ? 'partiel' : ''}${j === a.index ? ' courante' : ''}" style="--p:${Math.round(e.fait * 100)}%" title="${esc(e.titre)}${e.fait >= 1 ? ' : fait' : ''}"></i>`).join('');
+    return `<div class="frise" role="img" aria-label="Avancement ${a.pc} %">${seg}</div>
+      <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.etapes.length} · `}${esc(a.libelle)}</span><b>${a.pc} %</b></div>`;
+  }
+
   const STATUTS_BADGE = { stock: 'En stock', reserve: 'Réservé', remis: 'Remis', perdu: 'Perdu', desactive: 'Désactivé' };
 
   // ---------- PDF : bon de remise de badges émargé ----------
@@ -400,5 +445,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

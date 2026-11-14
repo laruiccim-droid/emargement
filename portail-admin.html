@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=2">
+<link rel="stylesheet" href="portail.css?v=3">
 <style>
   .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
@@ -229,7 +229,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=7"></script>
+<script src="portail-commun.js?v=8"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -377,11 +377,11 @@ function rendreChantiers() {
   const q = $('chRecherche').value.trim().toLowerCase();
   const cs = A.etat.copros.filter(c => !q || [c.nom, c.ville, c.reference, nomSyndic(c.syndic_id)].join(' ').toLowerCase().includes(q));
   $('listeChantiers').innerHTML = cs.length ? cs.map(c => {
-    const k = c.compteurs, pc = k.livres ? Math.round(k.remis / k.livres * 100) : 0;
+    const k = c.compteurs;
     return `<button type="button" class="carte" data-chantier="${c.id}"><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
       <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.gestionnaire_id && nomGestionnaire(c.gestionnaire_id), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
       <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.a_creer ? `<span class="pastille attente">${k.a_creer} à créer dans le contrôle d’accès</span>` : ''}</div>
-      <div class="barre-prog"><i style="width:${pc}%"></i></div></button>`;
+      ${PS.friseHtml(c)}</button>`;
   }).join('') : `<div class="vide">${q ? 'Aucun résultat.' : 'Aucun chantier. Créez le premier.'}</div>`;
   document.querySelectorAll('[data-chantier]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.chantier));
 }

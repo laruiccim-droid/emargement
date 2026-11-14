@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Espace syndic · Harmonie Électricité</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=2">
+<link rel="stylesheet" href="portail.css?v=3">
 <style>
   .parcours { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
   .parcours li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border-hairline); border-radius: 8px; }
@@ -160,7 +160,7 @@
       <ol class="parcours" id="coParcours"></ol>
     </div>
     <div class="tuiles" id="coTuiles"></div>
-    <div class="barre-prog"><i id="coProg"></i></div>
+    <div id="coFrise"></div>
     <div class="onglets" role="tablist">
       <button type="button" role="tab" data-onglet="remises" aria-selected="true">Remises</button>
       <button type="button" role="tab" data-onglet="badges" aria-selected="false">Badges</button>
@@ -397,7 +397,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=7"></script>
+<script src="portail-commun.js?v=8"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -534,12 +534,12 @@ $('pMdpChanger').onclick = async () => {
 function rendreAccueil() {
   const cs = S.etat.copros;
   $('listeCopros').innerHTML = cs.length ? cs.map(c => {
-    const k = c.compteurs, pc = k.livres ? Math.round(k.remis / k.livres * 100) : 0;
+    const k = c.compteurs;
     return `<button type="button" class="carte" data-copro="${esc(c.id)}">
       <div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
       <div class="meta">${esc([c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</div>
       <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.reserves ? `<span class="pastille attente">${k.attente} en attente de signature</span>` : ''}</div>
-      <div class="barre-prog"><i style="width:${pc}%"></i></div></button>`;
+      ${PS.friseHtml(c)}</button>`;
   }).join('') : '<div class="vide">Aucune copropriété n’est encore rattachée à votre cabinet. Harmonie Électricité l’ajoutera lors de la livraison des badges.</div>';
   document.querySelectorAll('[data-copro]').forEach(b => b.onclick = () => ouvrirCopro(b.dataset.copro));
   montrer('vAccueil');
@@ -558,7 +558,7 @@ async function ouvrirCopro(id) {
   $('coAdresse').textContent = [c.adresse, [c.cp, c.ville].filter(Boolean).join(' '), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • ');
   $('coTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente de signature', k.attente]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  $('coProg').style.width = (k.livres ? Math.round(k.remis / k.livres * 100) : 0) + '%';
+  $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
   $('btnNouvelleRemise').disabled = !k.stock;
   rendreRemises(); rendreBadges(); rendreParcours();
   montrer('vCopro');
