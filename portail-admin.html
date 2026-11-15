@@ -150,6 +150,7 @@
       <p class="aide" style="margin-top:0" id="emInfo"></p>
       <div class="actions" id="emActions"></div>
       <ul class="liste" id="emListe"></ul>
+      <div class="actions" style="margin-top:10px"><button type="button" class="btn" id="emFicheInfo">Fiche d’information « nouveau système » (à afficher)</button></div>
       <div id="emFacture" style="margin-top:14px"></div>
       <input type="file" id="emFichierFacture" accept="application/pdf,.pdf" hidden>
       <p class="message" id="emMsg"></p>
@@ -303,6 +304,18 @@
   <p class="message" id="chMessage"></p>
 </form></dialog>
 
+<dialog id="dlgFicheInfo"><form class="dlg" id="formFicheInfo">
+  <div class="sourcil">À afficher dans le hall</div><h3>Fiche « nouveau système »</h3>
+  <label for="fiTitre">Titre</label><input type="text" id="fiTitre">
+  <label for="fiTexte">Texte</label><textarea id="fiTexte" rows="3"></textarea>
+  <div class="grille-2">
+    <div><label>Photo du nouveau badge</label><input type="file" id="fiNouveauImg" accept="image/*"><label for="fiNouveauCoul">Couleur</label><input type="text" id="fiNouveauCoul" placeholder="noir"></div>
+    <div><label>Photo de l’ancien badge</label><input type="file" id="fiAncienImg" accept="image/*"><label for="fiAncienCoul">Couleur</label><input type="text" id="fiAncienCoul" placeholder="rouge"></div>
+  </div>
+  <p class="aide">Sans photo, un cadre vide est laissé à la place. Les photos ne sont pas gardées : elles servent juste à fabriquer la fiche.</p>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Créer la fiche (PDF)</button></div>
+</form></dialog>
+
 <dialog id="dlgArticle"><form class="dlg" id="formArticle">
   <div class="sourcil">Catalogue</div><h3 id="arTitre">Article</h3>
   <div class="grille-2">
@@ -334,7 +347,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=27"></script>
+<script src="portail-commun.js?v=28"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1204,6 +1217,28 @@ async function correspondanceBadges() {
   PS.telecharger(new Blob(['﻿' + [cols, ...lignes].map(l => l.map(q).join(sep)).join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Correspondance badges - ${c.nom}.csv`.replace(/[\\/:*?"<>|]+/g, ' '));
   PS.telecharger(await PS.pdfTableau('Correspondance badges / appartements', `${c.nom} — ${lignes.length} badges`, cols, lignes, [22, 22, 40, 30, 16]), `Correspondance badges - ${c.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
 }
+
+// ---------- Fiche d'information « nouveau système » ----------
+$('emFicheInfo').onclick = () => {
+  const c = EM.c || A.detail?.copro || {}, vigikSeul = c.travaux === 'vigik';
+  $('fiTitre').value = vigikSeul ? 'Nouveau contrôle d’accès' : c.travaux === 'interphone_vigik' ? 'Nouveau système d’interphone' : 'Nouveau système d’interphone';
+  $('fiTexte').value = vigikSeul ? 'Le contrôle d’accès de votre résidence a été remplacé : de nouveaux badges d’accès ont été mis en service.'
+    : 'Dans le cadre du remplacement de votre système d’interphone, de nouveaux badges d’accès ont été installés.';
+  $('fiNouveauCoul').value = $('fiNouveauCoul').value || 'noir'; $('fiAncienCoul').value = $('fiAncienCoul').value || 'rouge';
+  $('dlgFicheInfo').showModal();
+};
+$('formFicheInfo').onsubmit = async e => {
+  e.preventDefault();
+  const c = EM.c || A.detail?.copro || {};
+  const photo = async id => { const f = $(id).files[0]; return f ? PS.photoCompressee(f, 900, 0.85) : null; };
+  try {
+    const blob = await PS.pdfFicheNouveauSysteme({ copro: c, titre: $('fiTitre').value.trim(), texte: $('fiTexte').value.trim(),
+      nouveau: { img: await photo('fiNouveauImg'), libelle: 'Nouveau badge', couleur: $('fiNouveauCoul').value.trim() },
+      ancien: { img: await photo('fiAncienImg'), libelle: 'Ancien badge', couleur: $('fiAncienCoul').value.trim() } });
+    $('dlgFicheInfo').close();
+    PS.telecharger(blob, `Fiche nouveau système - ${c.nom || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
+  } catch { toast('Création de la fiche impossible.'); }
+};
 
 // ---------- Commande du matériel au fournisseur ----------
 const FO = { lignes: [], manquants: 0, copro: null };

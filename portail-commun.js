@@ -712,6 +712,55 @@ const PS = (() => {
     dlg.showModal();
   }
 
+  // ---------- Fiche d'information « nouveau système » (à afficher dans le hall) ----------
+  // o = { copro, titre, texte, nouveau: {img, libelle, couleur}, ancien: {img, libelle, couleur} }
+  async function pdfFicheNouveauSysteme(o) {
+    const JsPDF = await jsPdf();
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = 210, M = 16, NOIR = [28, 27, 24], OR = [184, 140, 62], GRIS = [80, 76, 70], ROUGE = [178, 52, 40];
+    const T = (t, x, y, opt = {}) => { doc.setFont('helvetica', opt.b ? 'bold' : 'normal'); doc.setFontSize(opt.s || 12); doc.setTextColor(...(opt.c || NOIR)); doc.text(t, x, y, { align: opt.al || 'left', maxWidth: opt.mw }); };
+    // Bandeau noir avec le logo
+    doc.setFillColor(...NOIR); doc.rect(0, 0, W, 34, 'F');
+    if (typeof LOGO_WORDMARK !== 'undefined') { try { doc.addImage(LOGO_WORDMARK, 'PNG', M, 6, 66, 66 * 418 / 1232); } catch {} }
+    T('Votre sécurité,', W - M, 15, { s: 12, c: OR, al: 'right' }); T('notre priorité', W - M, 21, { s: 12, c: OR, al: 'right' });
+    let y = 50;
+    T('COPROPRIÉTÉ DES', W / 2, y, { s: 12, b: true, c: GRIS, al: 'center' }); y += 13;
+    T(String(o.copro.nom || '').toUpperCase().replace(/^(LES |LE |LA |RÉSIDENCE )/, m => m), W / 2, y, { s: 30, b: true, c: OR, al: 'center', mw: W - 2 * M }); y += 9;
+    // Bandeau doré du titre
+    doc.setFillColor(...OR); doc.rect(M + 10, y, W - 2 * M - 20, 12, 'F');
+    T(o.titre.toUpperCase(), W / 2, y + 8.3, { s: 15, b: true, c: [255, 255, 255], al: 'center' }); y += 22;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(...NOIR);
+    const intro = doc.splitTextToSize(o.texte, W - 2 * M - 10); doc.text(intro, W / 2, y, { align: 'center' }); y += intro.length * 5.6 + 5;
+    T('Pour entrer dans la résidence,', W / 2, y, { s: 15, b: true, al: 'center' }); y += 7;
+    T('merci de bien utiliser votre nouveau badge.', W / 2, y, { s: 15, b: true, al: 'center' }); y += 10;
+    // Nouveau badge → ancien badge
+    const zone = 62, xN = M + 12, xA = W - M - 12 - zone;
+    const image = async (img, x) => { if (!img) { doc.setDrawColor(210, 205, 195); doc.roundedRect(x, y, zone, zone, 3, 3); return; }
+      try { const t = await tailleImage(img); const k = Math.min(zone / t.w, zone / t.h), w = t.w * k, h = t.h * k; doc.addImage(img, 'JPEG', x + (zone - w) / 2, y + (zone - h) / 2, w, h); } catch {} };
+    await image(o.nouveau.img, xN); await image(o.ancien.img, xA);
+    doc.setDrawColor(...OR); doc.setFillColor(...OR); doc.setLineWidth(2.2);
+    const yF = y + zone / 2; doc.line(W / 2 - 12, yF, W / 2 + 8, yF); doc.triangle(W / 2 + 8, yF - 4, W / 2 + 8, yF + 4, W / 2 + 14, yF, 'F');
+    y += zone + 6;
+    const pastille = (x, txt, couleur, coul) => { doc.setFillColor(...couleur); doc.roundedRect(x + 4, y, zone - 8, 9, 4.5, 4.5, 'F');
+      T(txt.toUpperCase(), x + zone / 2, y + 6.2, { s: 11, b: true, c: [255, 255, 255], al: 'center' }); if (coul) T('(' + coul + ')', x + zone / 2, y + 14, { s: 10, c: GRIS, al: 'center' }); };
+    pastille(xN, o.nouveau.libelle || 'Nouveau badge', OR, o.nouveau.couleur); pastille(xA, o.ancien.libelle || 'Ancien badge', ROUGE, o.ancien.couleur);
+    y += 24;
+    // Encadré « vous pouvez jeter vos anciens badges »
+    doc.setFillColor(242, 239, 233); doc.roundedRect(M, y, W - 2 * M, 30, 3, 3, 'F');
+    // Corbeille dessinée
+    doc.setDrawColor(...NOIR); doc.setLineWidth(0.8); const cx = M + 12;
+    doc.line(cx - 6, y + 9, cx + 6, y + 9); doc.line(cx - 2, y + 7, cx + 2, y + 7); doc.rect(cx - 5, y + 10, 10, 13);
+    [cx - 2, cx, cx + 2].forEach(x => doc.line(x, y + 13, x, y + 20));
+    doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M + 26, y + 6, M + 26, y + 24);
+    T(`Vous pouvez jeter vos anciens badges${o.ancien.couleur ? ' (' + o.ancien.couleur + 's)' : ''}.`, M + 31, y + 11, { s: 12.5, b: true });
+    T('Ils ne sont plus compatibles avec le nouveau système et ne fonctionneront plus.', M + 31, y + 18, { s: 11, c: GRIS, mw: W - 2 * M - 36 });
+    y += 42;
+    T('Merci de votre compréhension et bonne journée à tous !', W / 2, y, { s: 12, al: 'center' });
+    T('L’équipe Harmonie Électricité', W - M, y + 12, { s: 11, b: true, c: OR, al: 'right' });
+    T(`Une question ? ${ENTREPRISE.tel}`, M, y + 12, { s: 11, b: true });
+    return doc.output('blob');
+  }
+
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
 
   // Ouvre / télécharge / partage un PDF.
@@ -756,5 +805,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();
