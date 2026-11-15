@@ -77,6 +77,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--h
 .frise { position: relative; height: 20px; margin-top: 12px; border-radius: 10px; background: var(--ink-500); overflow: hidden; }
 .frise span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: #fff; text-shadow: 0 0 3px rgba(0,0,0,.9), 0 0 1px #000; }
 .frise i { display: block; height: 100%; border-radius: 10px; background: linear-gradient(90deg, #00E676, #39FF14); box-shadow: 0 0 10px rgba(57,255,20,.55); transition: width .6s ease; }
+/* Espace syndic affiché dans le site d'Harmonie Électricité : le site fournit déjà le logo et le menu. */
+html.integre body { background: transparent; }
+html.integre .haut .logo, html.integre .trace { display: none; }
+html.integre .haut { justify-content: flex-end; padding-top: 0; }
 .apparts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; }
 .appart { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 150px; padding: 14px; text-align: left; border: 1px solid var(--border-subtle); border-radius: 10px; background: rgba(17,17,17,.92); color: var(--text); cursor: pointer; }
 .appart:hover, .appart:focus-visible { border-color: var(--he-gold); box-shadow: var(--glow-gold-sm); }

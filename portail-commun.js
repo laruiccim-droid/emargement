@@ -63,8 +63,20 @@ const PS = (() => {
   }
 
   const $ = id => document.getElementById(id);
-  // Page ouverte dans un cadre d'un autre site (piège au clic) : on en sort.
-  try { if (window.top !== window.self) window.top.location = window.location.href; } catch { document.documentElement.style.display = 'none'; }
+  // Affichage dans un cadre : seulement depuis le site d'Harmonie Électricité ; ailleurs (piège au clic), on en sort.
+  const SITES_AUTORISES = ['https://www.harmonie-electricite.com', 'https://harmonie-electricite.com'];
+  const dansCadre = window.top !== window.self;
+  const parent = (location.ancestorOrigins && location.ancestorOrigins[0]) || (document.referrer ? new URL(document.referrer).origin : '');
+  const integre = dansCadre && SITES_AUTORISES.includes(parent);
+  if (dansCadre && !integre) { try { window.top.location = window.location.href; } catch { document.documentElement.style.display = 'none'; } }
+  if (integre) {
+    document.documentElement.classList.add('integre');
+    // La page du site adapte la hauteur du cadre au contenu.
+    const envoyerHauteur = () => { try { parent && window.parent.postMessage({ type: 'he-hauteur', hauteur: document.documentElement.scrollHeight }, parent); } catch {} };
+    window.addEventListener('load', envoyerHauteur);
+    new ResizeObserver(envoyerHauteur).observe(document.documentElement);
+    setInterval(envoyerHauteur, 1500);
+  }
   const messageErreur = code => ERREURS[code] || code;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const horodatage = ts => ts ? new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
