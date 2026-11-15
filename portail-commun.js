@@ -578,6 +578,22 @@ const PS = (() => {
   // ---------- Envoi par le service Gmail d'Harmonie (le même que l'app d'émargement) ----------
   const ENVOI_GMAIL_URL = 'https://send-email-harmonie.harmonie-electricite.workers.dev';
   let jetonGmail = null;
+  // Signature professionnelle ajoutée à chaque e-mail (version texte + version HTML avec le logo).
+  const LOGO_MAIL = 'https://laruiccim-droid.github.io/emargement/assets/logo-noir-or.png';
+  const SIGNATURE_TEXTE = '\n\n--\nMathieu Laruicci\n' + ENTREPRISE.nom + ' — interphonie, contrôle d’accès, électricité\n'
+    + ENTREPRISE.adresse + '\n' + ENTREPRISE.tel + ' · ' + ENTREPRISE.email + '\n' + ENTREPRISE.web;
+  function htmlMail(texte) {
+    const e = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const corps = e(texte).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#A8843F">$1</a>').replace(/\n/g, '<br>');
+    return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#1C1B18">${corps}`
+      + `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:2px solid #C9A86A"><tr>`
+      + `<td style="padding:14px 18px 0 0;vertical-align:middle"><img src="${LOGO_MAIL}" alt="Harmonie Électricité" width="160" style="display:block;border:0"></td>`
+      + `<td style="padding:14px 0 0 18px;vertical-align:middle;border-left:1px solid #E2DCCF;font-size:13px;line-height:1.5;color:#55514A">`
+      + `<b style="color:#1C1B18;font-size:14px">Mathieu Laruicci</b><br>${e(ENTREPRISE.nom)} — interphonie, contrôle d’accès, électricité<br>${e(ENTREPRISE.adresse)}<br>`
+      + `<a href="tel:${ENTREPRISE.tel.replace(/\s/g, '')}" style="color:#1C1B18;text-decoration:none">${e(ENTREPRISE.tel)}</a> · `
+      + `<a href="mailto:${ENTREPRISE.email}" style="color:#A8843F">${e(ENTREPRISE.email)}</a><br>`
+      + `<a href="https://${ENTREPRISE.web}" style="color:#A8843F">${e(ENTREPRISE.web)}</a></td></tr></table></div>`;
+  }
   async function envoiGmail(dest, objet, texte, blob, nom) {
     try {
       if (!jetonGmail) {
@@ -587,7 +603,7 @@ const PS = (() => {
       if (!jetonGmail) return 'autorisation Google introuvable';
       const b64 = blob ? await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(blob); }) : undefined;
       const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte, pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte + SIGNATURE_TEXTE, bodyHtml: htmlMail(texte), pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
       if (!rep) return 'pas de connexion au service d’envoi';
       const res = await rep.json().catch(() => null);
       return res && res.success ? '' : String(res?.error?.message || res?.message || 'erreur ' + rep.status).slice(0, 140);

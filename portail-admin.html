@@ -356,7 +356,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=34"></script>
+<script src="portail-commun.js?v=35"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1588,12 +1588,12 @@ $('caEnregistrer').onclick = async () => {
 };
 // Lien de rendez-vous envoyé par Harmonie (e-mail, SMS) ; l'envoi est noté sur l'appartement.
 const lienRdvAdmin = j => PS.urlPage('rdv.html') + '?j=' + j;
-function joursTexteAdmin(camp) {
-  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}`).join(', ');
+function joursTexteAdmin(camp, avecHeures = true) {
+  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}${avecHeures ? ` de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}` : ''}`).join(', ');
 }
 function texteRdvAdmin(l) {
   const d = CAA.d, c = d.copro;
-  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nHarmonie Électricité installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne)}.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${PS.ENTREPRISE.nom}\n${PS.ENTREPRISE.tel}`;
+  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nHarmonie Électricité installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne, false)}.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${PS.ENTREPRISE.nom}\n${PS.ENTREPRISE.tel}`;
 }
 function rendreEnvoiCampagneAdmin() {
   const d = CAA.d, camp = d.campagne || {}, lg = d.logements;
