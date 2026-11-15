@@ -334,7 +334,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=22"></script>
+<script src="portail-commun.js?v=23"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -872,12 +872,14 @@ function champsLogementApp(l) {
   const k = l.commande, r = l.rdv, lignes = k?.lignes || [];
   const postes = lignes.filter(x => x.type === 'combine' || x.type === 'moniteur');
   const nbBadges = EM.reste ? (EM.reste.get(l.id) || 0) : lignes.filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0);
-  const proprio = k ? [k.prenom, k.nom].filter(Boolean).join(' ') : l.nom;
-  const occupant = r ? [r.prenom, r.nom].filter(Boolean).join(' ') : proprio;
+  const loc = l.locataire?.nom ? l.locataire : r?.qualite === 'locataire' ? r : null;
+  const proprio = l.coord_maj_le ? l.nom : k ? [k.prenom, k.nom].filter(Boolean).join(' ') : l.nom;
+  const occupant = loc ? [loc.prenom, loc.nom].filter(Boolean).join(' ') : r && !l.coord_maj_le ? [r.prenom, r.nom].filter(Boolean).join(' ') : proprio;
   const champs = {
-    porte: l.numero || '', nomAffiche: (k?.nom || l.nom || '').toUpperCase(), nomListing: l.nom || '', occupant,
-    tel: r?.telephone || k?.telephone || l.telephone || '', email: r?.email || k?.email || (l.emails || [])[0] || '',
-    proprietaire: r?.qualite === 'locataire' ? proprio : '', emailProprio: r?.qualite === 'locataire' ? (k?.email || (l.emails || [])[0] || '') : '',
+    porte: l.numero || '', nomAffiche: (l.nom_affiche || k?.nom || l.nom || '').toUpperCase(), nomListing: l.nom || '', occupant,
+    tel: loc?.telephone || (l.coord_maj_le ? l.telephone : r?.telephone || k?.telephone || l.telephone) || '',
+    email: loc?.email || (l.coord_maj_le ? (l.emails || [])[0] : r?.email || k?.email || (l.emails || [])[0]) || '',
+    proprietaire: loc ? proprio : '', emailProprio: loc ? ((l.coord_maj_le ? (l.emails || [])[0] : k?.email || (l.emails || [])[0]) || '') : '',
     modele: postes.map(x => (x.qte > 1 ? x.qte + ' × ' : '') + `${x.marque || ''} ${x.ref} · ${x.nom}`.trim()).join(' + '),
     plaque: lignes.some(x => x.type === 'plaque'), badgesPrevu: nbBadges || null,
     observations: [l.lot && 'Lot ' + l.lot, k?.qualite === 'bailleur' && 'Propriétaire bailleur'].filter(Boolean).join(' • '),
@@ -922,12 +924,25 @@ async function creerOuMajChantierApp() {
   for (const l of prep.logements) {
     const ex = app.logements.find(x => x.id === 'P' + l.id);
     if (!ex) { app.logements.push(logementApp(l)); ajoutes++; continue; }
-    if (ex.statut !== 'afaire' || l.type !== 'logement') continue; // déjà émargé : on ne touche à rien
+    if (l.type !== 'logement') continue;
+    if (ex.statut !== 'afaire') {
+      // Déjà émargé : seuls le nom affiché et les coordonnées suivent un changement de propriétaire ou de locataire.
+      const ch = champsLogementApp(l);
+      for (const cle of ['nomAffiche', 'nomListing', 'occupant', 'tel', 'email', 'proprietaire', 'emailProprio']) ex[cle] = ch[cle];
+      maj++; continue;
+    }
     const ch = champsLogementApp(l);
     if (!ch.rdvDate) { delete ch.rdvDate; delete ch.rdvHeure; }
     Object.assign(ex, ch);
     if (ch.badgesPrevu && ex.badges.length < ch.badgesPrevu) ex.badges = [...ex.badges, ...Array(ch.badgesPrevu - ex.badges.length).fill('')];
     maj++;
+  }
+  // Boutons d'appel numérotés automatiquement dans l'ordre des numéros d'appartement (fiche interphone, codification).
+  const reels = app.logements.filter(x => !x.horsLogement);
+  if (reels.some(x => !x.bouton)) {
+    const pris = new Set(reels.map(x => x.bouton).filter(Boolean)); let nb = 0;
+    reels.slice().sort((a, b) => String(a.porte || '~').localeCompare(String(b.porte || '~'), 'fr', { numeric: true }))
+      .forEach(x => { if (x.bouton) return; do nb++; while (pris.has(nb)); x.bouton = nb; pris.add(nb); });
   }
   try { await ecrireChantierApp(app); }
   catch { return msg('emMsg', 'Écriture dans l’app impossible : vérifiez le code d’accès de l’app sur cet appareil.'); }
@@ -935,6 +950,13 @@ async function creerOuMajChantierApp() {
   chantiersApp = null;
   toast(nouveau ? `Chantier créé dans l’app : ${ajoutes} logements.` : `Chantier de l’app mis à jour (${ajoutes} ajoutés, ${maj} actualisés).`);
   await charger(); ouvrirChantier(c.id);
+}
+// Fiches modifiées (propriétaire, locataire, nom affiché) après la dernière mise à jour du chantier de l'app.
+function verifierCoordApp() {
+  if (!EM.app || !EM.apparts || EM.apparts.copro?.id !== EM.c?.id) return;
+  const changes = EM.apparts.logements.filter(l => l.coord_maj_le && new Date(l.coord_maj_le).getTime() > (EM.app.modifieLe || 0));
+  $('emAlerteCoord')?.remove();
+  if (changes.length) $('emInfo').insertAdjacentHTML('afterend', `<div id="emAlerteCoord" class="bloc" style="border-color:#D9A35B;background:rgba(217,163,91,.10);margin-top:10px">⚠ ${changes.length} fiche${changes.length > 1 ? 's' : ''} modifiée${changes.length > 1 ? 's' : ''} (propriétaire, locataire ou nom affiché) depuis la dernière mise à jour du chantier de l’app : cliquez « Mettre à jour le chantier de l’app » pour régénérer la fiche interphone et la codification.</div>`);
 }
 async function rendreEmargementAdmin(c) {
   $('dEmargement').hidden = c.type !== 'complet';
@@ -956,6 +978,7 @@ async function rendreEmargementAdmin(c) {
   try { EM.app = await lireChantierApp(c.chantier_id); } catch {}
   if (A.copro !== c.id) return;
   if (!EM.app) { $('emInfo').textContent = 'Chantier de l’app introuvable ou code d’accès de l’app absent sur cet appareil.'; rendreFactureAdmin(c, 0, 0); return; }
+  verifierCoordApp();
   const lgs = EM.app.logements.filter(l => l.id?.startsWith('P') && !l.horsLogement);
   const items = lgs.map(l => ({ logement_id: l.id.slice(1), statut: l.statut === 'signe' ? 'signe' : l.statut === 'absent' ? 'absent' : '',
     signe_le: l.signeLe ? new Date(l.signeLe).toISOString() : null, absent_le: l.absentLe ? new Date(l.absentLe).toISOString() : null,
@@ -1071,9 +1094,18 @@ async function chargerAppartementsAdmin() {
   const zone = $('dApparts');
   if (!zone.innerHTML) zone.innerHTML = '<p class="aide">Chargement…</p>';
   let d; try { d = await appel('ps_admin_appartements', { p_copro: A.copro }); } catch { zone.innerHTML = ''; return; }
+  EM.apparts = d; verifierCoordApp();
   PS.vueAppartements(zone, d, {
     pdfCommande: async id => { try { const k = await appel('ps_admin_commande', { p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
     pdfRemise: async id => { try { const r = await appel('ps_admin_remise', { p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
+    modifier: async (id, p) => {
+      try { await appel('ps_admin_appartement_maj', { p_logement: id, p }); } catch { return false; }
+      toast('Fiche mise à jour.'); chargerAppartementsAdmin();
+      // Chantier de l'app relié : on y reporte tout de suite le changement (fiche interphone, codification).
+      const c = A.etat.copros.find(x => x.id === A.copro);
+      if (c?.chantier_id && confirm('Reporter ce changement dans le chantier de l’app d’émargement maintenant ?')) { EM.c = A.detail?.copro || c; await creerOuMajChantierApp(); }
+      return true;
+    },
     supplementaires: async (id, nb, pour, motif) => {
       try { await appel('ps_admin_badges_supp', { p_logement: id, p_nb: nb, p_pour: pour, p_motif: motif }); } catch { return false; }
       toast(`${nb} badge${nb > 1 ? 's' : ''} supplémentaire${nb > 1 ? 's' : ''} attribué${nb > 1 ? 's' : ''} : le syndic les remettra.`); chargerAppartementsAdmin(); return true;

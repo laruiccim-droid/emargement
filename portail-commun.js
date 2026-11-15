@@ -595,7 +595,7 @@ const PS = (() => {
     const marque = d.copro.marque_interphone;
     if (marque && !catalogues[marque]) { try { catalogues[marque] = await rpc('ps_catalogue_lire', { p_marque: marque }); } catch { catalogues[marque] = []; } }
     const cat = new Map((catalogues[marque] || []).map(a => [a.ref, a]));
-    const nomAffiche = l => (l.commande?.nom || l.nom || '').toUpperCase();
+    const nomAffiche = l => (l.nom_affiche || l.commande?.nom || l.nom || '').toUpperCase();
     const badgesDe = (l, loc) => l.remises.filter(r => r.statut === 'signe' && ((r.qualite === 'locataire' || r.mode === 'installation') === loc)).flatMap(r => r.badges);
     conteneur.innerHTML = d.logements.length ? `<div class="apparts">${d.logements.map(l => {
       const k = l.commande, em = l.emarge || {}, att = l.attendus ?? ((k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0));
@@ -615,7 +615,10 @@ const PS = (() => {
     if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'dlgFicheAppart'; dlg.className = 'fiche-appart'; document.body.append(dlg); }
     const k = l.commande, r = l.rdv, em = l.emarge || {}, kv = lignes => `<div class="kv">${lignes.filter(x => x[1]).map(([a, b]) => `<span>${esc(a)}</span><span>${b}</span>`).join('')}</div>`;
     const postes = (k?.lignes || []).filter(x => x.type === 'combine' || x.type === 'moniteur'), plaque = (k?.lignes || []).some(x => x.type === 'plaque');
-    const locataire = r && r.qualite === 'locataire' ? r : null;
+    // Fiche modifiée (changement de propriétaire ou de locataire) : elle prime sur le recensement et le rendez-vous.
+    const locataire = l.locataire?.nom ? l.locataire : r && r.qualite === 'locataire' ? r : null;
+    const proprio = l.coord_maj_le ? { nom: l.nom, telephone: l.telephone, emails: l.emails || [] }
+      : { nom: [k?.prenom, k?.nom].filter(Boolean).join(' ') || l.nom || '', telephone: k?.telephone || l.telephone || '', emails: [k?.email, ...(l.emails || [])].filter(Boolean).filter((x, i, t) => t.indexOf(x) === i) };
     const bp = badgesDe(l, false), bl = badgesDe(l, true);
     const docsPostes = postes.map(x => { const a = cat.get(x.ref) || {}; return [a.notice && `<a class="btn btn-petit" href="${esc(a.notice)}" target="_blank" rel="noopener">Notice ${esc(x.ref)}</a>`, a.brochure && `<a class="btn btn-petit" href="${esc(a.brochure)}" target="_blank" rel="noopener">Brochure ${esc(x.ref)}</a>`].filter(Boolean).join(' '); }).join(' ');
     dlg.innerHTML = `<div class="dlg">
@@ -623,8 +626,23 @@ const PS = (() => {
       <h3>${l.numero ? 'Appartement ' + esc(l.numero) : l.lot ? 'Lot ' + esc(l.lot) : 'Appartement'}${l.numero && l.lot ? ` <span class="aide">— lot ${esc(l.lot)}</span>` : ''}</h3>
       <h4>Nom affiché sur l’interphone</h4><div style="font-size:20px;letter-spacing:.06em;color:var(--he-white)">${esc(nomAffiche(l) || '—')}</div>
       <h4>Propriétaire${k?.qualite === 'bailleur' ? ' (bailleur)' : k?.qualite === 'occupant' ? ' (occupant)' : ''}</h4>
-      ${kv([['Nom', esc([k?.prenom, k?.nom].filter(Boolean).join(' ') || l.nom || '')], ['Téléphone', esc(k?.telephone || l.telephone || '')], ['E-mail', esc([k?.email, ...(l.emails || [])].filter(Boolean).filter((x, i, t) => t.indexOf(x) === i).join(', '))]])}
+      ${kv([['Nom', esc(proprio.nom)], ['Téléphone', esc(proprio.telephone)], ['E-mail', esc(proprio.emails.join(', '))]])}
       ${locataire ? `<h4>Locataire</h4>${kv([['Nom', esc([locataire.prenom, locataire.nom].join(' '))], ['Téléphone', esc(locataire.telephone || '')], ['E-mail', esc(locataire.email || '')]])}` : k?.qualite === 'bailleur' ? '<h4>Locataire</h4><p class="aide">Pas encore connu (il se fait connaître en prenant rendez-vous par l’affiche).</p>' : ''}
+      ${l.coord_maj_le ? `<p class="aide">Coordonnées modifiées le ${esc(dateCourte(l.coord_maj_le))}.</p>` : ''}
+      ${actions.modifier ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-petit" data-modif-ouvrir>Modifier le propriétaire / le locataire</button></div>
+        <div id="modifForm" hidden style="margin-top:8px;padding:12px;border:1px solid var(--border-subtle);border-radius:8px">
+          <div class="sourcil">Propriétaire</div>
+          <div class="grille-2"><div><label for="mfNom">Nom et prénom *</label><input type="text" id="mfNom" value="${esc(proprio.nom)}"></div>
+          <div><label for="mfTel">Téléphone</label><input type="tel" id="mfTel" value="${esc(proprio.telephone)}"></div></div>
+          <label for="mfEmails">E-mail(s), séparés par une virgule</label><input type="text" id="mfEmails" value="${esc(proprio.emails.join(', '))}">
+          <div class="sourcil" style="margin-top:12px">Locataire (laisser vide si le propriétaire habite le logement)</div>
+          <div class="grille-2"><div><label for="mfLocNom">Nom</label><input type="text" id="mfLocNom" value="${esc(locataire?.nom || '')}"></div>
+          <div><label for="mfLocPrenom">Prénom</label><input type="text" id="mfLocPrenom" value="${esc(locataire?.prenom || '')}"></div>
+          <div><label for="mfLocTel">Téléphone</label><input type="tel" id="mfLocTel" value="${esc(locataire?.telephone || '')}"></div>
+          <div><label for="mfLocEmail">E-mail</label><input type="email" id="mfLocEmail" value="${esc(locataire?.email || '')}"></div></div>
+          <label for="mfAffiche">Nom affiché sur l’interphone</label><input type="text" id="mfAffiche" value="${esc(nomAffiche(l))}" style="text-transform:uppercase">
+          <p class="aide">Les documents (fiche interphone, codification) sont régénérés dans l’app d’émargement à la prochaine mise à jour du chantier par Harmonie Électricité.</p>
+          <div class="actions"><button type="button" class="btn btn-or" data-modif-valider>Enregistrer</button></div></div>` : ''}
       <h4>Matériel</h4>
       ${k ? kv([['Poste', esc(postes.map(x => (x.qte > 1 ? x.qte + ' × ' : '') + [x.marque, x.ref].filter(Boolean).join(' ') + ' — ' + x.nom).join(' + ') || '—')], ['Plaque de propreté', plaque ? 'Oui' : 'Non']]) : '<p class="aide">Pas encore de bon de commande signé.</p>'}
       ${docsPostes ? `<div class="docs" style="margin-top:8px">${docsPostes}</div>` : ''}
@@ -652,6 +670,18 @@ const PS = (() => {
     dlg.querySelectorAll('[data-doc-commande]').forEach(b => b.onclick = () => actions.pdfCommande(b.dataset.docCommande));
     dlg.querySelectorAll('[data-doc-remise]').forEach(b => b.onclick = () => actions.pdfRemise(b.dataset.docRemise));
     dlg.querySelectorAll('[data-remettre]').forEach(b => b.onclick = () => { dlg.close(); actions.remettre(b.dataset.remettre); });
+    const ouvrirModif = dlg.querySelector('[data-modif-ouvrir]');
+    if (ouvrirModif) ouvrirModif.onclick = () => { dlg.querySelector('#modifForm').hidden = false; ouvrirModif.hidden = true; };
+    const validerModif = dlg.querySelector('[data-modif-valider]');
+    if (validerModif) validerModif.onclick = async () => {
+      const v = id => dlg.querySelector('#' + id).value.trim();
+      if (!v('mfNom')) return toast('Le nom du propriétaire est obligatoire.');
+      validerModif.disabled = true;
+      const ok = await actions.modifier(l.id, { nom: v('mfNom'), telephone: v('mfTel'), emails: v('mfEmails').split(/[,;\s]+/).filter(Boolean), nom_affiche: v('mfAffiche'),
+        locataire: { nom: v('mfLocNom'), prenom: v('mfLocPrenom'), telephone: v('mfLocTel'), email: v('mfLocEmail') } });
+      validerModif.disabled = false;
+      if (ok) dlg.close();
+    };
     const ouvrirSupp = dlg.querySelector('[data-supp-ouvrir]');
     if (ouvrirSupp) ouvrirSupp.onclick = () => { dlg.querySelector('#suppForm').hidden = false; ouvrirSupp.hidden = true; };
     const validerSupp = dlg.querySelector('[data-supp-valider]');
