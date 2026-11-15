@@ -579,17 +579,55 @@ const PS = (() => {
   const ENVOI_GMAIL_URL = 'https://send-email-harmonie.harmonie-electricite.workers.dev';
   let jetonGmail = null;
   // Signature professionnelle ajoutée à chaque e-mail (version texte + version HTML avec le logo).
+  // Ni nom, ni prénom, ni adresse : logo, activité, téléphone, e-mail, site.
   const LOGO_MAIL = 'https://laruiccim-droid.github.io/emargement/assets/logo-noir-or.png';
-  const SIGNATURE_TEXTE = '\n\n--\nMathieu Laruicci\n' + ENTREPRISE.nom + ' — interphonie, contrôle d’accès, électricité\n'
-    + ENTREPRISE.adresse + '\n' + ENTREPRISE.tel + ' · ' + ENTREPRISE.email + '\n' + ENTREPRISE.web;
-  function htmlMail(texte) {
+  const SIGNATURE_TEXTE = '\n\n--\n' + ENTREPRISE.nom + ' — interphonie, contrôle d’accès, électricité\n'
+    + ENTREPRISE.tel + ' · ' + ENTREPRISE.email + '\n' + ENTREPRISE.web;
+  // Liens vers les pages du portail : un bouton et un QR code à la place du lien brut.
+  const BOUTONS_MAIL = [[/rdv\.html/, 'Choisir mon rendez-vous'], [/sondage\.html/, 'Répondre au recensement'], [/signer-badges\.html/, 'Relire et signer'],
+    [/syndic\.html\?invitation=/, 'Activer mon accès'], [/\/emargement\//, 'Ouvrir la page']];
+  const qrCache = new Map();
+  // QR code en image PNG déposée en ligne (Gmail n'affiche pas les images intégrées au message).
+  async function qrPngUrl(lien) {
+    if (qrCache.has(lien)) return qrCache.get(lien);
+    try {
+      if (!window.qrcode) await chargerScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js');
+      const q = window.qrcode(0, 'M'); q.addData(lien); q.make();
+      const n = q.getModuleCount(), m = 4, cell = 8, taille = (n + 2 * m) * cell;
+      const cv = document.createElement('canvas'); cv.width = cv.height = taille;
+      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, taille, taille); g.fillStyle = '#1C1B18';
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (q.isDark(y, x)) g.fillRect((x + m) * cell, (y + m) * cell, cell, cell);
+      const png = await new Promise(ok => cv.toBlob(ok, 'image/png'));
+      const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+      const chemin = `emargement/qr/${cle}.png`;
+      const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'image/png', 'x-upsert': 'false' }, body: png });
+      const url = r.ok ? `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}` : '';
+      qrCache.set(lien, url); return url;
+    } catch { return ''; }
+  }
+  async function htmlMail(texte) {
     const e = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const corps = e(texte).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#A8843F">$1</a>').replace(/\n/g, '<br>');
+    const portail = u => /laruiccim-droid\.github\.io\/emargement\//.test(u) || u.startsWith(new URL('.', location.href).href);
+    const liens = [...new Set(texte.match(/https?:\/\/[^\s<]+/g) || [])].filter(portail);
+    const qrs = new Map(await Promise.all(liens.map(async u => [u, await qrPngUrl(u)])));
+    const bouton = u => {
+      const libelle = (BOUTONS_MAIL.find(([re]) => re.test(u)) || [, 'Ouvrir la page'])[1], qr = qrs.get(u);
+      return `<table cellpadding="0" cellspacing="0" border="0" style="margin:14px 0"><tr>`
+        + `<td style="vertical-align:middle;padding-right:22px"><a href="${e(u)}" style="display:inline-block;background:#C9A86A;color:#1C1B18;font-weight:bold;font-size:15px;text-decoration:none;padding:13px 26px;border-radius:8px">${e(libelle)}</a></td>`
+        + (qr ? `<td style="vertical-align:middle;text-align:center;font-size:11px;color:#77736B"><img src="${qr}" alt="QR code" width="120" height="120" style="display:block;border:0;margin:0 auto 4px"><span>ou scannez ce code</span></td>` : '')
+        + `</tr></table>`;
+    };
+    // Une ligne qui ne contient qu'un lien du portail devient un bouton ; les autres liens restent cliquables.
+    const corps = texte.split('\n').map(ligne => {
+      const t = ligne.trim();
+      if (liens.includes(t)) return '\u0000' + t;
+      return e(ligne).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#A8843F">$1</a>');
+    }).join('<br>').replace(/(<br>)?\u0000(\S+?)(?=<br>|$)(<br>)?/g, (_, a, u) => bouton(u));
     return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#1C1B18">${corps}`
       + `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:2px solid #C9A86A"><tr>`
       + `<td style="padding:14px 18px 0 0;vertical-align:middle"><img src="${LOGO_MAIL}" alt="Harmonie Électricité" width="160" style="display:block;border:0"></td>`
       + `<td style="padding:14px 0 0 18px;vertical-align:middle;border-left:1px solid #E2DCCF;font-size:13px;line-height:1.5;color:#55514A">`
-      + `<b style="color:#1C1B18;font-size:14px">Mathieu Laruicci</b><br>${e(ENTREPRISE.nom)} — interphonie, contrôle d’accès, électricité<br>${e(ENTREPRISE.adresse)}<br>`
+      + `<b style="color:#1C1B18;font-size:14px">${e(ENTREPRISE.nom)}</b><br>Interphonie, contrôle d’accès, électricité<br>`
       + `<a href="tel:${ENTREPRISE.tel.replace(/\s/g, '')}" style="color:#1C1B18;text-decoration:none">${e(ENTREPRISE.tel)}</a> · `
       + `<a href="mailto:${ENTREPRISE.email}" style="color:#A8843F">${e(ENTREPRISE.email)}</a><br>`
       + `<a href="https://${ENTREPRISE.web}" style="color:#A8843F">${e(ENTREPRISE.web)}</a></td></tr></table></div>`;
@@ -603,7 +641,7 @@ const PS = (() => {
       if (!jetonGmail) return 'autorisation Google introuvable';
       const b64 = blob ? await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(blob); }) : undefined;
       const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte + SIGNATURE_TEXTE, bodyHtml: htmlMail(texte), pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte + SIGNATURE_TEXTE, bodyHtml: await htmlMail(texte), pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
       if (!rep) return 'pas de connexion au service d’envoi';
       const res = await rep.json().catch(() => null);
       return res && res.success ? '' : String(res?.error?.message || res?.message || 'erreur ' + rep.status).slice(0, 140);

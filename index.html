@@ -1828,12 +1828,25 @@ $('docFermer').onclick = () => { $('dlgDocument').close(); docCourant?.apres?.()
 $('docApercu').onclick = () => window.open(URL.createObjectURL(docCourant.blob), '_blank');
 // Envoi par le service Gmail Harmonie (un PDF joint) ; faux en cas d'échec, la raison dans derniereErreurGmail.
 let derniereErreurGmail = '';
+// Signature professionnelle (logo, activité, téléphone, e-mail, site ; ni nom ni adresse) sur chaque e-mail envoyé.
+const SIGNATURE_MAIL_TEXTE = '\n\n--\nHarmonie Électricité — interphonie, contrôle d’accès, électricité\n06 31 13 47 01 · contact@harmonie-electricite.com\nwww.harmonie-electricite.com';
+function htmlMailSignature(texte) {
+  const e = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const corps = e(texte).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#A8843F">$1</a>').replace(/\n/g, '<br>');
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#1C1B18">${corps}`
+    + `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:2px solid #C9A86A"><tr>`
+    + `<td style="padding:14px 18px 0 0;vertical-align:middle"><img src="https://laruiccim-droid.github.io/emargement/assets/logo-noir-or.png" alt="Harmonie Électricité" width="160" style="display:block;border:0"></td>`
+    + `<td style="padding:14px 0 0 18px;vertical-align:middle;border-left:1px solid #E2DCCF;font-size:13px;line-height:1.5;color:#55514A">`
+    + `<b style="color:#1C1B18;font-size:14px">Harmonie Électricité</b><br>Interphonie, contrôle d’accès, électricité<br>`
+    + `<a href="tel:0631134701" style="color:#1C1B18;text-decoration:none">06 31 13 47 01</a> · <a href="mailto:contact@harmonie-electricite.com" style="color:#A8843F">contact@harmonie-electricite.com</a><br>`
+    + `<a href="https://www.harmonie-electricite.com" style="color:#A8843F">www.harmonie-electricite.com</a></td></tr></table></div>`;
+}
 async function envoiGmail(dest, objet, texte, blob, nom) {
   derniereErreurGmail = '';
   if (!ENVOI_GMAIL_URL) return false;
   const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.readAsDataURL(blob); });
   const essai = async jeton => {
-    const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: jeton, to: dest, subject: objet, bodyText: texte, pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+    const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: jeton, to: dest, subject: objet, bodyText: texte + SIGNATURE_MAIL_TEXTE, bodyHtml: htmlMailSignature(texte), pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
     if (!rep) return 'pas de connexion au service d’envoi';
     const res = await rep.json().catch(() => null);
     if (res && res.success) return '';
