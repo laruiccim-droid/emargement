@@ -868,12 +868,42 @@ async function commanderBadges() {
 
 // ---------- Badges : prévenir les propriétaires, émargement par appartement ----------
 async function prevenirProprietaires() {
-  const bs = S.badgesSuivi, c = S.detail.copro, lg = bs.logements.filter(l => l.attendus > 0);
-  const mails = [...new Set(lg.flatMap(l => l.emails || []))];
-  if (!confirm(`Prévenir les ${lg.length} propriétaires que leurs badges sont disponibles à l’agence ?\n\nVotre messagerie s’ouvre avec les ${mails.length} adresses en copie cachée.`)) return;
-  const texte = `Bonjour,\n\nLes badges d’accès de la résidence ${c.nom} sont disponibles à l’agence ${S.etat?.syndic?.nom || ''}. Merci de passer les récupérer (une signature vous sera demandée).\nSi vous louez votre appartement, vous pouvez en laisser une partie : ils seront remis à votre locataire le jour de l’installation.\n\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
-  location.href = `mailto:?bcc=${mails.map(encodeURIComponent).join(',')}&subject=${encodeURIComponent('Vos badges d’accès — résidence ' + c.nom)}&body=${encodeURIComponent(texte)}`;
-  try { await appel('ps_syndic_badges_prevenus', { p_session: S.session, p_copro: S.copro }); toast('Propriétaires notés comme prévenus.'); setTimeout(() => ouvrirCopro(S.copro), 800); } catch {}
+  const bs = S.badgesSuivi, c = S.detail.copro;
+  // Seuls les appartements qui n'ont pas encore tous leurs badges.
+  const lg = bs.logements.filter(l => l.attendus > 0 && l.remis + (l.locataire || 0) < l.attendus);
+  if (!lg.length) return toast('Tous les appartements ont déjà récupéré leurs badges.');
+  // Adresse et nom donnés au recensement (sinon ceux du fichier) ; une fiche modifiée à la main prime.
+  let parId = new Map();
+  try { parId = new Map((await appel('ps_syndic_appartements', { p_session: S.session, p_copro: S.copro })).logements.map(l => [l.id, l])); } catch {}
+  const contact = l => {
+    const a = parId.get(l.id) || {}, k = a.commande;
+    const emails = a.coord_maj_le ? (a.emails || l.emails || []) : [k?.email, ...(a.emails || l.emails || [])];
+    const nom = !a.coord_maj_le && k?.nom ? [k.prenom, k.nom].filter(Boolean).join(' ') : (a.nom || l.nom || '');
+    return { nom, emails: [...new Set(emails.filter(Boolean).map(e => e.trim().toLowerCase()))] };
+  };
+  const cibles = lg.map(l => ({ l, ...contact(l) })), avecMail = cibles.filter(x => x.emails.length), sansMail = cibles.filter(x => !x.emails.length);
+  if (!confirm(`Prévenir les propriétaires que leurs badges sont disponibles à l’agence ?\n\n• ${avecMail.length} par e-mail (envoi automatique)` + (sansMail.length ? `\n• ${sansMail.length} sans adresse e-mail : à prévenir par téléphone ou courrier` : ''))) return;
+  const signature = [nomGest(), nomCabinet()].filter(Boolean).join(' — '), agence = S.etat?.syndic?.nom || nomCabinet() || 'votre syndic';
+  const texte = x => {
+    const reste = x.l.attendus - x.l.remis - (x.l.locataire || 0);
+    return `Bonjour${x.nom ? ' ' + x.nom : ''},\n\n`
+      + `${reste > 1 ? `Les ${reste} badges d’accès` : 'Le badge d’accès'} de votre appartement (${PS.appt(x.l).toLowerCase()}, résidence ${c.nom}) ${reste > 1 ? 'sont disponibles' : 'est disponible'} à l’agence ${agence}.\n`
+      + `Merci de passer ${reste > 1 ? 'les' : 'le'} récupérer : une signature vous sera demandée.\n\n`
+      + `Si vous louez votre appartement, vous pouvez en laisser une partie à l’agence : ils seront remis à votre locataire le jour de l’installation.\n\n`
+      + `Cordialement,\n${signature}`;
+  };
+  const erreurs = [];
+  for (const [i, x] of avecMail.entries()) {
+    toast(`Envoi des e-mails… ${i + 1} / ${avecMail.length}`);
+    const err = await PS.envoiGmail(x.emails.join(', '), `Vos badges d’accès sont disponibles — résidence ${c.nom}`, texte(x));
+    if (err) erreurs.push(`${x.nom || PS.appt(x.l)} : ${err}`);
+  }
+  const envoyes = avecMail.length - erreurs.length;
+  if (envoyes || !avecMail.length) { try { await appel('ps_syndic_badges_prevenus', { p_session: S.session, p_copro: S.copro }); } catch {} }
+  alert(`${envoyes} e-mail${envoyes > 1 ? 's' : ''} envoyé${envoyes > 1 ? 's' : ''}.`
+    + (erreurs.length ? `\n\nÉchec pour :\n${erreurs.join('\n')}` : '')
+    + (sansMail.length ? `\n\nSans adresse e-mail, à prévenir autrement :\n${sansMail.map(x => `${PS.appt(x.l)}${x.nom ? ' — ' + x.nom : ''}`).join('\n')}` : ''));
+  ouvrirCopro(S.copro);
 }
 function ouvrirEmargementBadges() {
   const bs = S.badgesSuivi, lg = bs.logements.filter(l => l.attendus > 0);
