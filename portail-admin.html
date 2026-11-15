@@ -1004,13 +1004,16 @@ function etapeSuivante(c) {
   if (c.type !== 'complet') return {};
   const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {}, k = c.compteurs || {};
   const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, nr = c.nb_rdv || 0, vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+  // Fin de chantier : la facture passe avant tout le reste.
+  if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { attente: 'Facturé, chantier terminé.' };
+  if (c.etat === 'attente_facturation') return { code: 'facture', libelle: 'Déposer la facture' };
   if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
   if (rec.etape !== 'pret') return { attente: 'En attente du fichier des copropriétaires (gestionnaire).' };
   if (!so.ouvert_le) return { attente: 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).' };
   if (!(so.clos_le || (n && nc >= n))) return { attente: `Recensement en cours : ${nc} / ${n} signés.` };
   if (!fo.envoyee_le) return { code: 'commander', libelle: 'Commander le matériel' };
   if (!fo.recu_le) return { code: 'recu', libelle: 'Matériel reçu' };
-  if (vigik && !(c.badges_suivi || {}).programmes_le) return { code: 'programmer', libelle: 'Programmer les badges (fiche Vigik)' };
+  if (vigik && !(c.badges_suivi || {}).programmes_le && !k.livres) return { code: 'programmer', libelle: 'Programmer les badges (fiche Vigik)' };
   if (vigik && !k.livres) return { code: 'livrer', libelle: 'Livrer les badges au syndic' };
   if (!(camp.jours || []).length) return { code: 'planifier', libelle: 'Planifier la campagne d’information' };
   if (!camp.envoyee_le) return { code: 'campagne', libelle: 'Envoyer la campagne d’information' };
