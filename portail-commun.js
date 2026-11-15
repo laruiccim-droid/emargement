@@ -10,7 +10,9 @@ const PS = (() => {
     ADMIN_REFUSE: 'Mot de passe administrateur incorrect.',
     ADMIN_NON_DEFINI: 'Le mot de passe administrateur n’est pas encore créé.',
     ADMIN_DEJA_DEFINI: 'Le mot de passe administrateur existe déjà.',
-    MDP_TROP_COURT: 'Le mot de passe doit faire au moins 8 caractères.',
+    MDP_TROP_COURT: 'Le mot de passe doit faire au moins 10 caractères.',
+    MDP_FAIBLE: 'Mot de passe trop faible : au moins 10 caractères, avec au moins une lettre et un chiffre.',
+    TROP_DE_TENTATIVES: 'Trop de tentatives : accès bloqué 15 minutes par sécurité. Réessayez plus tard.',
     SESSION_INVALIDE: 'Votre session a expiré : reconnectez-vous.',
     IDENTIFIANTS_INCORRECTS: 'Adresse e-mail ou mot de passe incorrect.',
     INVITATION_INVALIDE: 'Ce lien d’invitation n’est plus valable. Demandez un nouveau lien à Harmonie Électricité.',
@@ -61,6 +63,9 @@ const PS = (() => {
   }
 
   const $ = id => document.getElementById(id);
+  // Page ouverte dans un cadre d'un autre site (piège au clic) : on en sort.
+  try { if (window.top !== window.self) window.top.location = window.location.href; } catch { document.documentElement.style.display = 'none'; }
+  const messageErreur = code => ERREURS[code] || code;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const horodatage = ts => ts ? new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const dateCourte = ts => ts ? new Date(ts).toLocaleDateString('fr-FR') : '';
@@ -738,5 +743,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

@@ -78,7 +78,7 @@
     <form class="bloc" id="formActivation">
       <label for="aEmail">Votre identifiant</label>
       <input type="email" id="aEmail" autocomplete="username" readonly>
-      <label for="aMdp">Choisissez un mot de passe (8 caractères minimum)</label>
+      <label for="aMdp">Choisissez un mot de passe (10 caractères minimum, avec lettres et chiffres)</label>
       <input type="password" id="aMdp" autocomplete="new-password" minlength="8" required>
       <label for="aMdp2">Confirmez le mot de passe</label>
       <input type="password" id="aMdp2" autocomplete="new-password" minlength="8" required>
@@ -477,7 +477,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=23"></script>
+<script src="portail-commun.js?v=24"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -533,6 +533,7 @@ $('formConnexion').onsubmit = async e => {
   e.preventDefault(); message('cMessage', 'Connexion…', false);
   try {
     const r = await rpc('ps_connexion', { p_email: $('cEmail').value, p_mdp: $('cMdp').value });
+    if (r.erreur) throw new Error(PS.messageErreur(r.erreur));
     S.session = r.session; try { localStorage.setItem(CLE_SESSION, S.session); } catch {}
     $('cMdp').value = ''; message('cMessage', '');
     await chargerEtat();

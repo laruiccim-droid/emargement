@@ -334,7 +334,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=23"></script>
+<script src="portail-commun.js?v=24"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -380,6 +380,9 @@ $('formAdmin').onsubmit = async e => {
       if (m !== $('adMdp2').value) return msg('adMessage', 'Les deux mots de passe ne sont pas identiques.');
       await rpc('ps_admin_initialiser', { p_mdp: m }); A.creation = false;
     }
+    // Vérification protégée contre les essais répétés (blocage 15 min après 5 échecs).
+    try { const o = await rpc('ps_admin_ouvrir', { p_admin: m }); if (o?.erreur) throw Object.assign(new Error(PS.messageErreur(o.erreur)), { code: o.erreur }); }
+    catch (err) { if (!/absente/.test(err.message)) throw err; }
     A.mdp = m; await charger();
     try { localStorage.setItem(CLE_ADMIN, m); } catch {}
     $('adMdp').value = $('adMdp2').value = ''; msg('adMessage', '');
