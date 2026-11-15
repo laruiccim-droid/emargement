@@ -98,6 +98,13 @@
     <p style="margin-top:22px"><a class="btn plein" id="agendaGoogle" target="_blank" rel="noopener">Ajouter à Google Agenda</a></p>
     <p><button type="button" class="btn" id="agenda">Autre agenda (Outlook, iPhone…)</button></p>
     <p><button type="button" class="btn" id="changer">Changer de créneau</button></p>
+    <p><button type="button" class="btn plein" id="terminer">Terminer</button></p>
+  </section>
+
+  <section id="termine" class="fin" hidden>
+    <div class="coche">✓</div>
+    <h1>C’est terminé</h1>
+    <p class="intro">Votre rendez-vous est bien enregistré. Vous pouvez fermer cette page.</p>
   </section>
 </main>
 
@@ -178,6 +185,11 @@ $('agenda').onclick = () => {
     description: 'Intervention d’Harmonie Électricité dans votre appartement. Contact : ' + PS.ENTREPRISE.tel }]), 'rendez-vous-harmonie.ics');
 };
 $('changer').onclick = () => { R.choix = null; charger(); };
+// Terminer : ferme la page ; si le navigateur refuse (page ouverte depuis un e-mail), message de fin.
+$('terminer').onclick = () => {
+  window.close();
+  setTimeout(() => { document.querySelectorAll('main > section').forEach(s => { s.hidden = s.id !== 'termine'; }); scrollTo(0, 0); }, 300);
+};
 charger();
 </script>
 </body>
