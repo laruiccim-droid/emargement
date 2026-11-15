@@ -1448,8 +1448,11 @@ function donneesRemise() {
   const l = lgBadges().find(x => x.id === $('reAppart').value);
   const reste = l && $('reReste').checked ? Math.max(0, l.attendus - l.remis - l.en_attente - S.choisis.size) : (l ? l.locataire : 0);
   const h = intervenantChoisi();
+  // Remise partielle (bailleur) : le bon de remise signé indique les badges laissés pour le locataire.
+  const pourLocataire = !h && l && $('reReste').checked && reste > 0
+    ? `${reste} badge${reste > 1 ? 's' : ''} restant${reste > 1 ? 's' : ''} à remettre au locataire le jour de l’installation (à la demande du propriétaire).` : '';
   return { logement_id: l?.id || h?.id || '', reste_locataire: h ? 0 : reste, copro_id: S.copro, badges: [...S.choisis], proprietaire: $('reNom').value.trim(), qualite: S.qualite, batiment: $('reBatiment').value.trim(), lot: $('reLot').value.trim(),
-    tel: $('reTel').value.trim(), email: $('reEmail').value.trim(), commentaire: $('reCommentaire').value.trim(), photos: S.photos,
+    tel: $('reTel').value.trim(), email: $('reEmail').value.trim(), commentaire: [pourLocataire, $('reCommentaire').value.trim()].filter(Boolean).join('\n'), photos: S.photos,
     acces: droitsChantier().length ? Object.fromEntries([...S.choisis].map(n => [n, S.acces[n] || ''])) : {} };
 }
 $('btnVersSignature').onclick = () => {
