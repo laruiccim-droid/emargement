@@ -440,6 +440,8 @@ async function charger() {
   if (autres.length) $('aFaire').innerHTML += `<ul class="liste">${autres.map(([c, t]) => `<li><div class="principal"><b>${esc(c.nom)}</b><div class="sous">⚠ ${esc(t)}</div></div><div class="droite"><button type="button" class="btn btn-petit btn-or" data-ouvrir2="${c.id}">Ouvrir</button></div></li>`).join('')}</ul>`;
   document.querySelectorAll('#aFaire [data-ouvrir2]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.ouvrir2));
   document.querySelectorAll('#aFaire [data-ouvrir]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.ouvrir, 'remises'));
+  // Rapprochement locataires / propriétaires terminé : le chantier d'émargement se crée tout seul dans l'app.
+  if (cs.some(doitGenererApp)) setTimeout(() => genererAppAuto(cs).catch(() => {}), 0);
 }
 document.querySelectorAll('[data-aller]').forEach(b => b.onclick = async () => {
   const v = b.dataset.aller;
@@ -1066,7 +1068,21 @@ function logementApp(l) {
   const ch = champsLogementApp(l);
   return { ...base, ...ch, badges: Array(ch.badgesPrevu || 0).fill('') };
 }
-async function creerOuMajChantierApp() {
+// Génération automatique du chantier d'émargement : affichage fait, tous les rendez-vous pris et
+// tous les locataires rattachés à leur propriétaire. Faite une fois, depuis cet appareil (code d'accès de l'app).
+const doitGenererApp = c => c.type === 'complet' && !c.chantier_id && !!c.campagne?.affichee_le
+  && (c.nb_logements_saisis || 0) > 0 && (c.nb_rdv || 0) >= c.nb_logements_saisis && !c.nb_rdv_a_rattacher;
+async function genererAppAuto(cs) {
+  if (!entetesApp()['x-harmonie-cle']) return;
+  A.genAuto = A.genAuto || new Set();
+  for (const c of cs.filter(doitGenererApp)) {
+    if (A.genAuto.has(c.id)) continue;
+    A.genAuto.add(c.id);
+    EM.c = c;
+    if (await creerOuMajChantierApp({ auto: true })) toast(`Rapprochement terminé : chantier d’émargement créé dans l’app pour « ${c.nom} ».`, 6000);
+  }
+}
+async function creerOuMajChantierApp(o = {}) {
   const c = EM.c;
   let prep; try { prep = await appel('ps_admin_preparation_app', { p_copro: c.id }, 'emMsg'); } catch { return; }
   // Badges déjà livrés au syndic : on ne laisse au locataire que les badges qui lui sont réservés.
@@ -1119,7 +1135,10 @@ async function creerOuMajChantierApp() {
   if (nouveau || p.chantier_id !== app.id) await appel('ps_admin_lier_app', { p_copro: c.id, p_chantier: app.id });
   chantiersApp = null;
   toast(nouveau ? `Chantier créé dans l’app : ${ajoutes} logements.` : `Chantier de l’app mis à jour (${ajoutes} ajoutés, ${maj} actualisés).`);
-  await charger(); ouvrirChantier(c.id);
+  await charger();
+  // Génération automatique : on reste sur la page en cours (sauf si c'est la fiche de ce chantier).
+  if (!o.auto || (!$('vChantier').hidden && A.copro === c.id)) ouvrirChantier(c.id);
+  return true;
 }
 // Fiches modifiées (propriétaire, locataire, nom affiché) après la dernière mise à jour du chantier de l'app.
 function verifierCoordApp() {
