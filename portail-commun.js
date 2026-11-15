@@ -421,6 +421,24 @@ const PS = (() => {
 
   // Durée d'intervention lisible : 30 → « 30 minutes », 60 → « 1 heure », 90 → « 1 h 30 ».
   const dureeTexte = m => { m = +m || 30; const h = Math.floor(m / 60), r = m % 60; return !h ? `${m} minutes` : !r ? `${h} heure${h > 1 ? 's' : ''}` : `${h} h ${String(r).padStart(2, '0')}`; };
+  // E-mail de rendez-vous de la campagne d'information (même texte depuis l'admin et l'espace syndic).
+  // Les passages entre ** ** sont mis en gras dans la version HTML.
+  function texteRdvMail(c, camp, l, lien) {
+    const jours = [...new Set((camp.jours || []).map(j => new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })))];
+    const dates = jours.length > 1 ? 'les ' + jours.slice(0, -1).join(', ') + ' et ' + jours[jours.length - 1] : 'le ' + (jours[0] || '(date à confirmer)');
+    const quoi = c.travaux === 'vigik' ? 'du nouveau contrôle d’accès' : 'de votre nouvel interphone';
+    const prenom = l.commande?.prenom || '';
+    return `Bonjour${prenom ? ' ' + prenom : ''},\n\n`
+      + `Un technicien interviendra dans la résidence **${c.nom}**, ${dates}, afin de procéder à l’installation ${quoi}.\n`
+      + `L’intervention durera environ **${dureeTexte(camp.duree)}**.\n\n`
+      + `Nous vous rappelons que la présence d’une personne majeure dans l’appartement est obligatoire le jour de l’intervention.\n\n`
+      + `Si vous ne pouvez pas être disponible, vous avez la possibilité de vous faire représenter par une personne de confiance (membre de votre famille, voisin, etc.).\n\n`
+      + `**Important :** en l’absence de prise de rendez-vous ou en cas d’absence le jour du rendez-vous, une nouvelle intervention sera facturée **50 € TTC** au résident de l’appartement concerné, afin de couvrir les frais de déplacement. Le règlement de cette somme sera exigé avant toute nouvelle intervention et installation du matériel.\n\n`
+      + (c.travaux === 'vigik' ? `Après l’intervention, les anciens badges ne fonctionneront plus.\n\n` : '')
+      + `Merci de bien vouloir sélectionner un créneau de rendez-vous pour ${l.numero ? 'l’appartement **n° ' + l.numero + '**' : 'votre appartement'} :\n`
+      + `${lien}\n\n`
+      + `Cordialement,`;
+  }
   const euros = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const QUALITES_COMMANDE = { occupant: 'Propriétaire occupant', bailleur: 'Propriétaire bailleur' };
   const pastilleQualite = q => q === 'bailleur' ? ' <span class="pastille or">Bailleur</span>' : q === 'occupant' ? ' <span class="pastille">Résident</span>' : '';
@@ -627,7 +645,7 @@ const PS = (() => {
     const corps = texte.split('\n').map(ligne => {
       const t = ligne.trim();
       if (liens.includes(t)) return '\u0000' + t;
-      return e(ligne).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#A8843F">$1</a>');
+      return e(ligne).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#A8843F">$1</a>');
     }).join('<br>').replace(/(<br>)?\u0000(\S+?)(?=<br>|$)(<br>)?/g, (_, a, u) => bouton(u));
     return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#1C1B18">${corps}`
       + `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:2px solid #C9A86A"><tr>`
@@ -647,7 +665,7 @@ const PS = (() => {
       if (!jetonGmail) return 'autorisation Google introuvable';
       const b64 = blob ? await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(blob); }) : undefined;
       const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte + SIGNATURE_TEXTE, bodyHtml: await htmlMail(texte), pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte.replace(/\*\*/g, '') + SIGNATURE_TEXTE, bodyHtml: await htmlMail(texte), pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
       if (!rep) return 'pas de connexion au service d’envoi';
       const res = await rep.json().catch(() => null);
       return res && res.success ? '' : String(res?.error?.message || res?.message || 'erreur ' + rep.status).slice(0, 140);
@@ -913,5 +931,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();
