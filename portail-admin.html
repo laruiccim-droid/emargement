@@ -1349,7 +1349,8 @@ function rendreAvancementAdmin(c, k) {
   else attente = et.attente || '';
   const cloture = et.cloture;
   if (et.code === 'facture') action = null;
-  if (false) action = ['Valider la pose des étiquettes', async () => jalon('etiquettes', true)];
+  if (et) { /* étape calculée par etapeSuivante() ; l'ancien enchaînement ci-dessous n'est plus utilisé */ }
+  else if (false) action = ['Valider la pose des étiquettes', async () => jalon('etiquettes', true)];
   else if (rec.etape !== 'pret') attente = 'En attente du fichier des copropriétaires (gestionnaire).';
   else if (!so.ouvert_le) attente = 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).';
   else if (!(so.clos_le || (n && nc >= n))) attente = `Recensement en cours : ${nc} / ${n} signés.`;
