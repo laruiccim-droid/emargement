@@ -112,7 +112,10 @@
 
     <div class="bloc" id="blocPlaque" hidden>
       <h2><span class="n" data-num></span>Plaque de propreté</h2>
-      <p>Le nouveau poste n’a pas forcément la même taille que l’ancien. La <b>plaque de propreté</b> se pose derrière lui et <b>cache les anciens trous et les traces de peinture</b> : pas de reprise de peinture à prévoir.</p>
+      <div class="ligne-badge" id="plaqueAvecPhoto">
+      <img id="plaquePhoto" alt="Plaque de propreté" hidden style="width:100%;height:auto;max-height:160px;object-fit:contain;border-radius:10px;background:#FBFAF7">
+      <p style="margin:0">Le nouveau poste n’a pas forcément la même taille que l’ancien. La <b>plaque de propreté</b> se pose derrière lui et <b>cache les anciens trous et les traces de peinture</b> : pas de reprise de peinture à prévoir.</p>
+      </div>
       <p class="prix" id="plaquePrix" style="margin-top:6px"></p>
       <div class="ouinon">
         <button type="button" class="btn" data-plaque="1" aria-pressed="false">Oui, je la veux</button>
@@ -123,7 +126,8 @@
     <div class="bloc" id="blocBadges" hidden>
       <h2><span class="n" data-num></span>Badges d’accès</h2>
       <div class="ligne-badge">
-        <svg viewBox="0 0 100 70" aria-hidden="true" style="width:100%;height:auto"><rect x="6" y="8" width="88" height="54" rx="12" fill="#1C1B18"/><circle cx="74" cy="35" r="11" fill="none" stroke="#C9A86A" stroke-width="3"/><circle cx="74" cy="35" r="5" fill="none" stroke="#C9A86A" stroke-width="2"/><rect x="16" y="22" width="34" height="5" rx="2" fill="#C9A86A"/><rect x="16" y="33" width="24" height="4" rx="2" fill="#7d7566"/></svg>
+        <img id="badgePhoto" alt="Badge d’accès" hidden style="width:100%;height:auto;max-height:130px;object-fit:contain">
+        <svg id="badgeDessin" viewBox="0 0 100 70" aria-hidden="true" style="width:100%;height:auto"><rect x="6" y="8" width="88" height="54" rx="12" fill="#1C1B18"/><circle cx="74" cy="35" r="11" fill="none" stroke="#C9A86A" stroke-width="3"/><circle cx="74" cy="35" r="5" fill="none" stroke="#C9A86A" stroke-width="2"/><rect x="16" y="22" width="34" height="5" rx="2" fill="#C9A86A"/><rect x="16" y="33" width="24" height="4" rx="2" fill="#7d7566"/></svg>
         <div><p style="margin:0" id="badgeTexte"></p><p class="prix" id="badgePrix" style="margin-top:4px"></p></div>
       </div>
       <div class="qte"><button type="button" class="rond" id="badgeMoins" aria-label="Un badge de moins">−</button><b id="badgeQte">0 badge</b><button type="button" class="rond" id="badgePlus" aria-label="Un badge de plus">+</button></div>
@@ -277,11 +281,16 @@ function rendreModeles() {
 }
 function rendrePlaque() {
   const p = plaque(); $('blocPlaque').hidden = !p || !avecInterphone(); if (!p) return;
+  // Photo du catalogue (sinon le texte seul occupe toute la largeur).
+  $('plaquePhoto').hidden = !p.photo; if (p.photo) $('plaquePhoto').src = p.photo;
+  $('plaqueAvecPhoto').style.gridTemplateColumns = p.photo ? 'minmax(90px, 160px) 1fr' : '1fr';
   $('plaquePrix').innerHTML = `${esc(euros(ttc(p)))} <small>TTC par poste</small>`;
   document.querySelectorAll('[data-plaque]').forEach(b => { b.setAttribute('aria-pressed', E.plaque === (b.dataset.plaque === '1')); b.onclick = () => { E.plaque = b.dataset.plaque === '1'; maj(); }; });
 }
 function rendreBadges() {
   const b = badge(); $('blocBadges').hidden = !b; if (!b) return;
+  // Photo du catalogue à la place du dessin.
+  $('badgePhoto').hidden = !b.photo; $('badgeDessin').style.display = b.photo ? 'none' : ''; if (b.photo) $('badgePhoto').src = b.photo;
   $('badgeTexte').textContent = 'Badge de proximité Vigik pour ouvrir les portes de la résidence. Indiquez combien de badges vous souhaitez.';
   $('badgePrix').innerHTML = `${esc(euros(ttc(b)))} <small>TTC le badge</small>`;
   $('badgeQte').textContent = E.badges + ' badge' + (E.badges > 1 ? 's' : '');
