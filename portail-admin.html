@@ -1595,7 +1595,7 @@ function joursTexteAdmin(camp, avecHeures = true) {
 }
 function texteRdvAdmin(l) {
   const d = CAA.d, c = d.copro;
-  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nUn technicien installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne, false)}.\nL’intervention dure environ ${PS.dureeTexte(d.campagne.duree)} ; une personne majeure doit être présente dans l’appartement.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${PS.ENTREPRISE.nom}`;
+  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nUn technicien installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne, false)}.\nL’intervention dure environ ${PS.dureeTexte(d.campagne.duree)}. La présence d’une personne majeure dans l’appartement est obligatoire le jour de l’intervention : vous pouvez vous faire représenter par une personne de confiance.\nSans prise de rendez-vous, ou en cas d’absence le jour du rendez-vous, la nouvelle intervention sera facturée 50 € TTC pour couvrir les frais de déplacement.\n\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,`;
 }
 function rendreEnvoiCampagneAdmin() {
   const d = CAA.d, camp = d.campagne || {}, lg = d.logements;
