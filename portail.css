@@ -98,6 +98,16 @@ dialog.fiche-appart { width: min(720px, calc(100vw - 24px)); }
 
 .carte { display: block; width: 100%; text-align: left; border: 1px solid var(--border-hairline); background: rgba(17,17,17,.92); border-radius: 8px; padding: 16px; cursor: pointer; color: inherit; }
 .carte:hover { border-color: var(--border-strong); }
+/* Liste des chantiers : à droite, raccourci vers l'étape à réaliser maintenant. */
+.carte-chantier .haut-carte { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 42%); gap: 16px; align-items: start; }
+.raccourci { display: flex; align-items: center; justify-content: center; min-height: 96px; padding: 10px; border: 1px dashed transparent; border-radius: 8px; text-align: center; cursor: default; }
+.raccourci .btn { min-height: 50px; padding: 0 22px; }
+.raccourci .attente { font-size: 13px; color: var(--grey-300); line-height: 1.4; }
+.depot-facture { flex-direction: column; gap: 6px; border-color: var(--he-gold); background: rgba(201,168,106,.06); cursor: pointer; }
+.depot-facture b { color: var(--he-gold-light, #DFC28C); font-weight: 500; letter-spacing: .04em; }
+.depot-facture span { font-size: 12.5px; color: var(--grey-300); }
+.depot-facture.survol { background: rgba(201,168,106,.16); }
+@media (max-width: 640px) { .carte-chantier .haut-carte { grid-template-columns: 1fr; } .raccourci { min-height: 0; } }
 .carte h3 { margin-bottom: 2px; }
 .carte .meta { font-size: 13px; color: var(--grey-400); }
 .carte .chiffres { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }

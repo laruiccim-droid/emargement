@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=7">
+<link rel="stylesheet" href="portail.css?v=8">
 <style>
   .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
@@ -569,13 +569,20 @@ function rendreChantiers() {
   const cs = A.etat.copros.filter(c => !q || [c.nom, c.ville, c.reference, nomSyndic(c.syndic_id)].join(' ').toLowerCase().includes(q));
   $('listeChantiers').innerHTML = cs.length ? cs.map(c => {
     const k = c.compteurs;
-    return `<button type="button" class="carte" data-chantier="${c.id}"><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
+    const et = etapeSuivante(c);
+    const zone = et.code === 'facture' ? `<div class="raccourci depot-facture" data-depot="${c.id}">${ZONE_FACTURE}</div>`
+      : et.code ? `<div class="raccourci"><button type="button" class="btn btn-or" data-etape="${et.code}" data-copro="${c.id}">${esc(et.libelle)}</button></div>`
+      : et.attente ? `<div class="raccourci"><span class="attente">${esc(et.attente)}</span></div>` : '<div></div>';
+    return `<div class="carte carte-chantier" role="button" tabindex="0" data-chantier="${c.id}"><div class="haut-carte"><div><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
       <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.gestionnaire_id && nomGestionnaire(c.gestionnaire_id), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
       ${c.transfert_demande?.vers ? `<div class="chiffres"><span class="pastille attente">Transfert demandé vers ${esc(c.transfert_demande.vers_nom)}</span></div>` : ''}
-      <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.a_creer ? `<span class="pastille attente">${k.a_creer} à créer dans le contrôle d’accès</span>` : ''}</div>
-      ${PS.friseHtml(c)}</button>`;
+      <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.a_creer ? `<span class="pastille attente">${k.a_creer} à créer dans le contrôle d’accès</span>` : ''}</div></div>
+      ${zone}</div>
+      ${PS.friseHtml(c)}</div>`;
   }).join('') : `<div class="vide">${q ? 'Aucun résultat.' : 'Aucun chantier. Créez le premier.'}</div>`;
-  document.querySelectorAll('[data-chantier]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.chantier));
+  document.querySelectorAll('[data-chantier]').forEach(b => { b.onclick = () => ouvrirChantier(b.dataset.chantier); b.onkeydown = e => { if (e.key === 'Enter') ouvrirChantier(b.dataset.chantier); }; });
+  document.querySelectorAll('#listeChantiers [data-etape]').forEach(b => b.onclick = e => { e.stopPropagation(); executerEtape(A.etat.copros.find(x => x.id === b.dataset.copro), b.dataset.etape); });
+  document.querySelectorAll('#listeChantiers [data-depot]').forEach(z => brancherDepotFacture(z, z.dataset.depot));
 }
 $('chRecherche').oninput = rendreChantiers;
 
@@ -967,9 +974,10 @@ function rendreFactureAdmin(c, nbSignes, nbTotal) {
   const pret = c.etat === 'attente_facturation' || c.etat === 'facture' || (nbTotal && nbSignes >= nbTotal);
   $('emFacture').innerHTML = f.url
     ? `<span class="pastille ok">Facturé — chantier terminé</span> <a class="btn btn-petit" href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.nom || 'Facture')}</a> <button type="button" class="btn btn-petit btn-discret" id="emRetirerFacture">Retirer la facture</button>`
-    : pret ? `<span class="pastille attente">Installation terminée, en attente de facturation</span> <button type="button" class="btn btn-or" id="emDeposerFacture">Déposer la facture (PDF)</button>`
+    : pret ? `<span class="pastille attente">Installation terminée, en attente de facturation</span><div class="raccourci depot-facture" id="emZoneFacture" style="margin-top:10px">${ZONE_FACTURE}</div>`
     : `<span class="aide">La facture se dépose quand tous les appartements sont émargés${nbTotal ? ` (${nbSignes} / ${nbTotal})` : ''}.</span> <button type="button" class="btn btn-petit btn-discret" id="emDeposerFacture">Déposer quand même</button>`;
   if ($('emDeposerFacture')) $('emDeposerFacture').onclick = () => $('emFichierFacture').click();
+  if ($('emZoneFacture')) brancherDepotFacture($('emZoneFacture'), c.id);
   if ($('emRetirerFacture')) $('emRetirerFacture').onclick = async () => {
     if (!confirm('Retirer la facture ? Le chantier repasse « en attente de facturation ».')) return;
     try { await appel('ps_admin_facture', { p_copro: c.id, p: {} }); await charger(); ouvrirChantier(c.id); } catch {}
@@ -977,6 +985,7 @@ function rendreFactureAdmin(c, nbSignes, nbTotal) {
 }
 $('emFichierFacture').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f || !EM.c) return;
+  return deposerFacture(EM.c.id, f);
   if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') return msg('emMsg', 'La facture doit être un PDF.');
   const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
   const chemin = `emargement/factures/${cle}.pdf`;
@@ -988,6 +997,69 @@ $('emFichierFacture').onchange = async e => {
     toast('Facture déposée : chantier facturé.'); await charger(); ouvrirChantier(EM.c.id);
   } catch { msg('emMsg', 'La facture n’a pas pu être envoyée.'); }
 };
+
+// ---------- Étape à réaliser maintenant (raccourci de la liste et bouton doré de la fiche) ----------
+// Retourne { code, libelle } pour une action d'Harmonie, ou { attente } quand on attend quelqu'un d'autre.
+function etapeSuivante(c) {
+  if (c.type !== 'complet') return {};
+  const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {}, k = c.compteurs || {};
+  const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, nr = c.nb_rdv || 0, vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+  if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
+  if (rec.etape !== 'pret') return { attente: 'En attente du fichier des copropriétaires (gestionnaire).' };
+  if (!so.ouvert_le) return { attente: 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).' };
+  if (!(so.clos_le || (n && nc >= n))) return { attente: `Recensement en cours : ${nc} / ${n} signés.` };
+  if (!fo.envoyee_le) return { code: 'commander', libelle: 'Commander le matériel' };
+  if (!fo.recu_le) return { code: 'recu', libelle: 'Matériel reçu' };
+  if (vigik && !(c.badges_suivi || {}).programmes_le) return { code: 'programmer', libelle: 'Programmer les badges (fiche Vigik)' };
+  if (vigik && !k.livres) return { code: 'livrer', libelle: 'Livrer les badges au syndic' };
+  if (!(camp.jours || []).length) return { code: 'planifier', libelle: 'Planifier la campagne d’information' };
+  if (!camp.envoyee_le) return { code: 'campagne', libelle: 'Envoyer la campagne d’information' };
+  if (n && nr < n) return { attente: `Campagne envoyée : ${nr} / ${n} rendez-vous pris.` };
+  if (!c.chantier_id) return { code: 'generer', libelle: 'Générer le chantier d’émargement' };
+  if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) return { attente: 'Installation en cours : l’émargement remonte de l’app.' };
+  if (!(c.facture || {}).url) return { code: 'facture', libelle: 'Déposer la facture' };
+  return { attente: 'Facturé, chantier terminé.' };
+}
+// Réalise l'étape : directement quand c'est un clic (étiquettes, matériel reçu), sinon ouvre la fiche au bon endroit.
+async function executerEtape(c, code) {
+  const jalon = async (j) => { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: true, p_info: '' }); toast('Étape validée.'); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
+  if (code === 'etiquettes') return jalon('etiquettes');
+  if (code === 'recu') return jalon('fourniture_recue');
+  if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id);
+  const aller = id => setTimeout(() => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+  if (code === 'commander') aller('dFourniture');
+  if (code === 'programmer') aller('dBadges');
+  if (code === 'livrer') { choisirOnglet('livrer'); aller('ongLivrer'); }
+  if (code === 'planifier') aller('dCampagne');
+  if (code === 'campagne') aller('caEnvoiAdmin');
+  if (code === 'generer') await creerOuMajChantierApp();
+  if (code === 'facture') aller('dEmargement');
+}
+// Dépôt de la facture (PDF) : depuis la liste des chantiers ou la fiche.
+async function deposerFacture(coproId, f) {
+  if (!f) return;
+  if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') return toast('La facture doit être un PDF.', 4000);
+  const cle = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+  const chemin = `emargement/factures/${cle}.pdf`;
+  toast('Envoi de la facture…');
+  try {
+    const rep = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/pdf' }, body: f });
+    if (!rep.ok) throw new Error();
+    await appel('ps_admin_facture', { p_copro: coproId, p: { url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, nom: f.name, taille: f.size } });
+    toast('Facture déposée : chantier facturé.'); await charger();
+    if (!$('vChantier').hidden && A.copro === coproId) ouvrirChantier(coproId); else rendreChantiers();
+  } catch { toast('La facture n’a pas pu être envoyée.', 5000); }
+}
+// Zone de dépôt (glisser-déposer ou clic) branchée sur un élément.
+function brancherDepotFacture(el, coproId) {
+  const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/pdf,.pdf'; input.hidden = true; el.append(input);
+  el.onclick = e => { e.stopPropagation(); if (e.target !== input) input.click(); };
+  input.onchange = () => deposerFacture(coproId, input.files[0]);
+  ['dragenter', 'dragover'].forEach(t => el.addEventListener(t, e => { e.preventDefault(); e.stopPropagation(); el.classList.add('survol'); }));
+  ['dragleave', 'drop'].forEach(t => el.addEventListener(t, () => el.classList.remove('survol')));
+  el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); deposerFacture(coproId, e.dataTransfer.files[0]); });
+}
+const ZONE_FACTURE = '<b>Déposer la facture</b><span>Glissez le PDF ici ou cliquez</span>';
 
 // ---------- Appartements : tuiles et fiches ----------
 async function chargerAppartementsAdmin() {
@@ -1266,7 +1338,11 @@ function rendreAvancementAdmin(c, k) {
   const aller = id => () => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
   // Raccourci : la prochaine action d'Harmonie, en doré, juste au-dessus de la barre d'avancement.
   let action = null, attente = '';
-  if (!rec.etiquettes_le) action = ['Valider la pose des étiquettes', async () => jalon('etiquettes', true)];
+  const et = etapeSuivante({ ...e, ...c, compteurs: k });
+  if (et.code) action = [et.libelle, () => et.code === 'facture' ? $('emFichierFacture').click() : executerEtape(c, et.code)];
+  else attente = et.attente || '';
+  if (et.code === 'facture') action = null;
+  if (false) action = ['Valider la pose des étiquettes', async () => jalon('etiquettes', true)];
   else if (rec.etape !== 'pret') attente = 'En attente du fichier des copropriétaires (gestionnaire).';
   else if (!so.ouvert_le) attente = 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).';
   else if (!(so.clos_le || (n && nc >= n))) attente = `Recensement en cours : ${nc} / ${n} signés.`;
@@ -1281,10 +1357,12 @@ function rendreAvancementAdmin(c, k) {
   else if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) attente = 'Installation en cours : l’émargement remonte de l’app.';
   else if (!(c.facture || {}).url) action = ['Déposer la facture', () => $('emFichierFacture').click()];
   async function jalon(j, fait) { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: fait, p_info: '' }); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {} }
-  $('dJalons').innerHTML = (action ? `<button type="button" class="btn btn-or" id="dActionSuivante" style="min-height:52px;padding:0 26px;font-size:13px">${esc(action[0])}</button>` : '')
+  $('dJalons').innerHTML = (et.code === 'facture' ? `<div class="raccourci depot-facture" id="dDepotFacture" style="min-width:280px">${ZONE_FACTURE}</div>` : '')
+    + (action ? `<button type="button" class="btn btn-or" id="dActionSuivante" style="min-height:52px;padding:0 26px;font-size:13px">${esc(action[0])}</button>` : '')
     + (attente ? `<span class="pastille attente">${esc(attente)}</span>` : '')
     + (rec.etiquettes_le ? ` <button type="button" class="btn btn-petit btn-discret" data-jalon="etiquettes" data-fait="0" title="Annuler cette validation">✓ Étiquettes validées le ${esc(dateCourte(rec.etiquettes_le))}</button>` : '');
   if (action) $('dActionSuivante').onclick = action[1];
+  if ($('dDepotFacture')) brancherDepotFacture($('dDepotFacture'), c.id);
   $('dJalons').querySelectorAll('[data-jalon]').forEach(b => b.onclick = async () => { if (confirm('Annuler la validation des étiquettes ?')) jalon('etiquettes', false); });
   return;
   const jalons = [
