@@ -27,11 +27,11 @@ begin
     select id into v_lg from ps_logements where copro_id = c.id and type = 'logement'
       and lower(regexp_replace(numero, '\s+', '', 'g')) = lower(regexp_replace(v_num, '\s+', '', 'g')) limit 1;
     -- Un seul rendez-vous par appartement depuis l'affiche : numéro déjà réservé → refus, avec la date du rendez-vous existant.
-    select r.debut into v_deja from ps_rdv r
-    where r.copro_id = c.id and r.statut = 'confirme'
-      and ((v_lg is not null and r.logement_id = v_lg)
-        or lower(regexp_replace(coalesce(r.numero_appt, ''), '\s+', '', 'g')) = lower(regexp_replace(v_num, '\s+', '', 'g')))
-    order by r.cree_le desc limit 1;
+    select x.debut into v_deja from ps_rdv x
+    where x.copro_id = c.id and x.statut = 'confirme'
+      and ((v_lg is not null and x.logement_id = v_lg)
+        or lower(regexp_replace(coalesce(x.numero_appt, ''), '\s+', '', 'g')) = lower(regexp_replace(v_num, '\s+', '', 'g')))
+    order by x.cree_le desc limit 1;
     if v_deja is not null then
       raise exception 'RDV_DEJA_PRIS' using detail = to_char(v_deja at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
     end if;
