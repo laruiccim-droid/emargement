@@ -27,6 +27,9 @@
   .lg.incomplet input[data-k="nom"]:placeholder-shown { border-color: rgba(217,163,91,.7); }
   .hl { display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border-hairline); }
   .hl input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
+  #rcHorsBloc .hl { padding: 8px 2px; }
+  #rcHorsBloc #rcIntervenants .hl:last-child { border-bottom: 1px solid var(--border-hairline); }
+  .hl-stock { border: 1px solid var(--border-subtle) !important; border-radius: 6px; padding: 8px 10px !important; margin-bottom: 6px; }
   .rappel { border-left: 3px solid var(--he-gold); padding: 10px 12px; background: rgba(201,168,106,.06); border-radius: 0 6px 6px 0; margin-top: 12px; color: var(--text); font-size: 14px; line-height: 1.45; }
   @media (max-width: 720px) {
     .lg-tete { display: none; }
@@ -218,7 +221,7 @@
     <div class="bloc" id="rcHorsBloc" hidden>
       <h2>3 · Badges hors logements (Vigik)</h2>
       <p class="aide" style="margin-top:0">Badges à prévoir pour le stock du syndic et pour les entreprises qui interviennent dans la résidence.</p>
-      <div class="hl" style="border-top:0"><b style="font-weight:500">Stock syndic</b><input type="number" id="rcStock" min="0" max="500" inputmode="numeric" placeholder="Badges"><span></span></div>
+      <div class="hl hl-stock"><b style="font-weight:500">Stock syndic</b><input type="number" id="rcStock" min="0" max="500" inputmode="numeric" placeholder="Badges"><span></span></div>
       <div id="rcIntervenants"></div>
       <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouterIntervenant">+ Ajouter une entreprise</button></div>
     </div>
