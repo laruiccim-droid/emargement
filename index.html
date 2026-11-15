@@ -993,9 +993,12 @@ function demander(titre, texte, oui = 'Confirmer') {
   return new Promise(ok => {
     const d = $('dlgQuestion');
     $('qTitre').textContent = titre; $('qTexte').textContent = texte; $('qOui').textContent = oui;
-    const fin = v => { d.close(); ok(v); };
+    let fini = false;
+    const fin = v => { if (fini) return; fini = true; if (d.open) d.close(); ok(v); };
     $('qOui').onclick = () => fin(true); $('qNon').onclick = () => fin(false);
-    d.onclose = () => ok(false);
+    // La fermeture de la question précédente arrive un instant après : si la fenêtre est déjà rouverte
+    // pour une nouvelle question, cet événement est ignoré (sinon il vaudrait « Annuler »).
+    d.onclose = () => { if (!d.open) fin(false); };
     d.showModal();
   });
 }
