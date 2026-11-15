@@ -1949,8 +1949,14 @@ $('supprimerChantier').onclick = async () => {
   const id = etat.id;
   clearTimeout(envoiEnAttente);
   try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: SB });
+    const r = await fetch(`${SUPA_URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { ...SB, Prefer: 'return=representation' } });
     if (!r.ok) throw new Error('erreur ' + r.status);
+    // Sans le code d'accès de l'app, la base refuse en silence (aucune ligne supprimée) : on le dit clairement.
+    const supprimes = await r.json().catch(() => []);
+    if (!supprimes.length && !etat.aEnvoyer) {
+      const ok = await verifierCle();
+      if (ok === false) { ouvrirCle('La suppression a été refusée : le code d’accès de l’app n’est pas saisi (ou n’est plus valable) sur cet appareil. Saisissez-le, puis recommencez.'); return; }
+    }
   } catch (e) { return toast('Suppression impossible (' + e.message + ') : vérifiez la connexion.'); }
   // Demandes de signature à distance encore ouvertes : le lien envoyé au client ne fonctionnera plus.
   for (const l of etat.logements) if (l.distance?.jeton) fetch(`${SUPA_URL}/rest/v1/${TABLE}?id=eq.SIG_${l.distance.jeton}`, { method: 'DELETE', headers: SB }).catch(() => {});
