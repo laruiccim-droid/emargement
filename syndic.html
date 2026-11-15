@@ -477,7 +477,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=26"></script>
+<script src="portail-commun.js?v=27"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -743,13 +743,13 @@ function rendreParcours() {
   const etapes = [
     { fait: etiq, titre: 'Étiquettes de numérotation',
       texte: etiq ? `Pose des étiquettes validée par Harmonie Électricité le ${dateCourte(rec.etiquettes_le)}.`
-        : 'En attente : une étiquette blanche numérotée doit être collée sur l’huisserie de chaque porte palière, puis Harmonie Électricité valide la pose. Le recensement des appartements s’ouvre ensuite.',
+        : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité : une étiquette blanche numérotée sur l’huisserie de chaque porte palière. Le recensement des appartements s’ouvre ensuite.',
       bouton: '' },
     { fait: pret, titre: 'Fichier des copropriétaires',
       texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
         : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
-      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : 'disabled title="En attente de la validation des étiquettes par Harmonie Électricité"'}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
+      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : 'disabled title="En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité"'}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
     (() => {
       const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0, tous = n > 0 && nc >= n;
       return { fait: clos || tous, titre: 'Recensement des copropriétaires',
@@ -796,7 +796,7 @@ function etapeSyndic(c) {
   if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
   if (c.type !== 'complet') return k.stock ? { code: 'remise', libelle: '+ Remettre des badges' } : k.livres ? H('Tous les badges livrés sont remis.', '') : H('En attente de la livraison des badges', 'par Harmonie Électricité');
   if (c.etat === 'attente_facturation') return H('Installation terminée', 'Facturation par Harmonie Électricité en cours');
-  if (!rec.etiquettes_le) return H('En attente de la validation des étiquettes', 'par Harmonie Électricité');
+  if (!rec.etiquettes_le) return H('En attente de la mise en place des étiquettes', 'de numérotation des appartements par Harmonie Électricité');
   if (rec.etape !== 'pret') return { code: 'recensement', libelle: n ? 'Terminer le fichier des copropriétaires' : 'Créer le fichier des copropriétaires' };
   if (!so.ouvert_le) return { code: 'sondage', libelle: 'Envoyer le recensement aux copropriétaires' };
   if (!(so.clos_le || (n && nc >= n))) return { code: 'sondage', libelle: `Suivre le recensement (${nc} / ${n} signés)` };

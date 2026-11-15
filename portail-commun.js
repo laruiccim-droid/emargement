@@ -239,7 +239,7 @@ const PS = (() => {
       const commande = apres('commande', 'installation', 'reserves', 'attente_facturation', 'facture', 'termine'), surSite = apres('installation', 'reserves', 'attente_facturation', 'facture', 'termine');
       E = [
         { cle: 'etiquettes', titre: 'Étiquettes de numérotation (validées par Harmonie)', fait: rec.etiquettes_le ? 1 : 0,
-          attente: 'En attente de la pose des étiquettes de numérotation des appartements (validation Harmonie)' },
+          attente: 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité' },
         { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
           enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')} saisi${n > 1 ? 's' : ''})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
         { cle: 'sondage', titre: 'Recensement envoyé aux copropriétaires', fait: so.clos_le || (n && ni >= n) ? 1 : so.ouvert_le && n ? ni / n : 0,
