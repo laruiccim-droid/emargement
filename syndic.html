@@ -767,7 +767,13 @@ function ouvrirEmargementBadges() {
     const fait = l.remis + l.locataire >= l.attendus;
     return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${l.attendus} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} pour le locataire (jour de l’installation)` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
       <div class="droite">${fait ? '<span class="pastille ok">Récupérés</span>' : `<button type="button" class="btn btn-petit btn-or" data-eb="${esc(l.id)}">Remettre</button>`}</div></li>`;
-  }).join('') + bs.hors.filter(h => h.badges > 0).map(h => `<li><div class="principal"><b>${esc(h.nom)}</b><div class="sous">${h.badges} badge${h.badges > 1 ? 's' : ''} • ${h.type === 'stock' ? 'stock du syndic (déjà signé à la livraison)' : 'entreprise intervenante'}</div></div></li>`).join('');
+  }).join('') + '<li><div class="principal"><span class="sourcil">Entreprises intervenantes et stock — sans effet sur l’avancement du chantier</span></div></li>'
+    + bs.hors.filter(h => h.badges > 0).map(h => {
+      if (h.type === 'stock') return `<li><div class="principal"><b>${esc(h.nom)}</b><div class="sous">${h.badges} badge${h.badges > 1 ? 's' : ''} • stock du syndic (signé à la livraison)</div></div></li>`;
+      const fait = h.remis >= h.badges;
+      return `<li><div class="principal"><b>${esc(h.nom)}</b><div class="sous">Entreprise intervenante • ${h.badges} prévu${h.badges > 1 ? 's' : ''} • ${h.remis} remis${h.en_attente ? ` • ${h.en_attente} en attente de signature` : ''}</div></div>
+        <div class="droite">${fait ? '<span class="pastille ok">Remis</span>' : `<button type="button" class="btn btn-petit" data-eb="H:${esc(h.id)}">Remettre</button>`}</div></li>`;
+    }).join('');
   $('ebListe').querySelectorAll('[data-eb]').forEach(b => b.onclick = () => nouvelleRemise(b.dataset.eb));
   montrer('vEmargementBadges');
 }
@@ -1172,15 +1178,28 @@ const badgesAvecDroit = (badges, acces) => badges.map(b => b + (acces && acces[b
 
 // Badges par appartement (chantier complet avec Vigik) : choix de l'appartement, reste pour le locataire.
 const lgBadges = () => (S.badgesSuivi?.logements || []).filter(l => l.attendus > 0);
+// Entreprises intervenantes (ménage, ascensoriste…) : remise émargée, sans effet sur l'avancement du chantier.
+const intervenantsBadges = () => (S.badgesSuivi?.hors || []).filter(h => h.type === 'intervenant' && h.badges > 0);
+const intervenantChoisi = () => { const v = $('reAppart').value; return v.startsWith('H:') ? intervenantsBadges().find(h => h.id === v.slice(2)) : null; };
 // Nombre de badges encore à remettre pour l'appartement choisi (null : pas de limite, hors appartement).
 function maxBadgesRemise() {
   if ($('reAppartBloc').hidden) return null;
   const l = lgBadges().find(x => x.id === $('reAppart').value);
+  const h = intervenantChoisi();
+  if (h) return Math.max(0, h.badges - h.remis - h.en_attente);
   return l ? Math.max(0, l.attendus - l.remis - l.en_attente) : ($('reAppart').value === 'hors' ? null : 0);
 }
 function majAppartRemise() {
-  const v = $('reAppart').value, l = lgBadges().find(x => x.id === v);
+  const v = $('reAppart').value, l = lgBadges().find(x => x.id === v), h = intervenantChoisi();
   $('reResteBloc').hidden = !l;
+  if (h) {
+    const deja = h.remis + h.en_attente, dispo = Math.max(0, h.badges - deja);
+    $('reAppartInfo').innerHTML = `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px">
+      <div style="font-size:44px;font-weight:600;line-height:1;color:var(--he-gold-light,#DFC28C)">${h.badges}</div>
+      <div><b style="font-size:17px;color:var(--he-white)">badge${h.badges > 1 ? 's' : ''} prévu${h.badges > 1 ? 's' : ''}</b><br>Entreprise intervenante : <b style="color:var(--he-white)">${esc(h.nom)}</b><br>
+      ${deja ? `${deja} déjà remis • ` : ''}<b>${dispo}</b> à remettre • <b>${S.choisis.size}</b> sélectionné${S.choisis.size > 1 ? 's' : ''}</div></div>`;
+    return;
+  }
   if (!l) { $('reAppartInfo').innerHTML = v === 'hors' ? '<p class="aide">Remise hors appartement (stock du syndic, entreprise…).</p>' : '<p class="aide">Choisissez l’appartement : le nombre de badges commandés s’affichera ici.</p>'; return; }
   const deja = l.remis + l.en_attente, dispo = Math.max(0, l.attendus - deja), reste = Math.max(0, dispo - S.choisis.size);
   $('reAppartInfo').innerHTML = `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px">
@@ -1196,14 +1215,20 @@ function nouvelleRemise(lgId) {
   document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x.dataset.q === 'proprietaire'));
   $('reCopro').textContent = S.detail.copro.nom;
   const lgs = lgBadges();
-  $('reAppartBloc').hidden = !lgs.length; $('reReste').checked = false;
+  $('reAppartBloc').hidden = !lgs.length && !intervenantsBadges().length; $('reReste').checked = false;
   $('reAppart').innerHTML = '<option value="">— Choisir l’appartement —</option>' + lgs.map(l => `<option value="${esc(l.id)}">${esc(PS.appt(l))} — ${esc(l.nom || '')} (${l.attendus} badge${l.attendus > 1 ? 's' : ''}${l.remis ? ', ' + l.remis + ' remis' : ''})</option>`).join('')
-    + '<option value="hors">Hors appartement (stock du syndic, entreprise…)</option>';
+    + (intervenantsBadges().length ? '<optgroup label="Entreprises intervenantes">' + intervenantsBadges().map(h => `<option value="H:${esc(h.id)}">${esc(h.nom)} (${h.badges} badge${h.badges > 1 ? 's' : ''}${h.remis ? ', ' + h.remis + ' remis' : ''})</option>`).join('') + '</optgroup>' : '')
+    + '<option value="hors">Autre remise (hors appartement)</option>';
   ['reTitreBadges', 'reTitreBenef', 'reTitreComm'].forEach((id, i) => { $(id).textContent = $(id).textContent.replace(/^\d/, String(i + (lgs.length ? 2 : 1))); });
   $('reAppart').value = lgId || '';
   $('reAppart').onchange = () => {
     const l = lgs.find(x => x.id === $('reAppart').value);
     S.choisis = new Set(); rendreChoixBadges();
+    const h = intervenantChoisi();
+    if (h) {
+      $('reNom').value = h.nom; $('reLot').value = 'Entreprise intervenante'; $('reEmail').value = ''; $('reTel').value = '';
+      S.qualite = 'autre'; document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x.dataset.q === 'autre'));
+    }
     if (l) { $('reNom').value = l.nom || ''; $('reLot').value = [l.numero && 'Appt ' + l.numero, l.lot && 'lot ' + l.lot].filter(Boolean).join(' — '); $('reEmail').value = (l.emails || [])[0] || ''; $('reTel').value = l.telephone || ''; }
     majAppartRemise();
   };
@@ -1258,7 +1283,8 @@ function rendrePhotos() {
 function donneesRemise() {
   const l = lgBadges().find(x => x.id === $('reAppart').value);
   const reste = l && $('reReste').checked ? Math.max(0, l.attendus - l.remis - l.en_attente - S.choisis.size) : (l ? l.locataire : 0);
-  return { logement_id: l?.id || '', reste_locataire: reste, copro_id: S.copro, badges: [...S.choisis], proprietaire: $('reNom').value.trim(), qualite: S.qualite, batiment: $('reBatiment').value.trim(), lot: $('reLot').value.trim(),
+  const h = intervenantChoisi();
+  return { logement_id: l?.id || h?.id || '', reste_locataire: h ? 0 : reste, copro_id: S.copro, badges: [...S.choisis], proprietaire: $('reNom').value.trim(), qualite: S.qualite, batiment: $('reBatiment').value.trim(), lot: $('reLot').value.trim(),
     tel: $('reTel').value.trim(), email: $('reEmail').value.trim(), commentaire: $('reCommentaire').value.trim(), photos: S.photos,
     acces: droitsChantier().length ? Object.fromEntries([...S.choisis].map(n => [n, S.acces[n] || ''])) : {} };
 }
