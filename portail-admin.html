@@ -139,6 +139,7 @@
       <div id="caEnvoiAdmin" hidden>
         <h3 style="margin:16px 0 4px">Envoi de la campagne d’information</h3>
         <p class="aide" style="margin-top:0">Envoyez à chaque propriétaire occupant son lien de rendez-vous ; les bailleurs ne sont pas concernés (leurs locataires passent par la feuille d’affichage). Le gestionnaire suit les rendez-vous dans son espace.</p>
+        <div class="actions" style="margin:6px 0"><button type="button" class="btn btn-or" id="caToutEnvoyer">Tout envoyer par e-mail</button><span class="aide" id="caEnvoiInfo"></span></div>
         <ul class="liste" id="caOccupantsAdmin"></ul>
         <div class="actions" id="caEnvoyeeAdmin"></div>
       </div>
@@ -355,7 +356,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=33"></script>
+<script src="portail-commun.js?v=34"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -599,7 +600,12 @@ async function inviter(userId) {
   const lien = PS.urlPage('syndic.html') + '?invitation=' + jeton;
   $('ivTitre').textContent = `${u.nom || u.email} • ${s.nom}`; $('ivLien').textContent = lien;
   const texte = `Bonjour${u.nom ? ' ' + u.nom : ''},\n\nHarmonie Électricité vous ouvre l’espace syndic pour gérer la remise des badges de vos copropriétés (${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => c.nom).join(', ') || s.nom}).\n\nCliquez sur ce lien pour choisir votre mot de passe (valable 14 jours) :\n${lien}\n\nVous vous connecterez ensuite avec votre adresse e-mail (${u.email}) sur ${PS.urlPage('syndic.html')}\nÀ la première connexion, l’espace vous demandera les coordonnées du cabinet, votre tampon et votre signature : ils seront apposés automatiquement sur les bons de remise.\n\nCordialement,\nMathieu Laruicci\nHarmonie Électricité • 06 31 13 47 01`;
-  $('ivMail').onclick = () => { location.href = `mailto:${encodeURIComponent(u.email)}?subject=${encodeURIComponent('Votre accès à l’espace syndic Harmonie Électricité')}&body=${encodeURIComponent(texte)}`; };
+  $('ivMail').onclick = async () => {
+    $('ivMail').disabled = true;
+    const err = await PS.envoiGmail(u.email, 'Votre accès à l’espace syndic Harmonie Électricité', texte);
+    $('ivMail').disabled = false;
+    toast(err ? 'E-mail non envoyé : ' + err : 'Invitation envoyée à ' + u.email, 6000);
+  };
   $('ivSms').hidden = !(u.tel && PS.estTel()); $('ivSms').href = PS.lienSms(u.tel, `Harmonie Électricité : votre accès à l’espace syndic (badges). Choisissez votre mot de passe ici : ${lien}`);
   $('ivCopier').onclick = () => PS.copier(lien);
   $('dlgInvitation').showModal();
@@ -1523,7 +1529,10 @@ $('foEnvoyer').onclick = async () => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('foMsg', 'Indiquez l’adresse e-mail du fournisseur.');
   if (FO.manquants && !confirm(`${FO.manquants} appartement(s) n’ont pas encore de bon de commande. Envoyer quand même la commande ?`)) return;
   try { localStorage.setItem('he.fournisseur.' + (c.marque_interphone || ''), email); } catch {}
-  location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Commande matériel — ' + c.nom + (c.reference ? ' — ' + c.reference : ''))}&body=${encodeURIComponent(texteCommandeFournisseur())}`;
+  $('foEnvoyer').disabled = true; msg('foMsg', 'Envoi par le Gmail d’Harmonie…', false);
+  const err = await PS.envoiGmail(email, 'Commande matériel — ' + c.nom + (c.reference ? ' — ' + c.reference : ''), texteCommandeFournisseur());
+  $('foEnvoyer').disabled = false;
+  if (err) return msg('foMsg', 'Commande non envoyée : ' + err, true);
   try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: 'fourniture_envoyee', p_fait: true, p_info: email }, 'foMsg'); toast('Commande notée comme envoyée.'); await charger(); ouvrirChantier(c.id); } catch {}
 };
 $('foCsv').onclick = () => {
@@ -1591,20 +1600,47 @@ function rendreEnvoiCampagneAdmin() {
   $('caEnvoiAdmin').hidden = !(camp.jours || []).length;
   if ($('caEnvoiAdmin').hidden) return;
   const CAN = { email: 'e-mail', sms: 'SMS', qr: 'QR code' };
+  // Nom donné au recensement (sinon celui du fichier du syndic) ; une fiche modifiée à la main prime.
+  const nomP = l => !l.coord_maj_le && l.commande?.nom ? [l.commande.prenom, l.commande.nom].filter(Boolean).join(' ') : (l.nom || '');
+  const mailsDe = l => [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean).map(e => e.trim().toLowerCase()))];
+  // Destinataires possibles : occupants sans rendez-vous, avec un lien et une adresse e-mail.
+  const aEnvoyer = lg.filter(l => l.commande?.qualite !== 'bailleur' && l.jeton && !l.rdv && mailsDe(l).length);
+  $('caToutEnvoyer').hidden = !aEnvoyer.length;
+  $('caEnvoiInfo').textContent = aEnvoyer.length ? `${aEnvoyer.length} propriétaire${aEnvoyer.length > 1 ? 's' : ''} occupant${aEnvoyer.length > 1 ? 's' : ''} sans rendez-vous avec une adresse e-mail (envoi par le Gmail d’Harmonie).` : '';
   $('caOccupantsAdmin').innerHTML = lg.map(l => {
     const bailleur = l.commande?.qualite === 'bailleur', tel = l.commande?.telephone || l.telephone, mails = [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean))];
     const etat = l.rdv ? `<span class="pastille ok">Rendez-vous ${esc(fmtJ(l.rdv.debut))} à ${esc(fmtHh(l.rdv.debut))}</span>`
       : bailleur ? '<span class="pastille">Bailleur : locataire par l’affiche</span>'
       : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé le ${esc(dateCourte(l.rdv_invite_le))} (${esc(CAN[l.rdv_invite_canal] || l.rdv_invite_canal)})` : 'Lien pas encore envoyé'}</span>`;
-    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${etat}</div></div>
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(nomP(l))}</b>${PS.pastilleQualite(l.commande?.qualite)}<div class="sous">${etat}</div></div>
       <div class="droite">${bailleur || !l.jeton || l.rdv ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-cam="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-cas="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-cal="${esc(l.id)}">Copier le lien</button>`}</div></li>`;
   }).join('');
   const parId = id => lg.find(l => l.id === id);
   const noter = (l, canal) => { l.rdv_invite_le = new Date().toISOString(); l.rdv_invite_canal = canal; PS.rpc('ps_admin_campagne_invite', { p_admin: A.mdp, p_logement: l.id, p_canal: canal }).catch(() => {}); setTimeout(rendreEnvoiCampagneAdmin, 300); };
-  $('caOccupantsAdmin').querySelectorAll('[data-cam]').forEach(b => b.onclick = () => {
-    const l = parId(b.dataset.cam), mails = [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean))]; noter(l, 'email');
-    location.href = `mailto:${mails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Rendez-vous pour l’installation — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteRdvAdmin(l))}`;
+  // E-mail envoyé par le Gmail d'Harmonie (comme le recensement), un par un ou tous d'un coup.
+  const envoyer = async l => PS.envoiGmail(mailsDe(l).join(', '), 'Rendez-vous pour l’installation — résidence ' + d.copro.nom, texteRdvAdmin(l));
+  $('caOccupantsAdmin').querySelectorAll('[data-cam]').forEach(b => b.onclick = async () => {
+    const l = parId(b.dataset.cam); b.disabled = true; b.textContent = 'Envoi…';
+    const err = await envoyer(l);
+    if (err) { b.disabled = false; b.textContent = 'E-mail'; return toast('E-mail non envoyé : ' + err, 6000); }
+    toast('E-mail envoyé à ' + mailsDe(l).join(', ')); noter(l, 'email');
   });
+  $('caToutEnvoyer').onclick = async () => {
+    const dejaInvites = aEnvoyer.filter(l => l.rdv_invite_le).length;
+    if (!confirm(`Envoyer le lien de rendez-vous par e-mail à ${aEnvoyer.length} propriétaire${aEnvoyer.length > 1 ? 's' : ''} occupant${aEnvoyer.length > 1 ? 's' : ''} ?` + (dejaInvites ? `\n\n${dejaInvites} l’${dejaInvites > 1 ? 'ont' : 'a'} déjà reçu : ${dejaInvites > 1 ? 'ils seront relancés' : 'il sera relancé'}.` : ''))) return;
+    $('caToutEnvoyer').disabled = true;
+    const erreurs = [];
+    for (const [i, l] of aEnvoyer.entries()) {
+      $('caEnvoiInfo').textContent = `Envoi des e-mails… ${i + 1} / ${aEnvoyer.length}`;
+      const err = await envoyer(l);
+      if (err) erreurs.push(`${PS.appt(l)} — ${nomP(l)} : ${err}`);
+      else { l.rdv_invite_le = new Date().toISOString(); l.rdv_invite_canal = 'email'; PS.rpc('ps_admin_campagne_invite', { p_admin: A.mdp, p_logement: l.id, p_canal: 'email' }).catch(() => {}); }
+    }
+    $('caToutEnvoyer').disabled = false;
+    rendreEnvoiCampagneAdmin();
+    const ok = aEnvoyer.length - erreurs.length;
+    alert(`${ok} e-mail${ok > 1 ? 's' : ''} envoyé${ok > 1 ? 's' : ''}.` + (erreurs.length ? '\n\nÉchec pour :\n' + erreurs.join('\n') : ''));
+  };
   $('caOccupantsAdmin').querySelectorAll('[data-cas]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cas); noter(l, 'sms'); location.href = PS.lienSms(l.commande?.telephone || l.telephone, texteRdvAdmin(l)); });
   $('caOccupantsAdmin').querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cal); noter(l, 'autre'); PS.copier(lienRdvAdmin(l.jeton)).then(() => toast('Lien copié.')); });
   $('caEnvoyeeAdmin').innerHTML = camp.envoyee_le

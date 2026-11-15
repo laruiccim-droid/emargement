@@ -481,7 +481,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=33"></script>
+<script src="portail-commun.js?v=34"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -983,9 +983,11 @@ function rendreCampagne() {
   }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
   const parId = id => lg.find(l => l.id === id);
   const noter = (l, canal) => { l.rdv_invite_le = new Date().toISOString(); l.rdv_invite_canal = canal; rpc('ps_syndic_campagne_invite', { p_session: S.session, p_logement: l.id, p_canal: canal }).catch(() => {}); setTimeout(rendreCampagne, 300); };
-  $('caListe').querySelectorAll('[data-camail]').forEach(b => b.onclick = () => {
-    const l = parId(b.dataset.camail), mails = [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean))]; noter(l, 'email');
-    location.href = `mailto:${mails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Rendez-vous pour l’installation — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteRdv(l))}`;
+  $('caListe').querySelectorAll('[data-camail]').forEach(b => b.onclick = async () => {
+    const l = parId(b.dataset.camail), mails = [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean))];
+    const err = await PS.envoiGmail(mails.join(', '), 'Rendez-vous pour l’installation — résidence ' + d.copro.nom, texteRdv(l));
+    if (err) return toast('E-mail non envoyé : ' + err, 6000);
+    noter(l, 'email'); toast('E-mail envoyé à ' + mails.join(', '));
   });
   $('caListe').querySelectorAll('[data-casms]').forEach(b => b.onclick = () => { const l = parId(b.dataset.casms); noter(l, 'sms'); location.href = PS.lienSms(l.commande?.telephone || l.telephone, texteRdv(l)); });
   $('caListe').querySelectorAll('[data-caqr]').forEach(b => b.onclick = async () => {
@@ -1082,9 +1084,13 @@ function rendreSuiviSondage() {
   }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
   const parId = id => lg.find(l => l.id === id);
   $('soListe').querySelectorAll('[data-mode]').forEach(sel => sel.onchange = () => { SO.modes[sel.dataset.mode] = sel.value; });
-  $('soListe').querySelectorAll('[data-mail]').forEach(b => b.onclick = () => {
-    const l = parId(b.dataset.mail); noterInvitation(l, 'email');
-    location.href = `mailto:${l.emails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Votre nouvel interphone — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteInvitation(l))}`;
+  $('soListe').querySelectorAll('[data-mail]').forEach(b => b.onclick = async () => {
+    const l = parId(b.dataset.mail); b.disabled = true; b.textContent = 'Envoi…';
+    const lettre = await PS.pdfLettresRecensement({ copro: d.copro, syndic: S.etat?.syndic, sondage: d.sondage }, [l], x => lienSondage(x.jeton));
+    const err = await PS.envoiGmail(l.emails.join(', '), 'Votre nouvel interphone — résidence ' + d.copro.nom, texteInvitation(l), lettre, `Recensement ${d.copro.nom} - ${PS.appt(l)}.pdf`);
+    b.disabled = false; b.textContent = 'E-mail';
+    if (err) return toast('E-mail non envoyé : ' + err, 6000);
+    noterInvitation(l, 'email'); toast('Recensement envoyé à ' + l.emails.join(', '));
   });
   $('soListe').querySelectorAll('[data-sms]').forEach(b => b.onclick = () => { const l = parId(b.dataset.sms); noterInvitation(l, 'sms'); location.href = PS.lienSms(l.telephone, texteInvitation(l)); });
   $('soListe').querySelectorAll('[data-qr]').forEach(b => b.onclick = async () => {
@@ -1531,7 +1537,11 @@ async function afficherAttente(mode) {
   if (mode === 'qr') { try { $('sQr').innerHTML = `<div class="cadre">${await PS.qrSvg(lien, 240)}</div><span class="aide">Appareil photo du téléphone → le lien s’ouvre → relire et signer.</span>`; } catch (e) { $('sQr').textContent = e.message; } }
   $('sLien').textContent = lien;
   const texte = `Bonjour, voici votre bon de remise de badges (${S.detail.copro.nom}${d.lot ? ', ' + d.lot : ''}) à relire et signer en ligne : ${lien}\n${S.etat.syndic.nom}`;
-  $('sMail').onclick = () => { location.href = `mailto:${encodeURIComponent(d.email || '')}?subject=${encodeURIComponent('Remise de badges – ' + S.detail.copro.nom + ' – à signer')}&body=${encodeURIComponent(texte)}`; };
+  $('sMail').onclick = async () => {
+    const dest = (d.email || prompt('Adresse e-mail du bénéficiaire :', '') || '').trim(); if (!dest) return;
+    const err = await PS.envoiGmail(dest, 'Remise de badges – ' + S.detail.copro.nom + ' – à signer', texte);
+    toast(err ? 'E-mail non envoyé : ' + err : 'Lien de signature envoyé à ' + dest, 6000);
+  };
   $('sSms').hidden = !PS.estTel(); $('sSms').href = PS.lienSms(d.tel, texte);
   $('sCopier').onclick = () => PS.copier(lien);
   $('sSignal').textContent = 'En attente de la signature…';

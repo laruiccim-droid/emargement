@@ -816,6 +816,13 @@ const PS = (() => {
   }
   // Envoi par e-mail : sur téléphone, feuille de partage avec le PDF joint ; sur ordinateur, PDF téléchargé + message prêt.
   async function envoyerParEmail(blob, nom, dest, objet, texte) {
+    if (!dest) dest = (prompt('Adresse e-mail du destinataire :', '') || '').trim();
+    if (dest) {
+      toast('Envoi par le Gmail d’Harmonie…');
+      const err = await envoiGmail(dest, objet, texte, blob, nom);
+      if (!err) { toast('E-mail envoyé à ' + dest + ' (PDF joint).', 5000); return; }
+      toast('Envoi Gmail impossible (' + err + ') : passage par la messagerie.', 6000);
+    }
     const fichier = new File([blob], nom, { type: 'application/pdf' });
     if (navigator.canShare && navigator.canShare({ files: [fichier] }) && estTel()) {
       if (dest) navigator.clipboard?.writeText(dest).catch(() => {});
