@@ -39,6 +39,7 @@ const PS = (() => {
     TELEPHONE_OBLIGATOIRE: 'Indiquez votre numéro de téléphone.',
     ETIQUETTES_A_VALIDER: 'Le recensement commence quand Harmonie Électricité a validé la pose des étiquettes de numérotation.',
     AUCUN_GESTIONNAIRE: 'Aucun gestionnaire actif pour ce syndic : ajoutez-en un avant d’ouvrir son espace.',
+    RDV_DEJA_PRIS: 'Un rendez-vous est déjà pris pour cet appartement.',
     BADGES_A_DEPOSER: 'Le fichier des copropriétaires s’ouvre quand Harmonie Électricité a déposé le listing des badges programmés.',
     CRENEAU_INDISPONIBLE: 'Ce créneau n’est plus proposé : choisissez-en un autre.',
     CRENEAU_COMPLET: 'Ce créneau vient d’être pris : choisissez-en un autre.',
@@ -60,7 +61,7 @@ const PS = (() => {
       const absente = r.status === 404 && fonction !== 'ps_admin_statut';
       const e = new Error(ERREURS[code] || (absente ? `Fonction ${fonction} absente de Supabase : exécutez le dernier script du dossier sql/ (SQL Editor).`
         : r.status === 404 ? 'Le portail n’est pas encore installé dans Supabase (script sql/portail-syndic.sql).' : 'Erreur : ' + (code || r.status)));
-      e.code = code; throw e;
+      e.code = code; e.details = (data && data.details) || ''; throw e;
     }
     return data;
   }
@@ -533,10 +534,13 @@ const PS = (() => {
     T(vigikSeul ? 'Installation du nouveau contrôle d’accès' : 'Remplacement de l’interphone', W / 2, y, { s: 26, b: true, al: 'center' }); y += 10;
     T('Intervention dans chaque appartement', W / 2, y, { s: 15, c: GRIS, al: 'center' }); y += 14;
     // Jours d'intervention
-    const jours = (camp.jours || []).map(j => {
-      const dt = new Date(j.date + 'T12:00:00');
-      return `${dt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}`;
+    // Une ligne par journée : deux créneaux le même jour → la date une seule fois, avec ses horaires.
+    const parJour = new Map();
+    [...(camp.jours || [])].sort((a, b) => (a.date + a.debut).localeCompare(b.date + b.debut)).forEach(j => {
+      if (!parJour.has(j.date)) parJour.set(j.date, []);
+      parJour.get(j.date).push(`${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}`);
     });
+    const jours = [...parJour].map(([date, h]) => `${new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} de ${h.join(' et de ')}`);
     doc.setFillColor(243, 235, 221); doc.roundedRect(M, y, W - 2 * M, 10 + jours.length * 9, 3, 3, 'F'); y += 9;
     jours.forEach(j => { T(j.charAt(0).toUpperCase() + j.slice(1), W / 2, y, { s: 17, b: true, al: 'center' }); y += 9; });
     y += 10;
