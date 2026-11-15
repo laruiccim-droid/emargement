@@ -1392,7 +1392,7 @@ async function rendreBadgesVigikAdmin(c) {
   $('bgAlerte').innerHTML = alertes.map(a => `<div class="bloc" style="border-color:#D9A35B;background:rgba(217,163,91,.10);margin-top:10px">⚠ ${esc(a)}</div>`).join('');
   $('bgListe').innerHTML = k.livres || su.programmes_le ? lg.map(l => {
     const fait = l.remis + l.locataire >= l.attendus;
-    return `<li><div class="principal"><b>${esc(nomAppart(l))} — ${esc(l.nom || '')}</b>${PS.pastilleQualite(l.qualite)}<div class="sous">${l.attendus} badge${l.attendus > 1 ? 's' : ''} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} réservé${l.locataire > 1 ? 's' : ''} au locataire` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b>${PS.pastilleQualite(l.qualite)}<div class="sous">${l.attendus} badge${l.attendus > 1 ? 's' : ''} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} réservé${l.locataire > 1 ? 's' : ''} au locataire` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
       <div class="droite">${fait || !k.livres ? `<span class="pastille ${fait ? 'ok' : 'attente'}">${fait ? 'Récupérés' : 'À récupérer'}</span>` : `<button type="button" class="btn btn-petit btn-or" data-bg-remettre="${esc(l.id)}">Remettre</button>`}</div></li>`;
   }).join('') + (k.livres ? (d.hors || []).filter(h => h.type === 'intervenant' && h.badges > 0).map(h => {
     const fait = h.remis >= h.badges;
