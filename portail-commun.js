@@ -222,6 +222,11 @@ const PS = (() => {
     attente_facturation: 'Installation terminée, en attente de facturation', facture: 'Facturé, chantier terminé', termine: 'Terminé' };
   // ---------- Avancement d'un chantier : étapes, étape en cours, pourcentage ----------
   // Chaque étape vaut de 0 à 1 (fraction pour les étapes « x sur n ») ; le pourcentage est la moyenne.
+  // Date(s) d'intervention prévue(s), chaque journée une seule fois : « le mardi 17 novembre », « les mardi 17 et mercredi 18 novembre ».
+  function datesIntervention(camp) {
+    const j = [...new Set(((camp || {}).jours || []).map(x => x.date).sort())].map(d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }));
+    return !j.length ? '' : j.length === 1 ? 'le ' + j[0] : 'les ' + j.slice(0, -1).join(', ') + ' et ' + j[j.length - 1];
+  }
   function avancement(c) {
     const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, camp = c.campagne || {}, fo = c.fourniture || {}, etat = c.etat || 'commence';
     const apres = (...e) => e.includes(etat);
@@ -280,7 +285,7 @@ const PS = (() => {
         { cle: 'rdv', titre: 'Rendez-vous validés par tous les appartements', fait: surSite || (n && nr >= n) ? 1 : n ? nr / n : 0,
           enCours: `Rendez-vous : ${nr} / ${n} appartements`, attente: 'En attente des rendez-vous des copropriétaires et locataires' },
         { cle: 'installation', titre: 'Installation et émargement', fait: fini || (n && ne >= n) ? 1 : n && ne ? ne / n : etat === 'installation' ? 0.1 : 0,
-          enCours: `Installation : ${ne} / ${n} appartements émargés`, attente: 'En attente de l’installation' },
+          enCours: `Installation : ${ne} / ${n} appartements émargés`, attente: 'En attente de l’installation' + (datesIntervention(camp) ? ', prévue ' + datesIntervention(camp) : '') },
       ];
       // Les badges sont souvent remis avant l'intervention : étape en parallèle, comptée dans le pourcentage.
       // Badges récupérés appartement par appartement (stock syndic et intervenants exclus).
@@ -935,5 +940,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, datesIntervention, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

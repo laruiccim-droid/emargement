@@ -481,7 +481,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=42"></script>
+<script src="portail-commun.js?v=43"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -855,7 +855,7 @@ function etapeSyndic(c) {
   if (!camp.envoyee_le) return H('Campagne d’information en préparation', 'par Harmonie Électricité');
   if (!camp.affichee_le) return H('En attente de l’affichage dans la résidence', 'par Harmonie Électricité');
   if (n && nr < n) return { code: 'campagne', libelle: `Suivre les rendez-vous (${nr} / ${n})` };
-  return H(ne ? `Installation en cours : ${ne} / ${n} appartements` : 'En attente de l’installation', 'par Harmonie Électricité');
+  return H(ne ? `Installation en cours : ${ne} / ${n} appartements` : 'En attente de l’installation', ne ? 'par Harmonie Électricité' : (PS.datesIntervention(camp) ? 'prévue ' + PS.datesIntervention(camp) : 'par Harmonie Électricité'));
 }
 function zoneRaccourci(c) {
   const e = etapeSyndic(c);
