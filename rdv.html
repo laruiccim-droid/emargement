@@ -108,7 +108,7 @@
   </section>
 </main>
 
-<script src="portail-commun.js?v=40"></script>
+<script src="portail-commun.js?v=41"></script>
 <script>
 'use strict';
 const { rpc, $, esc } = PS;
@@ -179,7 +179,7 @@ $('valider').onclick = async () => {
     if (e.code === 'RDV_DEJA_PRIS') {
       const t = e.details ? new Date(e.details) : null, ok = t && !isNaN(t);
       const quand = ok ? `le ${t.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} à ${t.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : '';
-      return message(`Un rendez-vous est déjà pris pour l’appartement n° ${$('numeroAppt').value.trim()}${quand ? ' : ' + quand : ''}. Il n’est pas possible d’en prendre un second. Pour le modifier, contactez Harmonie Électricité au ${PS.ENTREPRISE.tel}.`);
+      return message(`Un rendez-vous a déjà été pris pour l’appartement n° ${$('numeroAppt').value.trim()}${quand ? ' : ' + quand : ''}. Il n’est pas possible d’en prendre un second. Pour le modifier, contactez Harmonie Électricité au ${PS.ENTREPRISE.tel}.`);
     }
     message(e.message || 'L’enregistrement a échoué : réessayez.');
     if (/complet|disponible/i.test(e.message || '')) { try { R.d = await rpc('ps_rdv_lire', { p_jeton: jeton }); R.choix = null; rendreCreneaux(); } catch {} }

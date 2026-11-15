@@ -39,7 +39,7 @@ const PS = (() => {
     TELEPHONE_OBLIGATOIRE: 'Indiquez votre numéro de téléphone.',
     ETIQUETTES_A_VALIDER: 'Le recensement commence quand Harmonie Électricité a validé la pose des étiquettes de numérotation.',
     AUCUN_GESTIONNAIRE: 'Aucun gestionnaire actif pour ce syndic : ajoutez-en un avant d’ouvrir son espace.',
-    RDV_DEJA_PRIS: 'Un rendez-vous est déjà pris pour cet appartement.',
+    RDV_DEJA_PRIS: 'Un rendez-vous a déjà été pris pour cet appartement.',
     BADGES_A_DEPOSER: 'Le fichier des copropriétaires s’ouvre quand Harmonie Électricité a déposé le listing des badges programmés.',
     CRENEAU_INDISPONIBLE: 'Ce créneau n’est plus proposé : choisissez-en un autre.',
     CRENEAU_COMPLET: 'Ce créneau vient d’être pris : choisissez-en un autre.',
