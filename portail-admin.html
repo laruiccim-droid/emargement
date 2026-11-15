@@ -313,6 +313,14 @@
   <p class="message" id="chMessage"></p>
 </form></dialog>
 
+<dialog id="dlgQrRdv"><div class="dlg" style="text-align:center">
+  <div class="sourcil">Lien de rendez-vous</div><h3 id="qrRdvTitre"></h3>
+  <p class="aide">Faites scanner ce code au propriétaire : la page de prise de rendez-vous s’ouvre sur son téléphone.</p>
+  <div id="qrRdvCode" style="display:inline-block;background:#fff;padding:10px;border-radius:12px"></div>
+  <p class="aide" id="qrRdvLien" style="word-break:break-all;margin-top:10px"></p>
+  <div class="actions" style="justify-content:center"><button type="button" class="btn" id="qrRdvCopier">Copier le lien</button><button type="button" class="btn btn-or" id="qrRdvMontre">QR code scanné</button><button type="button" class="btn btn-discret" onclick="this.closest('dialog').close()">Fermer</button></div>
+</div></dialog>
+
 <dialog id="dlgFicheInfo"><form class="dlg" id="formFicheInfo">
   <div class="sourcil">À afficher dans le hall</div><h3>Fiche « nouveau système »</h3>
   <label for="fiTitre">Titre</label><input type="text" id="fiTitre">
@@ -1615,7 +1623,7 @@ function rendreEnvoiCampagneAdmin() {
       : bailleur ? '<span class="pastille">Bailleur : locataire par l’affiche</span>'
       : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé le ${esc(dateCourte(l.rdv_invite_le))} (${esc(CAN[l.rdv_invite_canal] || l.rdv_invite_canal)})` : 'Lien pas encore envoyé'}</span>`;
     return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(nomP(l))}</b>${PS.pastilleQualite(l.commande?.qualite)}<div class="sous">${etat}</div></div>
-      <div class="droite">${bailleur || !l.jeton || l.rdv ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-cam="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-cas="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-cal="${esc(l.id)}">Copier le lien</button>`}</div></li>`;
+      <div class="droite">${bailleur || !l.jeton || l.rdv ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-cam="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-cas="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-cal="${esc(l.id)}">QR / lien</button>`}</div></li>`;
   }).join('');
   const parId = id => lg.find(l => l.id === id);
   const noter = (l, canal) => { l.rdv_invite_le = new Date().toISOString(); l.rdv_invite_canal = canal; PS.rpc('ps_admin_campagne_invite', { p_admin: A.mdp, p_logement: l.id, p_canal: canal }).catch(() => {}); setTimeout(rendreEnvoiCampagneAdmin, 300); };
@@ -1648,7 +1656,15 @@ function rendreEnvoiCampagneAdmin() {
     }
   };
   $('caOccupantsAdmin').querySelectorAll('[data-cas]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cas); noter(l, 'sms'); location.href = PS.lienSms(l.commande?.telephone || l.telephone, texteRdvAdmin(l).replace(/\*\*/g, '')); });
-  $('caOccupantsAdmin').querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cal); noter(l, 'autre'); PS.copier(lienRdvAdmin(l.jeton)).then(() => toast('Lien copié.')); });
+  // QR code à faire scanner (ou lien à copier) : le propriétaire ouvre la page de rendez-vous sur son téléphone.
+  $('caOccupantsAdmin').querySelectorAll('[data-cal]').forEach(b => b.onclick = async () => {
+    const l = parId(b.dataset.cal), lien = lienRdvAdmin(l.jeton);
+    $('qrRdvTitre').textContent = `${PS.appt(l)} — ${nomP(l)}`; $('qrRdvLien').textContent = lien;
+    try { $('qrRdvCode').innerHTML = await PS.qrSvg(lien, 240); } catch (e) { $('qrRdvCode').textContent = e.message; }
+    $('qrRdvCopier').onclick = () => { PS.copier(lien).then(() => toast('Lien copié.')); noter(l, 'autre'); };
+    $('qrRdvMontre').onclick = () => { noter(l, 'qr'); $('dlgQrRdv').close(); toast('Lien noté comme transmis (QR code).'); };
+    $('dlgQrRdv').showModal();
+  });
   // Deux temps : liens envoyés (automatique avec « Tout envoyer par e-mail »), puis feuille affichée dans la résidence.
   $('caEnvoyeeAdmin').innerHTML = !camp.envoyee_le
     ? '<button type="button" class="btn" data-campagne="campagne:1">Liens envoyés autrement (SMS, en main propre)</button>'
