@@ -1424,14 +1424,19 @@ let badgePhotoIndex = null;
 function rendreBadges() {
   const l = courant(), ul = $('listeBadges'), verrou = l.statut === 'signe' && !estHorsLogement(l);
   ul.innerHTML = '';
+  // Chantier du portail : les badges du locataire se choisissent parmi les badges restant à distribuer.
+  const dispo = Array.isArray(etat.badgesDisponibles) && !estHorsLogement(l) ? etat.badgesDisponibles : null;
   l.badges.forEach((num, i) => {
     const li = document.createElement('li'); li.className = 'badge-ligne';
+    const libres = dispo ? dispo.filter(n => n === num || !proprietaireBadge(n, l.id, i)) : [];
     li.innerHTML = `<span class="badge-num">${i + 1}</span>
-      <input type="text" id="badge-${i}" value="${esc(num)}" placeholder="N° du badge ${i + 1}" autocomplete="off" spellcheck="false" inputmode="text" aria-label="Numéro du badge ${i + 1}" ${verrou ? 'disabled' : ''}>
-      <button type="button" class="btn btn-carre" aria-label="Scanner le badge ${i + 1}" ${verrou ? 'disabled' : ''}><svg class="ic"><use href="#i-scan"/></svg></button>
+      ${dispo ? `<select id="badge-${i}" aria-label="Badge ${i + 1} remis au locataire" ${verrou ? 'disabled' : ''} style="flex:1;min-width:0">
+          <option value="">— Badge ${i + 1} à remettre —</option>${libres.map(n => `<option ${n === num ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`
+        : `<input type="text" id="badge-${i}" value="${esc(num)}" placeholder="N° du badge ${i + 1}" autocomplete="off" spellcheck="false" inputmode="text" aria-label="Numéro du badge ${i + 1}" ${verrou ? 'disabled' : ''}>`}
+      <button type="button" class="btn btn-carre" aria-label="Scanner le badge ${i + 1}" ${verrou ? 'disabled' : ''} ${dispo ? 'hidden' : ''}><svg class="ic"><use href="#i-scan"/></svg></button>
       ${(l.proprietaire || '').trim() ? `<button type="button" class="badge-dest" aria-pressed="${!!pourProprio(l, i)}" ${verrou ? 'disabled' : ''}>${pourProprio(l, i) ? 'Pour le propriétaire · via le syndic' : 'Remis à l’occupant'}</button>` : ''}
       <div class="badge-sous" id="badge-sous-${i}"></div>`;
-    const input = li.querySelector('input');
+    const input = li.querySelector('input, select');
     const verifier = () => {
       const p = proprietaireBadge(input.value, l.id, i);
       input.classList.toggle('doublon', !!p);
@@ -1439,7 +1444,7 @@ function rendreBadges() {
       sous.querySelector('.erreur')?.remove();
       if (p) sous.insertAdjacentHTML('afterbegin', `<span class="erreur">Déjà attribué : ${esc(p)}</span>`);
     };
-    input.addEventListener('input', () => { l.badges[i] = input.value.trim(); sauver(); verifier(); });
+    input.addEventListener(dispo ? 'change' : 'input', () => { l.badges[i] = input.value.trim(); sauver(); verifier(); if (dispo) rendreBadges(); });
     li.querySelector('button').onclick = () => ouvrirScanner(i);
     const dest = li.querySelector('.badge-dest');
     if (dest) dest.onclick = () => {

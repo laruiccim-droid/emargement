@@ -887,8 +887,11 @@ async function creerOuMajChantierApp() {
   const c = EM.c;
   let prep; try { prep = await appel('ps_admin_preparation_app', { p_copro: c.id }, 'emMsg'); } catch { return; }
   // Badges déjà livrés au syndic : on ne laisse au locataire que les badges qui lui sont réservés.
-  EM.reste = null;
-  try { const bs = await PS.rpc('ps_admin_badges', { p_admin: A.mdp, p_copro: c.id }); if (bs.compteurs?.livres) EM.reste = new Map(bs.logements.map(l => [l.id, l.locataire])); } catch {}
+  EM.reste = null; EM.dispo = null;
+  try {
+    const bs = await PS.rpc('ps_admin_badges', { p_admin: A.mdp, p_copro: c.id });
+    if (bs.compteurs?.livres) { EM.reste = new Map(bs.logements.map(l => [l.id, l.locataire])); EM.dispo = bs.correspondance.filter(b => b.statut === 'stock').map(b => b.numero); }
+  } catch {}
   const p = prep.copro, s = prep.syndic || {};
   const premierJour = (p.campagne?.jours || [])[0]?.date || new Date().toLocaleDateString('sv-SE');
   let app = p.chantier_id ? await lireChantierApp(p.chantier_id).catch(() => null) : null;
@@ -901,6 +904,8 @@ async function creerOuMajChantierApp() {
     marque: p.marque_interphone || app.marque || '', typeTravaux: p.travaux, centrale: p.travaux === 'interphone' ? '' : (MARQUE_CENTRALE[p.marque_vigik] || (p.marque_vigik ? 'Autre' : '')),
     copropriete: app.copropriete || p.nom, portailCopro: p.id, modifieLe: Date.now(),
   });
+  // Badges restant à distribuer (stock du syndic) : le technicien choisit ceux qu'il laisse au locataire.
+  if (EM.dispo) app.badgesDisponibles = EM.dispo;
   if (p.travaux !== 'interphone' && p.vigik?.portes?.length && !app.vigik) app.vigik = p.vigik;
   let ajoutes = 0, maj = 0;
   for (const l of prep.logements) {
@@ -943,7 +948,8 @@ async function rendreEmargementAdmin(c) {
   const lgs = EM.app.logements.filter(l => l.id?.startsWith('P') && !l.horsLogement);
   const items = lgs.map(l => ({ logement_id: l.id.slice(1), statut: l.statut === 'signe' ? 'signe' : l.statut === 'absent' ? 'absent' : '',
     signe_le: l.signeLe ? new Date(l.signeLe).toISOString() : null, absent_le: l.absentLe ? new Date(l.absentLe).toISOString() : null,
-    bon: l.numeroBon || '', bon_url: l.bonUrl || '', signataire: l.signataire || '' }));
+    bon: l.numeroBon || '', bon_url: l.bonUrl || '', signataire: l.signataire || '',
+    badges: l.statut === 'signe' && Array.isArray(EM.app.badgesDisponibles) ? (l.badges || []).filter(Boolean) : [] }));
   let res = null; try { res = await appel('ps_admin_emargement_maj', { p_copro: c.id, p_items: items }); } catch {}
   const signes = lgs.filter(l => l.statut === 'signe'), absents = lgs.filter(l => l.statut === 'absent');
   $('emInfo').textContent = `${signes.length} / ${lgs.length} appartements émargés${absents.length ? ` • ${absents.length} absent${absents.length > 1 ? 's' : ''}` : ''} (chantier ${EM.app.residence || c.chantier_id} de l’app).`;
