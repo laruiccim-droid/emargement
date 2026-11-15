@@ -573,6 +573,24 @@ const PS = (() => {
   // ---------- Appartements : grandes tuiles cliquables et fiche complète (espace syndic et portail admin) ----------
   // actions = { pdfCommande(id), pdfRemise(id) } : ouverture des documents signés selon l'espace.
   const catalogues = {};
+  // Avancement d'un appartement : fichier → recensement envoyé → signé → rendez-vous → badges → installé.
+  function avancementAppart(l, d, badgesDe) {
+    const k = l.commande, em = l.emarge || {}, vigik = d.copro.travaux === 'vigik' || d.copro.travaux === 'interphone_vigik';
+    const att = l.attendus ?? ((k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0));
+    const rec = badgesDe(l, false).length + badgesDe(l, true).length + (l.badges_locataire || 0);
+    const E = [
+      ['Dans le fichier', 1],
+      ['Recensement envoyé', l.invite_le || k ? 1 : 0],
+      ['Recensement signé', k ? 1 : 0],
+      ['Rendez-vous pris', l.rdv || em.statut === 'signe' ? 1 : 0],
+      ...(vigik && att ? [['Badges récupérés', Math.min(1, rec / att)]] : []),
+      ['Installé', em.statut === 'signe' ? 1 : 0],
+    ];
+    const pc = Math.round(E.reduce((t, e) => t + e[1], 0) / E.length * 100), suivante = E.find(e => e[1] < 1);
+    const libelle = !suivante ? 'Terminé' : { 'Recensement envoyé': 'Recensement à envoyer', 'Recensement signé': 'En attente de la signature du recensement',
+      'Rendez-vous pris': 'En attente du rendez-vous', 'Badges récupérés': `Badges : ${rec} / ${att} récupérés`, 'Installé': 'En attente de l’installation' }[suivante[0]] || suivante[0];
+    return { pc, libelle, etapes: E };
+  }
   async function vueAppartements(conteneur, d, actions) {
     const marque = d.copro.marque_interphone;
     if (marque && !catalogues[marque]) { try { catalogues[marque] = await rpc('ps_catalogue_lire', { p_marque: marque }); } catch { catalogues[marque] = []; } }
@@ -580,13 +598,14 @@ const PS = (() => {
     const nomAffiche = l => (l.commande?.nom || l.nom || '').toUpperCase();
     const badgesDe = (l, loc) => l.remises.filter(r => r.statut === 'signe' && ((r.qualite === 'locataire' || r.mode === 'installation') === loc)).flatMap(r => r.badges);
     conteneur.innerHTML = d.logements.length ? `<div class="apparts">${d.logements.map(l => {
-      const k = l.commande, em = l.emarge || {}, att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0);
+      const k = l.commande, em = l.emarge || {}, att = l.attendus ?? ((k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0));
       const remis = badgesDe(l, false).length + badgesDe(l, true).length;
       return `<button type="button" class="appart" data-appart="${esc(l.id)}">
         <div class="num"><small>${l.numero ? 'Appartement' : l.lot ? 'Lot' : 'Appartement'}</small>${esc(l.numero || l.lot || '?')}</div>
         <div class="qui">${esc(nomAffiche(l) || '—')}${k?.qualite === 'bailleur' ? ' · bailleur' : ''}</div>
         <div class="etats"><span class="${k ? 'ok' : ''}">${k ? '✓ commande' : 'commande'}</span><span class="${l.rdv ? 'ok' : ''}">${l.rdv ? '✓ rdv' : 'rdv'}</span>
           ${att ? `<span class="${remis >= att ? 'ok' : ''}">badges ${remis}/${att}</span>` : ''}<span class="${em.statut === 'signe' ? 'ok' : ''}">${em.statut === 'signe' ? '✓ installé' : 'installation'}</span></div>
+        ${(() => { const a = avancementAppart(l, d, badgesDe); return `<div class="frise" role="progressbar" aria-valuenow="${a.pc}" title="${esc(a.etapes.map(e => (e[1] >= 1 ? '✓ ' : '· ') + e[0]).join('\n'))}"><i style="width:${a.pc}%"></i><span>${a.pc} %</span></div><div class="etape-appart">${esc(a.libelle)}</div>`; })()}
       </button>`;
     }).join('')}</div>` : '<div class="vide">Aucun appartement : le fichier des copropriétaires n’est pas encore fait.</div>';
     conteneur.querySelectorAll('[data-appart]').forEach(b => b.onclick = () => ficheAppartement(d.logements.find(l => l.id === b.dataset.appart), d, cat, actions, nomAffiche, badgesDe));
