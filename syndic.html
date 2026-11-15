@@ -274,14 +274,14 @@
     <div class="tuiles" id="caTuiles" style="margin-top:14px"></div>
 
     <div class="bloc">
-      <h2>1 · Feuille d’affichage pour les locataires</h2>
-      <p class="aide" style="margin-top:0">À afficher dans le hall et l’ascenseur : les locataires scannent le QR code, donnent leur nom, téléphone et n° d’appartement et choisissent leur créneau.</p>
-      <div class="actions"><button type="button" class="btn btn-or" id="caAffiche">Télécharger la feuille d’affichage (PDF)</button></div>
+      <h2>Feuille d’affichage</h2>
+      <p class="aide" style="margin-top:0">Préparée par Harmonie Électricité pour le hall et l’ascenseur : les locataires scannent le QR code, donnent leur nom, téléphone et n° d’appartement et choisissent leur créneau.</p>
+      <div class="actions"><button type="button" class="btn" id="caAffiche">Voir la feuille d’affichage (PDF)</button></div>
     </div>
 
     <div class="bloc">
-      <h2>2 · Propriétaires occupants</h2>
-      <p class="aide" style="margin-top:0">Envoyez à chacun son lien de rendez-vous (les bailleurs ne sont pas concernés : leurs locataires passent par l’affiche).</p>
+      <h2>Appartements et rendez-vous</h2>
+      <p class="aide" style="margin-top:0">Harmonie Électricité envoie à chaque propriétaire occupant son lien de rendez-vous ; les locataires prennent rendez-vous par la feuille d’affichage. Vous suivez ici l’avancement.</p>
       <ul class="liste" id="caListe"></ul>
     </div>
 
@@ -291,11 +291,6 @@
       <ul class="liste" id="caRattacher"></ul>
     </div>
 
-    <div class="bloc">
-      <h2>3 · Campagne envoyée</h2>
-      <p class="aide" style="margin-top:0" id="caEnvoyeeTexte"></p>
-      <div class="actions"><button type="button" class="btn" id="caEnvoyee">La campagne est envoyée et la feuille affichée</button></div>
-    </div>
 
     <div class="bloc">
       <h2>Planning des rendez-vous</h2>
@@ -669,7 +664,7 @@ function rendreParcours() {
     { fait: pret, titre: 'Recenser les appartements',
       texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
-        : 'Indiquez le nombre d’appartements, puis pour chacun : n° d’étiquette, n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
+        : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
       bouton: `<button type="button" class="btn btn-petit ${pret ? '' : 'btn-or'}" data-parcours="recensement">${pret ? 'Modifier le recensement' : n ? 'Reprendre le recensement' : 'Lancer le recensement'}</button>` },
     (() => {
       const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0;
@@ -684,9 +679,9 @@ function rendreParcours() {
   {
     const camp = c.campagne || {}, planifie = (camp.jours || []).length > 0, nr = c.nb_rdv || 0, ar = c.nb_rdv_a_rattacher || 0;
     etapes.push({ fait: !!camp.envoyee_le && n > 0 && nr >= n, titre: 'Information des occupants et rendez-vous',
-      texte: !planifie ? 'Harmonie Électricité fixera les jours d’intervention dès réception du matériel. Vous enverrez ensuite la campagne d’information et afficherez la feuille de rendez-vous.'
-        : `${camp.envoyee_le ? 'Campagne envoyée le ' + dateCourte(camp.envoyee_le) + '. ' : 'Jours d’intervention fixés : envoyez la campagne et affichez la feuille. '}${nr} / ${n} appartements ont rendez-vous.${ar ? ` ${ar} locataire${ar > 1 ? 's' : ''} à rattacher à un propriétaire.` : ''}`,
-      bouton: planifie ? `<button type="button" class="btn btn-petit ${camp.envoyee_le ? '' : 'btn-or'}" data-parcours="campagne">${camp.envoyee_le ? 'Suivre les rendez-vous' : 'Préparer la campagne'}</button>` : '' });
+      texte: !planifie ? 'Dès réception du matériel, Harmonie Électricité fixe les jours d’intervention et envoie la campagne d’information aux occupants (avec la feuille d’affichage). Vous pourrez suivre les rendez-vous ici.'
+        : `${camp.envoyee_le ? 'Campagne envoyée par Harmonie Électricité le ' + dateCourte(camp.envoyee_le) + '. ' : 'Jours d’intervention fixés : Harmonie Électricité envoie la campagne d’information. '}${nr} / ${n} appartements ont rendez-vous.${ar ? ` ${ar} locataire${ar > 1 ? 's' : ''} à rattacher à un propriétaire.` : ''}`,
+      bouton: planifie ? `<button type="button" class="btn btn-petit" data-parcours="campagne">Suivre les rendez-vous</button>` : '' });
   }
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
@@ -717,7 +712,8 @@ async function ouvrirCampagne() {
 function rendreCampagne() {
   const d = CA.d, camp = d.campagne || {}, lg = d.logements;
   $('caCopro').textContent = d.copro.nom;
-  $('caJours').textContent = (camp.jours || []).length ? 'Intervention : ' + joursTexte(camp) + '.' : 'Les jours d’intervention ne sont pas encore fixés par Harmonie Électricité.';
+  $('caJours').textContent = (camp.jours || []).length ? 'Intervention : ' + joursTexte(camp) + '.' + (camp.envoyee_le ? ` Campagne d’information envoyée par Harmonie Électricité le ${dateCourte(camp.envoyee_le)}.` : ' La campagne d’information sera envoyée par Harmonie Électricité.')
+    : 'Les jours d’intervention ne sont pas encore fixés par Harmonie Électricité.';
   const avecRdv = lg.filter(l => l.rdv).length, occupants = lg.filter(l => l.commande?.qualite !== 'bailleur');
   $('caTuiles').innerHTML = [['Appartements avec rendez-vous', `${avecRdv} / ${lg.length}`, 'or'], ['Occupants invités', `${occupants.filter(l => l.rdv_invite_le).length} / ${occupants.length}`],
     ['Locataires à rattacher', d.a_rattacher.length], ['Créneaux libres', d.creneaux.reduce((t, s) => t + Math.max(0, s.places), 0)]]
@@ -730,9 +726,9 @@ function rendreCampagne() {
       : em.statut === 'absent' ? '<span class="pastille attente">Absent le jour de l’intervention</span>'
       : l.rdv ? `<span class="pastille ok">Rendez-vous ${esc(fmtJourCourt(l.rdv.debut))} à ${esc(fmtH(l.rdv.debut))}</span> ${esc(l.rdv.prenom + ' ' + l.rdv.nom)}${l.rdv.qualite === 'locataire' ? ' (locataire)' : ''}`
       : bailleur ? '<span class="pastille">Bailleur : le locataire prend rendez-vous par l’affiche</span>'
-      : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé le ${esc(dateCourte(l.rdv_invite_le))} (${esc(CAN[l.rdv_invite_canal] || l.rdv_invite_canal)})` : 'Lien pas encore envoyé'}</span>`;
+      : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé par Harmonie le ${esc(dateCourte(l.rdv_invite_le))}` : 'Pas encore de rendez-vous'}</span>`;
     return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${etat}</div></div>
-      <div class="droite">${bailleur || !l.jeton ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-camail="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-casms="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-caqr="${esc(l.id)}">QR / lien</button>`}</div></li>`;
+      <div class="droite">${true ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-camail="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-casms="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-caqr="${esc(l.id)}">QR / lien</button>`}</div></li>`;
   }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
   const parId = id => lg.find(l => l.id === id);
   const noter = (l, canal) => { l.rdv_invite_le = new Date().toISOString(); l.rdv_invite_canal = canal; rpc('ps_syndic_campagne_invite', { p_session: S.session, p_logement: l.id, p_canal: canal }).catch(() => {}); setTimeout(rendreCampagne, 300); };
@@ -756,8 +752,6 @@ function rendreCampagne() {
     if (!sel.value) return;
     try { await appel('ps_syndic_rdv_rattacher', { p_session: S.session, p_rdv: sel.dataset.ratt, p_logement: sel.value }); toast('Locataire rattaché au propriétaire.'); ouvrirCampagne(); } catch {}
   });
-  $('caEnvoyeeTexte').textContent = camp.envoyee_le ? `Noté le ${dateCourte(camp.envoyee_le)}.` : 'Quand les occupants ont reçu leur lien et que la feuille est affichée, indiquez-le : la barre d’avancement passe à l’étape des rendez-vous.';
-  $('caEnvoyee').hidden = !!camp.envoyee_le;
   // Planning par jour
   $('caPlanning').innerHTML = d.rdv.map(r => `<li><div class="principal"><b>${esc(fmtJourCourt(r.debut))} — ${esc(fmtH(r.debut))} à ${esc(fmtH(r.fin))}</b>
     <div class="sous">Appt ${esc(r.logement || r.numero_appt || '?')} • ${esc(r.prenom + ' ' + r.nom)}${r.qualite === 'locataire' ? ' (locataire)' : ''} • ${esc(r.telephone || '')}</div></div>
@@ -772,9 +766,7 @@ $('caAffiche').onclick = async () => {
   try { const blob = await PS.pdfAffiche(CA.d); PS.telecharger(blob, `Affiche rendez-vous - ${CA.d.copro.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ')); }
   catch { toast('Création de la feuille impossible.'); } finally { $('caAffiche').disabled = false; }
 };
-$('caEnvoyee').onclick = async () => {
-  try { await appel('ps_syndic_campagne_envoyee', { p_session: S.session, p_copro: S.copro }); toast('Campagne notée comme envoyée.'); ouvrirCampagne(); } catch {}
-};
+
 
 // ---------- Sondage ----------
 const SO = { d: null };

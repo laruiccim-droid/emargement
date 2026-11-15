@@ -117,6 +117,12 @@
       </div>
       <p class="message" id="caMsgAdmin"></p>
       <p class="aide" id="caResume"></p>
+      <div id="caEnvoiAdmin" hidden>
+        <h3 style="margin:16px 0 4px">Envoi de la campagne d’information</h3>
+        <p class="aide" style="margin-top:0">Envoyez à chaque propriétaire occupant son lien de rendez-vous ; les bailleurs ne sont pas concernés (leurs locataires passent par la feuille d’affichage). Le gestionnaire suit les rendez-vous dans son espace.</p>
+        <ul class="liste" id="caOccupantsAdmin"></ul>
+        <div class="actions" id="caEnvoyeeAdmin"></div>
+      </div>
       <ul class="liste" id="caRattacherAdmin"></ul>
       <ul class="liste" id="caPlanningAdmin"></ul>
     </div>
@@ -950,7 +956,47 @@ $('caEnregistrer').onclick = async () => {
     CAA.jours = (CAA.d.campagne.jours || []).map(j => ({ ...j })); rendreJoursAdmin(); rendreSuiviCampagneAdmin();
   } catch {}
 };
+// Lien de rendez-vous envoyé par Harmonie (e-mail, SMS) ; l'envoi est noté sur l'appartement.
+const lienRdvAdmin = j => PS.urlPage('rdv.html') + '?j=' + j;
+function joursTexteAdmin(camp) {
+  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}`).join(', ');
+}
+function texteRdvAdmin(l) {
+  const d = CAA.d, c = d.copro;
+  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nHarmonie Électricité installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne)}.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${PS.ENTREPRISE.nom}\n${PS.ENTREPRISE.tel}`;
+}
+function rendreEnvoiCampagneAdmin() {
+  const d = CAA.d, camp = d.campagne || {}, lg = d.logements;
+  $('caEnvoiAdmin').hidden = !(camp.jours || []).length;
+  if ($('caEnvoiAdmin').hidden) return;
+  const CAN = { email: 'e-mail', sms: 'SMS', qr: 'QR code' };
+  $('caOccupantsAdmin').innerHTML = lg.map(l => {
+    const bailleur = l.commande?.qualite === 'bailleur', tel = l.commande?.telephone || l.telephone, mails = [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean))];
+    const etat = l.rdv ? `<span class="pastille ok">Rendez-vous ${esc(fmtJ(l.rdv.debut))} à ${esc(fmtHh(l.rdv.debut))}</span>`
+      : bailleur ? '<span class="pastille">Bailleur : locataire par l’affiche</span>'
+      : `<span class="pastille attente">${l.rdv_invite_le ? `Lien envoyé le ${esc(dateCourte(l.rdv_invite_le))} (${esc(CAN[l.rdv_invite_canal] || l.rdv_invite_canal)})` : 'Lien pas encore envoyé'}</span>`;
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${etat}</div></div>
+      <div class="droite">${bailleur || !l.jeton || l.rdv ? '' : `${mails.length ? `<button type="button" class="btn btn-petit" data-cam="${esc(l.id)}">E-mail</button>` : ''}${tel ? `<button type="button" class="btn btn-petit" data-cas="${esc(l.id)}">SMS</button>` : ''}<button type="button" class="btn btn-petit btn-discret" data-cal="${esc(l.id)}">Copier le lien</button>`}</div></li>`;
+  }).join('');
+  const parId = id => lg.find(l => l.id === id);
+  const noter = (l, canal) => { l.rdv_invite_le = new Date().toISOString(); l.rdv_invite_canal = canal; PS.rpc('ps_admin_campagne_invite', { p_admin: A.mdp, p_logement: l.id, p_canal: canal }).catch(() => {}); setTimeout(rendreEnvoiCampagneAdmin, 300); };
+  $('caOccupantsAdmin').querySelectorAll('[data-cam]').forEach(b => b.onclick = () => {
+    const l = parId(b.dataset.cam), mails = [...new Set([l.commande?.email, ...(l.emails || [])].filter(Boolean))]; noter(l, 'email');
+    location.href = `mailto:${mails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Rendez-vous pour l’installation — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteRdvAdmin(l))}`;
+  });
+  $('caOccupantsAdmin').querySelectorAll('[data-cas]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cas); noter(l, 'sms'); location.href = PS.lienSms(l.commande?.telephone || l.telephone, texteRdvAdmin(l)); });
+  $('caOccupantsAdmin').querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cal); noter(l, 'autre'); PS.copier(lienRdvAdmin(l.jeton)).then(() => toast('Lien copié.')); });
+  $('caEnvoyeeAdmin').innerHTML = camp.envoyee_le
+    ? `<span class="pastille ok">Campagne envoyée le ${esc(dateCourte(camp.envoyee_le))}</span> <button type="button" class="btn btn-petit btn-discret" data-campagne="0">Annuler</button>`
+    : '<button type="button" class="btn btn-or" data-campagne="1">La campagne est envoyée et la feuille affichée</button>';
+  $('caEnvoyeeAdmin').querySelectorAll('[data-campagne]').forEach(b => b.onclick = async () => {
+    const fait = b.dataset.campagne === '1';
+    if (!fait && !confirm('Annuler l’envoi de la campagne ?')) return;
+    try { await appel('ps_admin_jalon', { p_copro: A.copro, p_jalon: 'campagne', p_fait: fait, p_info: '' }); toast(fait ? 'Campagne notée comme envoyée.' : 'Annulé.'); rendreCampagneAdmin({ id: A.copro, type: 'complet' }); } catch {}
+  });
+}
 function rendreSuiviCampagneAdmin() {
+  rendreEnvoiCampagneAdmin();
   const d = CAA.d, lg = d.logements, avec = lg.filter(l => l.rdv).length, libres = d.creneaux.reduce((t, s) => t + Math.max(0, s.places), 0);
   $('caResume').textContent = (d.campagne.jours || []).length
     ? `${avec} / ${lg.length} appartements ont rendez-vous • ${libres} place${libres > 1 ? 's' : ''} libre${libres > 1 ? 's' : ''}${d.campagne.envoyee_le ? ' • campagne envoyée le ' + dateCourte(d.campagne.envoyee_le) : ' • campagne pas encore envoyée'}`
