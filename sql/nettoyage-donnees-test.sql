@@ -34,6 +34,6 @@ delete from ps_users where syndic_id in (select id from ps_syndics where nom ili
 delete from ps_syndics where nom ilike 'TEST%';
 
 -- Essais de connexion enregistrés pendant les tests
-delete from ps_tentatives where true;
+do $$ begin if to_regclass('public.ps_tentatives') is not null then delete from ps_tentatives; end if; end $$;
 
 commit;
