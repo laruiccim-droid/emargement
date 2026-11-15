@@ -1100,7 +1100,7 @@ async function ouvrirRecensement() {
   const nb = R.rec.nb_logements || R.logements.length || R.copro.appartements_devis || '';
   $('rcCopro').textContent = R.copro.nom;
   $('rcNb').value = nb;
-  $('rcNbAide').textContent = R.copro.appartements_devis ? `Le devis prévoit ${R.copro.appartements_devis} appartements.` : '';
+  $('rcNbAide').textContent = R.copro.appartements_devis ? `Le devis prévoit ${R.copro.appartements_devis} appartements : les lignes sont créées, retirez-en (✕) ou ajoutez-en si besoin.` : '';
   if (nb && R.logements.length < nb) ajusterLignes(+nb);
   $('rcHorsBloc').hidden = !avecVigik(R.copro);
   $('rcTitreFin').textContent = (avecVigik(R.copro) ? '4' : '3') + ' · Validation';

@@ -278,6 +278,8 @@
     <div><label for="chCp">Code postal</label><input type="text" id="chCp"></div>
     <div><label for="chVille">Ville</label><input type="text" id="chVille" placeholder="Le Bourget-du-Lac"></div>
     <div><label for="chReference">Référence dossier</label><input type="text" id="chReference"></div>
+    <div><label for="chAppartements">Appartements à équiper</label><input type="number" id="chAppartements" min="0" max="2000" inputmode="numeric" placeholder="lu sur le devis">
+      <p class="aide" style="margin:4px 0 0">Crée autant de lignes dans le fichier des copropriétaires ; le gestionnaire en retire ou en ajoute ensuite.</p></div>
     <div><label for="chSyndic">Syndic</label><select id="chSyndic"></select></div>
     <div><label for="chType">Type de chantier</label><select id="chType"><option value="badges">Badges seuls</option><option value="complet">Complet (recensement, pose, badges)</option></select></div>
     <div><label for="chEtat">État du dossier</label><select id="chEtat"></select></div>
@@ -715,6 +717,8 @@ function rendreDevis() {
     : 'Aucun devis déposé<small>PDF du devis accepté par le syndic</small>';
   $('chDevisOuvrir').hidden = !d.url; if (d.url) $('chDevisOuvrir').href = d.url;
   $('chDevisRetirer').hidden = !d.url;
+  // Le nombre d'appartements est gardé avec le devis : sans devis, rien à enregistrer.
+  $('chAppartements').disabled = !d.url; $('chAppartements').placeholder = d.url ? 'lu sur le devis' : 'déposez d’abord le devis';
   $('chDevisChoisir').textContent = d.url ? 'Remplacer' : 'Déposer le devis';
 }
 // Lecture du devis (logiciel de gestion Harmonie) : bloc client à droite sous le logo
@@ -773,13 +777,36 @@ async function lireDevis(octets) {
   res.telephone = (coord.join(' ').match(/(\+33\s?|0)[1-9](?:[\s.]?\d{2}){4}/) || [''])[0].replace(/\D/g, '');
   res.numero = (p1.map(i => i.t).join(' ').match(/\b(D\d{4,})\b/) || [])[1] || '';
   res.date = (tout.match(/Date\s*:\s*(\d{2}\/\d{2}\/\d{4})/) || [])[1] || '';
-  res.appartements = +((tout.match(/(\d+)\s+(?:appartements|logements)\b/i) || [])[1] || 0);
+  Object.assign(res, nombreAppartements(p1, enTete, tout));
   const comptes = MARQUES_TOUTES.map(m => [m, (tout.match(new RegExp('\\b' + m + '\\b', 'gi')) || []).length]).filter(c => c[1]).sort((a, b) => b[1] - a[1]);
   res.marque = comptes[0]?.[0] || '';
   const bas = tout.toLowerCase();
   res.interphone = /interphon|vid[ée]ophon|platine de rue|moniteur|combin[ée]/.test(bas);
   res.vigik = /\bvigik\b|contr[ôo]le d.acc[èe]s|badge/.test(bas);
   return res;
+}
+// Nombre d'appartements à équiper, par ordre de confiance :
+//  1. en-tête du devis (au-dessus du tableau) : « sur la base de 10 appartements à équiper », « 10 logements »…
+//  2. « platine 10 boutons » (ou « 10 BP », « 10 boutons d'appel ») : 1 bouton = 1 appartement ;
+//     plusieurs platines (portail + hall) desservent souvent les mêmes appartements : on garde la plus grande ;
+//  3. « 10 appartements » ailleurs dans le devis.
+// Le gestionnaire ajuste ensuite (✕ pour retirer, « + Ajouter » pour compléter).
+function nombreAppartements(p1, enTete, tout) {
+  const nrm = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ');
+  const UNITE = '(?:appartements?|apparts?|appts?|logements?|logts?|lots?|foyers?)';
+  const base = new RegExp('(?:sur la base d[e\']\\s*|base\\s*:?\\s*|pour\\s+)(\\d{1,4})\\s+' + UNITE + '\\b'),
+        simple = new RegExp('\\b(\\d{1,4})\\s+' + UNITE + '\\b(?!\\s*(?:de\\s+)?(?:badges?|cles?))');
+  const lire = (texte, re) => { const m = nrm(texte).match(re); return m ? +m[1] : 0; };
+  const entete = p1.filter(i => i.y < enTete).map(i => i.t).join(' ');
+  let n = lire(entete, base) || lire(tout, base);
+  if (n) return { appartements: n, appartementsSource: 'devis : ' + n + ' appartements à équiper' };
+  n = lire(entete, simple);
+  if (n) return { appartements: n, appartementsSource: 'en-tête du devis' };
+  const boutons = [...nrm(tout).matchAll(/(?:platine|bouton|bp\b|appel)[^\n]{0,60}?\b(\d{1,3})\s*(?:boutons?|bp|touches?)\b|\b(\d{1,3})\s*(?:boutons?|bp)\s*(?:d.appel|poussoirs?)?[^\n]{0,30}platine/g)]
+    .map(m => +(m[1] || m[2])).filter(x => x > 1 && x < 500);
+  if (boutons.length) { n = Math.max(...boutons); return { appartements: n, appartementsSource: 'platine ' + n + ' boutons' }; }
+  n = lire(tout, simple);
+  return n ? { appartements: n, appartementsSource: 'devis' } : { appartements: 0, appartementsSource: '' };
 }
 // Syndic retrouvé par l'e-mail d'un gestionnaire, sinon par le domaine (foncia.com → Foncia…).
 function syndicDuDevis(emails, sousCouvert) {
@@ -796,6 +823,7 @@ function syndicDuDevis(emails, sousCouvert) {
 }
 function preremplirDepuisDevis(d, tout) {
   const mettre = (id, v) => { if (v && (tout || !$(id).value.trim())) $(id).value = v; };
+  if (d.appartements && (tout || !$('chAppartements').value)) $('chAppartements').value = d.appartements;
   mettre('chNom', d.client.replace(/^syndicat des copropri[ée]taires\s+(de\s+|du\s+|des\s+)?/i, '').trim()); mettre('chAdresse', d.adresse); mettre('chCp', d.cp); mettre('chVille', d.ville); mettre('chReference', d.numero);
   const sid = syndicDuDevis(d.emails, d.sousCouvert); if (sid && (tout || !$('chSyndic').value)) $('chSyndic').value = sid;
   if (tout || !A.edition) {
@@ -806,7 +834,7 @@ function preremplirDepuisDevis(d, tout) {
     rendreAccesPortail();
   }
   const vus = [d.client && 'copropriété « ' + d.client + ' »', d.sousCouvert && 'S/C ' + d.sousCouvert, d.adresse && 'adresse ' + [d.adresse, d.cp, d.ville].join(' '), d.numero && 'devis ' + d.numero,
-    d.appartements && d.appartements + ' appartements', d.marque && 'marque ' + d.marque, sid ? 'syndic ' + nomSyndic(sid) : d.emails.length && 'syndic non reconnu (' + d.emails.join(', ') + ')'].filter(Boolean);
+    d.appartements && d.appartements + ' appartements' + (d.appartementsSource ? ' (' + d.appartementsSource + ')' : ''), d.marque && 'marque ' + d.marque, sid ? 'syndic ' + nomSyndic(sid) : d.emails.length && 'syndic non reconnu (' + d.emails.join(', ') + ')'].filter(Boolean);
   $('chDevisLu').className = 'message'; $('chDevisLu').textContent = vus.length ? 'Repris du devis : ' + vus.join(' • ') + '. Vérifiez avant d’enregistrer.' : 'Rien n’a pu être lu dans ce devis : complétez à la main.';
 }
 
@@ -832,7 +860,7 @@ async function deposerDevis(f) {
 }
 $('chDevisChoisir').onclick = () => $('chDevis').click();
 $('chDevis').onchange = e => deposerDevis(e.target.files[0]);
-$('chDevisRetirer').onclick = () => { A.devis = {}; rendreDevis(); msg('chMessage', 'Devis retiré : pensez à « Enregistrer ».', false); };
+$('chDevisRetirer').onclick = () => { A.devis = {}; $('chAppartements').value = ''; rendreDevis(); msg('chMessage', 'Devis retiré : pensez à « Enregistrer ».', false); };
 {
   const z = $('chDevisZone');
   ['dragenter', 'dragover'].forEach(t => z.addEventListener(t, e => { e.preventDefault(); z.classList.add('survol'); }));
@@ -851,7 +879,8 @@ async function ouvrirFormChantier(c) {
   $('chMarqueInterphone').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_INTERPHONE.map(m => `<option>${m}</option>`).join('');
   $('chMarqueVigik').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_VIGIK.map(m => `<option>${m}</option>`).join('');
   $('chMarqueInterphone').value = c?.marque_interphone || ''; $('chMarqueVigik').value = c?.marque_vigik || '';
-  A.devis = c?.devis?.url ? { ...c.devis } : {}; rendreDevis(); $('chDevisLu').textContent = '';
+  A.devis = c?.devis?.url || c?.devis?.extrait ? { ...c.devis } : {}; rendreDevis(); $('chDevisLu').textContent = '';
+  $('chAppartements').value = c?.devis?.extrait?.appartements || '';
   A.vigik = JSON.parse(JSON.stringify(c?.vigik?.portes?.length ? c.vigik : { portes: ['Porte d’entrée'], autorisations: [{ nom: '', portes: [0] }] }));
   rendreAccesPortail();
   await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';
@@ -861,7 +890,7 @@ $('formChantier').onsubmit = async e => {
   e.preventDefault();
   const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
     reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
-    devis: A.devis || {},
+    devis: (n => n || A.devis?.extrait ? { ...(A.devis || {}), extrait: { ...(A.devis?.extrait || {}), appartements: n } } : A.devis || {})(Math.min(parseInt($('chAppartements').value, 10) || 0, 2000)),
     marque_interphone: $('chTravaux').value === 'vigik' ? '' : $('chMarqueInterphone').value,
     marque_vigik: $('chTravaux').value === 'interphone' ? '' : $('chMarqueVigik').value,
     travaux: $('chTravaux').value, vigik: $('chTravaux').value === 'interphone' ? { portes: [], autorisations: [] }
