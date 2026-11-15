@@ -415,6 +415,8 @@ const PS = (() => {
     return t + `\nVotre choix, signé en ligne, vaut bon de commande.`;
   }
 
+  // Durée d'intervention lisible : 30 → « 30 minutes », 60 → « 1 heure », 90 → « 1 h 30 ».
+  const dureeTexte = m => { m = +m || 30; const h = Math.floor(m / 60), r = m % 60; return !h ? `${m} minutes` : !r ? `${h} heure${h > 1 ? 's' : ''}` : `${h} h ${String(r).padStart(2, '0')}`; };
   const euros = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const QUALITES_COMMANDE = { occupant: 'Propriétaire occupant', bailleur: 'Propriétaire bailleur' };
   const pastilleQualite = q => q === 'bailleur' ? ' <span class="pastille or">Bailleur</span>' : q === 'occupant' ? ' <span class="pastille">Résident</span>' : '';
@@ -907,5 +909,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

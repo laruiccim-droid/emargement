@@ -356,7 +356,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=36"></script>
+<script src="portail-commun.js?v=37"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1593,7 +1593,7 @@ function joursTexteAdmin(camp, avecHeures = true) {
 }
 function texteRdvAdmin(l) {
   const d = CAA.d, c = d.copro;
-  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nUn technicien installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne, false)}.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${PS.ENTREPRISE.nom}\n${PS.ENTREPRISE.tel}`;
+  return `Bonjour${l.commande?.prenom ? ' ' + l.commande.prenom : ''},\n\nUn technicien installera ${c.travaux === 'vigik' ? 'le nouveau contrôle d’accès' : 'votre nouvel interphone'} dans la résidence ${c.nom} : ${joursTexteAdmin(d.campagne, false)}.\nL’intervention dure environ ${PS.dureeTexte(d.campagne.duree)} ; une personne majeure doit être présente dans l’appartement.\nMerci de choisir votre créneau de rendez-vous${l.numero ? ' pour l’appartement n° ' + l.numero : ''} :\n${lienRdvAdmin(l.jeton)}\n${c.travaux === 'vigik' ? '\nAprès l’intervention, les anciens badges ne fonctionneront plus.\n' : ''}\nCordialement,\n${PS.ENTREPRISE.nom}\n${PS.ENTREPRISE.tel}`;
 }
 function rendreEnvoiCampagneAdmin() {
   const d = CAA.d, camp = d.campagne || {}, lg = d.logements;
