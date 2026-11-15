@@ -611,6 +611,9 @@ const PS = (() => {
       ${docsPostes ? `<div class="docs" style="margin-top:8px">${docsPostes}</div>` : ''}
       <h4>Badges</h4>
       ${kv([['Propriétaire', bp.length ? `<span class="mono">${esc(bp.join(' • '))}</span>` : 'aucun remis'], ['Locataire', bl.length ? `<span class="mono">${esc(bl.join(' • '))}</span>` : l.badges_locataire ? `${l.badges_locataire} réservé${l.badges_locataire > 1 ? 's' : ''} (remis le jour de l’installation)` : '—']])}
+      ${(() => { const att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0), enAtt = l.remises.filter(x => x.statut === 'attente').reduce((t, x) => t + x.badges.length, 0);
+        const reste = att - bp.length - bl.length - enAtt - (l.badges_locataire || 0);
+        return reste > 0 ? `<p style="margin-top:8px"><b style="color:var(--he-white)">${reste} badge${reste > 1 ? 's' : ''} à remettre</b>${enAtt ? ` • ${enAtt} en attente de signature` : ''}</p>` + (actions.remettre ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-or" data-remettre="${esc(l.id)}">Remettre des badges</button></div>` : '') : ''; })()}
       <h4>Rendez-vous et installation</h4>
       ${kv([['Rendez-vous', r ? esc(new Date(r.debut).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) + ` — ${esc([r.prenom, r.nom].join(' '))}` : '—'], ['Installation', em.statut === 'signe' ? 'Faite le ' + esc(dateCourte(em.signe_le)) : em.statut === 'absent' ? 'Absent' : '—']])}
       <h4>Documents signés</h4>
@@ -621,6 +624,7 @@ const PS = (() => {
     dlg.querySelector('[data-fermer-fiche]').onclick = () => dlg.close();
     dlg.querySelectorAll('[data-doc-commande]').forEach(b => b.onclick = () => actions.pdfCommande(b.dataset.docCommande));
     dlg.querySelectorAll('[data-doc-remise]').forEach(b => b.onclick = () => actions.pdfRemise(b.dataset.docRemise));
+    dlg.querySelectorAll('[data-remettre]').forEach(b => b.onclick = () => { dlg.close(); actions.remettre(b.dataset.remettre); });
     dlg.showModal();
   }
 

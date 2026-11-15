@@ -476,7 +476,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=19"></script>
+<script src="portail-commun.js?v=20"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -681,6 +681,8 @@ async function chargerAppartements() {
   PS.vueAppartements($('ongAppartements'), d, {
     pdfCommande: async id => { try { const k = await appel('ps_syndic_commande', { p_session: S.session, p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
     pdfRemise: async id => { try { const r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
+    // Badges encore à remettre : remise directe depuis la fiche (badges livrés à l'agence seulement).
+    remettre: S.detail.compteurs?.stock > 0 ? id => nouvelleRemise(id) : null,
   });
 }
 
@@ -1367,7 +1369,7 @@ $('sValider').onclick = async () => {
 async function creerAttente(mode) {
   if (!S.attente) {
     message('sMessage', 'Création de la demande de signature…', false);
-    try { const r = await appel('ps_syndic_remise_creer', { p_session: S.session, p: S.brouillon }, 'sMessage'); S.attente = { id: r.id, jeton: r.jeton, brouillon: S.brouillon }; }
+    try { const r = await appel('ps_syndic_remise_creer', { p_session: S.session, p: S.brouillon }, 'sMessage'); S.attente = { id: r.id, jeton: r.jeton, brouillon: S.brouillon }; await lierRemise(r.id); }
     catch { return; }
     message('sMessage', '');
   }
@@ -1406,7 +1408,7 @@ async function reprendreAttente(id) {
   let r; try { r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); } catch { return; }
   if (r.statut !== 'attente') return terminer(id);
   const d = { proprietaire: r.proprietaire, qualite: r.qualite, batiment: r.batiment, lot: r.lot, badges: r.badges, acces: r.acces || {}, commentaire: r.commentaire, photos: r.photos || [], email: r.email, tel: r.tel };
-  S.brouillon = d; S.attente = { id: r.id, jeton: r.jeton, brouillon: d }; lierRemise(r.id);
+  S.brouillon = d; S.attente = { id: r.id, jeton: r.jeton, brouillon: d };
   $('sTitre').textContent = d.proprietaire; $('sRecap').innerHTML = recapHtml(d);
   $('sChoix').hidden = true; $('sEcran').hidden = true; message('sMessage', '');
   montrer('vSigner'); afficherAttente(PS.estTel() ? 'lien' : 'qr');
