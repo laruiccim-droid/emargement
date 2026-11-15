@@ -477,7 +477,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=31"></script>
+<script src="portail-commun.js?v=32"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -910,7 +910,7 @@ function ouvrirEmargementBadges() {
   $('ebCopro').textContent = S.detail.copro.nom;
   $('ebListe').innerHTML = lg.map(l => {
     const fait = l.remis + l.locataire >= l.attendus;
-    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${l.attendus} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} pour le locataire (jour de l’installation)` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b>${PS.pastilleQualite(l.qualite)}<div class="sous">${l.attendus} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} pour le locataire (jour de l’installation)` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
       <div class="droite">${fait ? '<span class="pastille ok">Récupérés</span>' : `<button type="button" class="btn btn-petit btn-or" data-eb="${esc(l.id)}">Remettre</button>`}</div></li>`;
   }).join('') + '<li><div class="principal"><span class="sourcil">Entreprises intervenantes et stock — sans effet sur l’avancement du chantier</span></div></li>'
     + bs.hors.filter(h => h.badges > 0).map(h => {
@@ -1359,7 +1359,7 @@ function nouvelleRemise(lgId) {
   $('reCopro').textContent = S.detail.copro.nom;
   const lgs = lgBadges();
   $('reAppartBloc').hidden = !lgs.length && !intervenantsBadges().length; $('reReste').checked = false;
-  $('reAppart').innerHTML = '<option value="">— Choisir l’appartement —</option>' + lgs.map(l => `<option value="${esc(l.id)}">${esc(PS.appt(l))} — ${esc(l.nom || '')} (${l.attendus} badge${l.attendus > 1 ? 's' : ''}${l.remis ? ', ' + l.remis + ' remis' : ''})</option>`).join('')
+  $('reAppart').innerHTML = '<option value="">— Choisir l’appartement —</option>' + lgs.map(l => `<option value="${esc(l.id)}">${esc(PS.appt(l))} — ${esc(l.nom || '')}${l.qualite === 'bailleur' ? ' · bailleur' : l.qualite === 'occupant' ? ' · résident' : ''} (${l.attendus} badge${l.attendus > 1 ? 's' : ''}${l.remis ? ', ' + l.remis + ' remis' : ''})</option>`).join('')
     + (intervenantsBadges().length ? '<optgroup label="Entreprises intervenantes">' + intervenantsBadges().map(h => `<option value="H:${esc(h.id)}">${esc(h.nom)} (${h.badges} badge${h.badges > 1 ? 's' : ''}${h.remis ? ', ' + h.remis + ' remis' : ''})</option>`).join('') + '</optgroup>' : '')
     + '<option value="hors">Autre remise (hors appartement)</option>';
   ['reTitreBadges', 'reTitreBenef', 'reTitreComm'].forEach((id, i) => { $(id).textContent = $(id).textContent.replace(/^\d/, String(i + (lgs.length ? 2 : 1))); });

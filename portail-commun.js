@@ -416,6 +416,7 @@ const PS = (() => {
 
   const euros = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const QUALITES_COMMANDE = { occupant: 'Propriétaire occupant', bailleur: 'Propriétaire bailleur' };
+  const pastilleQualite = q => q === 'bailleur' ? ' <span class="pastille or">Bailleur</span>' : q === 'occupant' ? ' <span class="pastille">Résident</span>' : '';
   async function pdfCommande(k) {
     const JsPDF = await jsPdf();
     const doc = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
@@ -844,5 +845,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();
