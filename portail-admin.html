@@ -93,6 +93,7 @@
     <div class="bloc" id="dTransfertDemande" hidden></div>
     <div id="dFrise"></div>
     <div class="actions" id="dJalons"></div>
+    <div class="bloc" id="dAppartsBloc" hidden><h2>Appartements</h2><div id="dApparts"></div></div>
     <div class="tuiles" id="dTuiles"></div>
     <div class="bloc" id="dFourniture" hidden>
       <h2>Commande du matériel</h2>
@@ -1067,9 +1068,10 @@ const ZONE_FACTURE = '<b>Déposer la facture</b><span>Glissez le PDF ici ou cliq
 
 // ---------- Appartements : tuiles et fiches ----------
 async function chargerAppartementsAdmin() {
-  $('ongAppartements').innerHTML = '<p class="aide" style="margin-top:14px">Chargement…</p>';
-  let d; try { d = await appel('ps_admin_appartements', { p_copro: A.copro }); } catch { $('ongAppartements').innerHTML = ''; return; }
-  PS.vueAppartements($('ongAppartements'), d, {
+  const zone = $('dApparts');
+  if (!zone.innerHTML) zone.innerHTML = '<p class="aide">Chargement…</p>';
+  let d; try { d = await appel('ps_admin_appartements', { p_copro: A.copro }); } catch { zone.innerHTML = ''; return; }
+  PS.vueAppartements(zone, d, {
     pdfCommande: async id => { try { const k = await appel('ps_admin_commande', { p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
     pdfRemise: async id => { try { const r = await appel('ps_admin_remise', { p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
     supplementaires: async (id, nb, pour, motif) => {
@@ -1428,8 +1430,11 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); $('ongletAppartsAdmin').hidden = c.type !== 'complet';
-  if (!onglet) choisirOnglet(c.type === 'complet' ? 'appartements' : 'livrer');
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); // Chantier complet : les vignettes des appartements juste sous la barre d'avancement.
+  $('ongletAppartsAdmin').hidden = true;
+  $('dAppartsBloc').hidden = c.type !== 'complet';
+  if (c.type === 'complet') { $('dApparts').innerHTML = ''; chargerAppartementsAdmin(); }
+  if (!onglet) choisirOnglet('livrer');
   rendreFournitureAdmin(c); rendreBadgesVigikAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
@@ -1441,7 +1446,7 @@ async function ouvrirChantier(id, onglet) {
 function choisirOnglet(o) {
   document.querySelectorAll('[data-ong]').forEach(x => x.setAttribute('aria-selected', x.dataset.ong === o));
   ['appartements', 'livrer', 'remises', 'badges', 'livraisons'].forEach(k => { $('ong' + k.charAt(0).toUpperCase() + k.slice(1)).hidden = k !== o; });
-  if (o === 'appartements') chargerAppartementsAdmin();
+
   if (o === 'livrer') setTimeout(() => lvPad && lvPad.taille(), 30);
 }
 document.querySelectorAll('[data-ong]').forEach(b => b.onclick = () => choisirOnglet(b.dataset.ong));
