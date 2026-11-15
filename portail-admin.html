@@ -1591,7 +1591,7 @@ $('caEnregistrer').onclick = async () => {
 // Lien de rendez-vous envoyé par Harmonie (e-mail, SMS) ; l'envoi est noté sur l'appartement.
 const lienRdvAdmin = j => PS.urlPage('rdv.html') + '?j=' + j;
 function joursTexteAdmin(camp, avecHeures = true) {
-  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}${avecHeures ? ` de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}` : ''}`).join(', ');
+  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}${avecHeures ? ` de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}` : ''}`).filter((x, i, t) => t.indexOf(x) === i).join(', '); // une même journée n'apparaît qu'une fois
 }
 function texteRdvAdmin(l) {
   const d = CAA.d, c = d.copro;

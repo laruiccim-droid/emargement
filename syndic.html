@@ -951,7 +951,7 @@ const lienRdv = j => PS.urlPage('rdv.html') + '?j=' + j;
 const fmtJourCourt = t => new Date(t).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 const fmtH = t => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 function joursTexte(camp, avecHeures = true) {
-  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}${avecHeures ? ` de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}` : ''}`).join(', ');
+  return (camp.jours || []).map(j => `${new Date(j.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}${avecHeures ? ` de ${j.debut.replace(':', 'h')} à ${j.fin.replace(':', 'h')}` : ''}`).filter((x, i, t) => t.indexOf(x) === i).join(', '); // une même journée n'apparaît qu'une fois
 }
 function texteRdv(l) {
   const d = CA.d, c = d.copro;
