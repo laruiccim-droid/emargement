@@ -51,9 +51,19 @@
     <div class="grille" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <button type="button" class="carte" data-aller="chantiers"><div class="sourcil">Copropriétés</div><h3>Chantiers</h3><div class="meta" id="resumeChantiers"></div></button>
       <button type="button" class="carte" data-aller="syndics"><div class="sourcil">Cabinets et gestionnaires</div><h3>Syndics</h3><div class="meta" id="resumeSyndics"></div></button>
+      <button type="button" class="carte" data-aller="catalogue"><div class="sourcil">Matériel proposé</div><h3>Catalogue</h3><div class="meta">Photos, descriptions, prix, brochures</div></button>
       <a class="carte" href="index.html" style="text-decoration:none"><div class="sourcil">Pose et signatures</div><h3>Émargement</h3><div class="meta">Retour à l’app du technicien</div></a>
     </div>
     <div class="bloc" id="aFaire"></div>
+  </section>
+
+  <!-- Catalogue -->
+  <section id="vCatalogue" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-aller="accueil">‹ Accueil</button>
+    <div class="titre-ligne" style="margin-top:8px"><div><div class="sourcil">Matériel proposé aux copropriétaires</div><h1>Catalogue</h1></div>
+      <button type="button" class="btn btn-or" id="caNouvelArticle">+ Nouvel article</button></div>
+    <div class="grille-2" style="margin-top:10px"><div><label for="caMarque">Marque</label><select id="caMarque"></select></div></div>
+    <ul class="liste" id="caArticles" style="margin-top:10px"></ul>
   </section>
 
   <!-- Syndics -->
@@ -282,8 +292,38 @@
   <p class="message" id="chMessage"></p>
 </form></dialog>
 
+<dialog id="dlgArticle"><form class="dlg" id="formArticle">
+  <div class="sourcil">Catalogue</div><h3 id="arTitre">Article</h3>
+  <div class="grille-2">
+    <div><label for="arMarque">Marque *</label><input type="text" id="arMarque" required></div>
+    <div><label for="arRef">Référence</label><input type="text" id="arRef"></div>
+    <div style="grid-column:1/-1"><label for="arNom">Désignation *</label><input type="text" id="arNom" required></div>
+    <div><label for="arType">Type</label><select id="arType"><option value="combine">Combiné audio</option><option value="moniteur">Moniteur vidéo</option><option value="plaque">Plaque de propreté</option><option value="badge">Badge</option><option value="telecommande">Télécommande</option><option value="option">Option</option><option value="chantier">Article de chantier</option></select></div>
+    <div><label for="arOrdre">Ordre d’affichage</label><input type="number" id="arOrdre" inputmode="numeric"></div>
+    <div><label for="arPrix">Prix de vente HT (€)</label><input type="number" id="arPrix" step="0.01" min="0" inputmode="decimal"></div>
+    <div><label for="arTva">TVA (%)</label><input type="number" id="arTva" step="0.1" min="0" inputmode="decimal"></div>
+    <div style="grid-column:1/-1"><label for="arArgument">Phrase pour le copropriétaire</label><input type="text" id="arArgument" placeholder="Ex. : Voir qui sonne avant d’ouvrir"></div>
+    <div style="grid-column:1/-1"><label for="arPoints">Points clés (un par ligne)</label><textarea id="arPoints" rows="4"></textarea></div>
+  </div>
+  <label>Photo</label>
+  <div class="actions" style="margin-top:0;align-items:center"><img id="arPhotoApercu" alt="" style="height:80px;background:#fff;border-radius:6px;padding:4px" hidden>
+    <label class="btn btn-petit" for="arPhoto" style="margin:0">Choisir une photo</label><input type="file" id="arPhoto" accept="image/*" hidden>
+    <button type="button" class="btn btn-petit btn-discret" id="arPhotoRetirer">Retirer</button></div>
+  <label>Brochure (PDF montré aux copropriétaires)</label>
+  <div class="actions" style="margin-top:0;align-items:center"><a id="arBrochureLien" target="_blank" rel="noopener" hidden></a>
+    <label class="btn btn-petit" for="arBrochure" style="margin:0">Choisir le PDF</label><input type="file" id="arBrochure" accept="application/pdf,.pdf" hidden>
+    <button type="button" class="btn btn-petit btn-discret" id="arBrochureRetirer">Retirer</button></div>
+  <label>Notice (PDF envoyée avec le bon d’intervention)</label>
+  <div class="actions" style="margin-top:0;align-items:center"><a id="arNoticeLien" target="_blank" rel="noopener" hidden></a>
+    <label class="btn btn-petit" for="arNotice" style="margin:0">Choisir le PDF</label><input type="file" id="arNotice" accept="application/pdf,.pdf" hidden>
+    <button type="button" class="btn btn-petit btn-discret" id="arNoticeRetirer">Retirer</button></div>
+  <label class="case"><input type="checkbox" id="arActif"> Proposé aux copropriétaires (actif)</label>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Enregistrer</button></div>
+  <p class="message" id="arMessage"></p>
+</form></dialog>
+
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=16"></script>
+<script src="portail-commun.js?v=17"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -292,7 +332,7 @@ const { SUPA_URL, SUPA_KEY } = PS;
 const A = { mdp: '', etat: null, copro: null, detail: null, edition: null, syndicPourUser: null, apercu: [], fichierLignes: null };
 let lvPad = null;
 
-const vues = ['vChargement', 'vAdmin', 'vAccueil', 'vSyndics', 'vChantiers', 'vChantier'];
+const vues = ['vChargement', 'vAdmin', 'vAccueil', 'vSyndics', 'vChantiers', 'vChantier', 'vCatalogue'];
 function montrer(v) { vues.forEach(x => { $(x).hidden = x !== v; }); $('btnVerrouiller').hidden = !A.mdp; window.scrollTo({ top: 0 }); }
 function msg(id, t, err = true) { $(id).textContent = t || ''; $(id).className = 'message' + (err ? ' erreur' : ''); }
 document.querySelectorAll('dialog [data-fermer]').forEach(b => b.onclick = () => b.closest('dialog').close());
@@ -352,7 +392,77 @@ document.querySelectorAll('[data-aller]').forEach(b => b.onclick = async () => {
   if (v === 'accueil') { await charger().catch(() => {}); montrer('vAccueil'); }
   if (v === 'syndics') { await charger().catch(() => {}); rendreSyndics(); montrer('vSyndics'); }
   if (v === 'chantiers') { await charger().catch(() => {}); rendreChantiers(); montrer('vChantiers'); }
+  if (v === 'catalogue') { await chargerCatalogue(); montrer('vCatalogue'); }
 });
+
+// ---------- Catalogue : photos, descriptions, prix, brochures et notices ----------
+const CT = { articles: [], edition: null, fichiers: {} };
+const TYPES_ARTICLE = { combine: 'Combiné audio', moniteur: 'Moniteur vidéo', plaque: 'Plaque de propreté', badge: 'Badge', telecommande: 'Télécommande', option: 'Option', chantier: 'Article de chantier' };
+async function chargerCatalogue() {
+  try { CT.articles = await appel('ps_admin_catalogue', {}); } catch { return; }
+  const marques = [...new Set([...MARQUES_INTERPHONE, ...MARQUES_VIGIK, ...CT.articles.map(a => a.marque)])];
+  const avant = $('caMarque').value || CT.articles[0]?.marque || 'Golmar';
+  $('caMarque').innerHTML = marques.map(m => `<option>${esc(m)}</option>`).join(''); $('caMarque').value = avant;
+  rendreCatalogue();
+}
+function rendreCatalogue() {
+  const m = $('caMarque').value, as = CT.articles.filter(a => a.marque === m);
+  $('caArticles').innerHTML = as.map(a => `<li><div class="principal" style="display:flex;gap:12px;align-items:center">
+      ${a.photo ? `<img src="${esc(a.photo)}" alt="" style="width:56px;height:56px;object-fit:contain;background:#fff;border-radius:6px">` : '<span style="width:56px;height:56px;border:1px dashed var(--border-subtle);border-radius:6px;display:inline-block"></span>'}
+      <div><b>${esc(a.nom)}</b><div class="sous">${esc([a.ref, TYPES_ARTICLE[a.type] || a.type, PS.euros(a.prix_ht) + ' HT', a.brochure ? 'brochure' : 'sans brochure', a.actif ? '' : 'désactivé'].filter(Boolean).join(' • '))}</div></div></div>
+    <div class="droite"><button type="button" class="btn btn-petit" data-article="${esc(a.id)}">Modifier</button></div></li>`).join('')
+    || '<li><div class="principal">Aucun article pour cette marque : ajoutez-en avec « + Nouvel article ».</div></li>';
+  $('caArticles').querySelectorAll('[data-article]').forEach(b => b.onclick = () => ouvrirArticle(CT.articles.find(a => a.id === b.dataset.article)));
+}
+$('caMarque').onchange = rendreCatalogue;
+$('caNouvelArticle').onclick = () => ouvrirArticle({ marque: $('caMarque').value, type: 'moniteur', tva: 10, actif: true, points: [] });
+function ouvrirArticle(a) {
+  CT.edition = { ...a }; CT.fichiers = {};
+  $('arTitre').textContent = a.id ? a.nom : 'Nouvel article';
+  $('arMarque').value = a.marque || ''; $('arRef').value = a.ref || ''; $('arNom').value = a.nom || ''; $('arType').value = a.type || 'moniteur';
+  $('arOrdre').value = a.ordre ?? ''; $('arPrix').value = a.prix_ht ?? ''; $('arTva').value = a.tva ?? 10; $('arArgument').value = a.argument || '';
+  $('arPoints').value = (a.points || []).join('\n'); $('arActif').checked = a.actif !== false;
+  majFichiersArticle(); msg('arMessage', ''); $('dlgArticle').showModal();
+}
+function majFichiersArticle() {
+  const a = CT.edition;
+  $('arPhotoApercu').hidden = !a.photo; if (a.photo) $('arPhotoApercu').src = a.photo;
+  for (const [k, id] of [['brochure', 'arBrochureLien'], ['notice', 'arNoticeLien']]) { $(id).hidden = !a[k]; if (a[k]) { $(id).href = a[k]; $(id).textContent = 'Voir le PDF'; } }
+}
+async function deposerFichierCatalogue(blob, ext, type) {
+  const cle = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+  const marque = ($('arMarque').value || 'divers').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const chemin = `emargement/catalogue/${marque}/${cle}.${ext}`;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/bon-photos/${chemin}`, { method: 'POST', headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': type }, body: blob });
+  if (!r.ok) throw new Error('Envoi du fichier impossible.');
+  return `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`;
+}
+$('arPhoto').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  msg('arMessage', 'Envoi de la photo…', false);
+  try { const url = await PS.photoCompressee(f, 900, 0.85); CT.edition.photo = await deposerFichierCatalogue(await (await fetch(url)).blob(), 'jpg', 'image/jpeg'); majFichiersArticle(); msg('arMessage', 'Photo envoyée : pensez à « Enregistrer ».', false); }
+  catch (err) { msg('arMessage', err.message || 'Photo illisible.'); }
+};
+for (const [k, input] of [['brochure', 'arBrochure'], ['notice', 'arNotice']]) {
+  $(input).onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') return msg('arMessage', 'Choisissez un PDF.');
+    msg('arMessage', 'Envoi du PDF…', false);
+    try { CT.edition[k] = await deposerFichierCatalogue(f, 'pdf', 'application/pdf'); majFichiersArticle(); msg('arMessage', 'PDF envoyé : pensez à « Enregistrer ».', false); }
+    catch (err) { msg('arMessage', err.message); }
+  };
+}
+$('arPhotoRetirer').onclick = () => { CT.edition.photo = ''; majFichiersArticle(); };
+$('arBrochureRetirer').onclick = () => { CT.edition.brochure = ''; majFichiersArticle(); };
+$('arNoticeRetirer').onclick = () => { CT.edition.notice = ''; majFichiersArticle(); };
+$('formArticle').onsubmit = async e => {
+  e.preventDefault();
+  const a = CT.edition;
+  const p = { id: a.id || '', marque: $('arMarque').value.trim(), ref: $('arRef').value.trim(), type: $('arType').value, nom: $('arNom').value.trim(),
+    argument: $('arArgument').value.trim(), points: $('arPoints').value.split('\n').map(x => x.trim()).filter(Boolean), prix_ht: $('arPrix').value, tva: $('arTva').value,
+    photo: a.photo || '', notice: a.notice || '', brochure: a.brochure || '', ordre: $('arOrdre').value, actif: $('arActif').checked };
+  try { await appel('ps_admin_catalogue_enregistrer', { p }, 'arMessage'); $('dlgArticle').close(); toast('Article enregistré.'); $('caMarque').value = p.marque; await chargerCatalogue(); } catch {}
+};
 
 // ---------- Syndics ----------
 const nomSyndic = id => (A.etat.syndics.find(s => s.id === id) || {}).nom || '';
@@ -794,7 +904,10 @@ async function rendreEmargementAdmin(c) {
   if (c.type !== 'complet') return;
   EM.c = c; EM.app = null; msg('emMsg', '');
   const lie = !!c.chantier_id;
-  $('emActions').innerHTML = `<button type="button" class="btn ${lie ? '' : 'btn-or'}" id="emCreer">${lie ? 'Mettre à jour le chantier de l’app' : 'Créer le chantier dans l’app d’émargement'}</button>`
+  const e = A.etat.copros.find(x => x.id === c.id) || {}, nTot = e.nb_logements_saisis || 0, nRdv = e.nb_rdv || 0;
+  const rdvComplets = nTot > 0 && nRdv >= nTot;
+  $('emActions').innerHTML = `<button type="button" class="btn ${lie ? '' : 'btn-or'}" id="emCreer" ${lie || rdvComplets ? '' : 'disabled'}>${lie ? 'Mettre à jour le chantier de l’app' : 'Générer le chantier d’émargement'}</button>`
+    + (lie || rdvComplets ? '' : ` <span class="pastille attente">Disponible quand tous les rendez-vous sont pris (${nRdv} / ${nTot})</span>`)
     + (lie ? ' <a class="btn btn-discret" href="index.html">Ouvrir l’app d’émargement</a>' : '');
   $('emCreer').onclick = async () => { $('emCreer').disabled = true; try { await creerOuMajChantierApp(); } finally { $('emCreer').disabled = false; } };
   $('emListe').innerHTML = '';
@@ -1032,9 +1145,32 @@ $('caIcs').onclick = () => {
 // Avancement du chantier et jalons validés par Harmonie (étiquettes posées, campagne d'information).
 function rendreAvancementAdmin(c, k) {
   const e = A.etat.copros.find(x => x.id === c.id) || {};
-  $('dFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k, nb_logements_saisis: e.nb_logements_saisis, nb_invites: e.nb_invites, nb_commandes: e.nb_commandes, nb_rdv: e.nb_rdv });
+  $('dFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k, nb_logements_saisis: e.nb_logements_saisis, nb_invites: e.nb_invites, nb_commandes: e.nb_commandes, nb_rdv: e.nb_rdv, nb_emarges: e.nb_emarges });
   if (c.type !== 'complet') { $('dJalons').innerHTML = ''; return; }
-  const rec = c.recensement || {}, camp = c.campagne || {};
+  const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {};
+  const n = e.nb_logements_saisis || 0, nc = e.nb_commandes || 0, nr = e.nb_rdv || 0;
+  const aller = id => () => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Raccourci : la prochaine action d'Harmonie, en doré, juste au-dessus de la barre d'avancement.
+  let action = null, attente = '';
+  if (!rec.etiquettes_le) action = ['Valider la pose des étiquettes', async () => jalon('etiquettes', true)];
+  else if (rec.etape !== 'pret') attente = 'En attente du fichier des copropriétaires (gestionnaire).';
+  else if (!so.ouvert_le) attente = 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).';
+  else if (!(so.clos_le || (n && nc >= n))) attente = `Recensement en cours : ${nc} / ${n} signés.`;
+  else if (!fo.envoyee_le) action = ['Commander le matériel', aller('dFourniture')];
+  else if (!fo.recu_le) action = ['Matériel reçu', async () => jalon('fourniture_recue', true)];
+  else if (!(camp.jours || []).length) action = ['Planifier la campagne d’information', aller('dCampagne')];
+  else if (!camp.envoyee_le) action = ['Envoyer la campagne d’information', aller('caEnvoiAdmin')];
+  else if (n && nr < n) attente = `Campagne envoyée : ${nr} / ${n} rendez-vous pris.`;
+  else if (!c.chantier_id) action = ['Générer le chantier d’émargement', async () => { await creerOuMajChantierApp(); }];
+  else if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) attente = 'Installation en cours : l’émargement remonte de l’app.';
+  else if (!(c.facture || {}).url) action = ['Déposer la facture', () => $('emFichierFacture').click()];
+  async function jalon(j, fait) { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: fait, p_info: '' }); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {} }
+  $('dJalons').innerHTML = (action ? `<button type="button" class="btn btn-or" id="dActionSuivante" style="min-height:52px;padding:0 26px;font-size:13px">${esc(action[0])}</button>` : '')
+    + (attente ? `<span class="pastille attente">${esc(attente)}</span>` : '')
+    + (rec.etiquettes_le ? ` <button type="button" class="btn btn-petit btn-discret" data-jalon="etiquettes" data-fait="0" title="Annuler cette validation">✓ Étiquettes validées le ${esc(dateCourte(rec.etiquettes_le))}</button>` : '');
+  if (action) $('dActionSuivante').onclick = action[1];
+  $('dJalons').querySelectorAll('[data-jalon]').forEach(b => b.onclick = async () => { if (confirm('Annuler la validation des étiquettes ?')) jalon('etiquettes', false); });
+  return;
   const jalons = [
     ['etiquettes', rec.etiquettes_le, 'Valider la pose des étiquettes', 'Étiquettes validées le '],
   ];

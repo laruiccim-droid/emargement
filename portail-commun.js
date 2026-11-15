@@ -34,6 +34,7 @@ const PS = (() => {
     ARTICLE_INCONNU: 'Un article choisi n’est plus proposé : rechargez la page.',
     SIGNATURE_INVALIDE: 'Signez dans le cadre prévu.',
     TELEPHONE_OBLIGATOIRE: 'Indiquez votre numéro de téléphone.',
+    ETIQUETTES_A_VALIDER: 'Le recensement commence quand Harmonie Électricité a validé la pose des étiquettes de numérotation.',
     CRENEAU_INDISPONIBLE: 'Ce créneau n’est plus proposé : choisissez-en un autre.',
     CRENEAU_COMPLET: 'Ce créneau vient d’être pris : choisissez-en un autre.',
   };
@@ -223,11 +224,11 @@ const PS = (() => {
           attente: 'En attente de la pose des étiquettes de numérotation des appartements (validation Harmonie)' },
         { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
           enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')} saisi${n > 1 ? 's' : ''})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
-        { cle: 'sondage', titre: 'Sondage envoyé', fait: so.clos_le || (n && ni >= n) ? 1 : so.ouvert_le && n ? ni / n : 0,
-          enCours: `Envoi du sondage : ${ni} / ${n} copropriétaires invités`, attente: 'Sondage à envoyer aux copropriétaires' },
-        { cle: 'reponses', titre: 'Réponses des copropriétaires', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
-          enCours: `Sondage en cours : ${nc} / ${n} bons de commande signés`, attente: 'En attente des réponses au sondage' },
-        { cle: 'commande', titre: 'Commande envoyée au fournisseur', fait: fo.envoyee_le || commande ? 1 : 0, attente: 'Listing du matériel à envoyer au fournisseur' },
+        { cle: 'sondage', titre: 'Recensement envoyé aux copropriétaires', fait: so.clos_le || (n && ni >= n) ? 1 : so.ouvert_le && n ? ni / n : 0,
+          enCours: `Envoi du recensement : ${ni} / ${n} copropriétaires`, attente: 'Recensement à envoyer aux copropriétaires' },
+        { cle: 'reponses', titre: 'Recensements signés par les copropriétaires', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
+          enCours: `Recensement en cours : ${nc} / ${n} signés`, attente: 'En attente des réponses des copropriétaires' },
+        { cle: 'commande', titre: 'Commande envoyée au fournisseur', fait: fo.envoyee_le || commande ? 1 : 0, attente: 'En attente de la commande du matériel par Harmonie Électricité' },
         { cle: 'reception', titre: 'Matériel reçu', fait: fo.recu_le || surSite ? 1 : 0, attente: 'En attente de la livraison du matériel' },
         { cle: 'campagne', titre: 'Campagne d’information (date d’intervention, affichage)', fait: camp.planifiee_le || (camp.jours || []).length || surSite ? 1 : 0,
           attente: 'Planification de la campagne d’information : date d’intervention et feuille d’affichage' },
@@ -404,7 +405,7 @@ const PS = (() => {
     });
     y += 3;
     doc.setFillColor(247, 244, 238); doc.rect(M, y, W - 2 * M, 16, 'F');
-    const att = doc.splitTextToSize(`Je soussigné(e) ${[k.prenom, k.nom].filter(Boolean).join(' ')} confirme le choix du matériel ci-dessus pour mon appartement, dans le cadre du remplacement du système d’interphonie de la résidence. Ce matériel est facturé au syndic de copropriété, qui le répartit sur le compte du copropriétaire. TVA à taux réduit (10 %) applicable aux travaux dans les logements de plus de deux ans.`, W - 2 * M - 8);
+    const att = doc.splitTextToSize(`Je soussigné(e) ${[k.prenom, k.nom].filter(Boolean).join(' ')} confirme le choix du matériel ci-dessus pour mon appartement, dans le cadre du remplacement du système d’interphonie de la résidence. Ce montant vous sera facturé par votre syndic de copropriété. TVA à taux réduit (10 %) applicable aux travaux dans les logements de plus de deux ans.`, W - 2 * M - 8);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(...GRIS); doc.text(att, M + 4, y + 5); y += 22;
     T('LE COPROPRIÉTAIRE · BON POUR ACCORD', M, y, { s: 7.5, b: true, c: OR }); T([k.prenom, k.nom].filter(Boolean).join(' '), M, y + 5, { s: 10 });
     const bw = 90, bh = 40; doc.setDrawColor(...FILET); doc.setLineWidth(0.3); doc.rect(M, y + 8, bw, bh);
@@ -465,9 +466,11 @@ const PS = (() => {
     T(lien, W / 2, y, { s: 8.5, c: GRIS, al: 'center' }); y += 11;
     const txt = [
       'Locataires et occupants : indiquez votre nom, votre téléphone et le numéro de votre appartement (étiquette blanche collée sur le cadre de votre porte), puis choisissez un créneau.',
-      'Une personne majeure doit être présente pendant le rendez-vous.',
+      'Une personne majeure doit être présente pendant le rendez-vous. Vous ne pouvez pas être là ? Demandez à un voisin ou à une personne de confiance de vous représenter : pensez à vous dépanner entre voisins !',
     ];
     txt.forEach(t => { doc.setFont('helvetica', 'normal'); doc.setFontSize(12.5); doc.setTextColor(...ENC); const l = doc.splitTextToSize(t, W - 2 * M - 6); doc.text(l, W / 2, y, { align: 'center' }); y += l.length * 6 + 3; });
+    { y += 1; doc.setDrawColor(...ROUGE); doc.setLineWidth(0.6); doc.roundedRect(M, y, W - 2 * M, 14, 2, 2);
+      T('En cas d’absence au rendez-vous, le nouveau déplacement sera facturé 50 € TTC.', W / 2, y + 9, { s: 12, b: true, c: ROUGE, al: 'center' }); y += 19; }
     if (vigikSeul) {
       y += 2; doc.setDrawColor(...ROUGE); doc.setLineWidth(0.6); doc.roundedRect(M, y, W - 2 * M, 16, 2, 2);
       T('Après l’intervention, les anciens badges ne fonctionneront plus.', W / 2, y + 10, { s: 13, b: true, c: ROUGE, al: 'center' }); y += 22;
@@ -476,6 +479,65 @@ const PS = (() => {
     doc.setDrawColor(...OR); doc.setLineWidth(0.4); doc.line(M, y, W - M, y); y += 7;
     T(`Sans téléphone ? Appelez ${ENTREPRISE.nom} au ${ENTREPRISE.tel}${d.syndic?.nom ? ' ou votre syndic, ' + d.syndic.nom + (d.syndic.tel ? ' (' + d.syndic.tel + ')' : '') : ''}.`, W / 2, y, { s: 11, c: GRIS, al: 'center', mw: W - 2 * M });
     return doc.output('blob');
+  }
+
+  // ---------- Lettres de recensement (courrier, ou pièce jointe de l'e-mail) : une page par copropriétaire ----------
+  async function pdfLettresRecensement(d, logements, lien) {
+    const JsPDF = await jsPdf();
+    if (!window.qrcode) await chargerScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js');
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = 210, M = 20, ENC = [23, 24, 28], GRIS = [90, 86, 78], OR = [168, 132, 63];
+    const c = d.copro || {};
+    const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 12); doc.setTextColor(...(o.c || ENC)); doc.text(t, x, y, o.al ? { align: o.al } : undefined); };
+    logements.forEach((l, i) => {
+      if (i) doc.addPage();
+      let y = 18;
+      if (typeof LOGO_NOIR_OR !== 'undefined') { try { doc.addImage(LOGO_NOIR_OR, 'PNG', M, y - 4, 44, 44 * LOGO_NOIR_OR_RATIO); } catch {} }
+      T(d.syndic?.nom || '', W - M, y + 2, { s: 10, c: GRIS, al: 'right' });
+      y += 34;
+      T(l.nom || 'Madame, Monsieur', M, y, { s: 13, b: true }); y += 6;
+      T([l.lot && 'Lot n° ' + l.lot, c.nom].filter(Boolean).join(' — '), M, y, { s: 11, c: GRIS }); y += 16;
+      T(c.travaux === 'vigik' ? 'Installation du contrôle d’accès : vos badges' : 'Remplacement de l’interphone : choisissez votre poste', M, y, { s: 17, b: true }); y += 10;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(...ENC);
+      const msg = doc.splitTextToSize((d.sondage?.texte || d.texte || '') + '\n\nScannez le QR code ci-dessous avec l’appareil photo de votre téléphone (ou ouvrez le lien) : vous verrez les modèles proposés avec leurs prix, puis vous signerez votre choix sur votre téléphone. Cela prend deux minutes.', W - 2 * M);
+      doc.text(msg, M, y); y += msg.length * 5.6 + 8;
+      const q = window.qrcode(0, 'M'); q.addData(lien(l)); q.make();
+      const n = q.getModuleCount(), taille = 70, cell = taille / n, x0 = W / 2 - taille / 2;
+      doc.setFillColor(0, 0, 0);
+      for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) if (q.isDark(a, b)) doc.rect(x0 + b * cell, y + a * cell, cell + 0.02, cell + 0.02, 'F');
+      y += taille + 7;
+      T(lien(l), W / 2, y, { s: 8.5, c: GRIS, al: 'center' }); y += 14;
+      T('Ce lien est personnel : il ne concerne que votre lot.', W / 2, y, { s: 10.5, c: GRIS, al: 'center' });
+      doc.setDrawColor(...OR); doc.setLineWidth(0.4); doc.line(M, 272, W - M, 272);
+      T(`Une question ? ${ENTREPRISE.nom} — ${ENTREPRISE.tel}${d.syndic?.nom ? ' • ' + d.syndic.nom : ''}`, W / 2, 279, { s: 10, c: GRIS, al: 'center' });
+    });
+    return doc.output('blob');
+  }
+
+  // ---------- Envoi par le service Gmail d'Harmonie (le même que l'app d'émargement) ----------
+  const ENVOI_GMAIL_URL = 'https://send-email-harmonie.harmonie-electricite.workers.dev';
+  let jetonGmail = null;
+  async function envoiGmail(dest, objet, texte, blob, nom) {
+    try {
+      if (!jetonGmail) {
+        const r = await fetch(SUPA_URL + '/rest/v1/notes?id=eq.he_gcal_refresh&select=payload', { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } });
+        jetonGmail = r.ok ? (await r.json())[0]?.payload?.refresh_token : null;
+      }
+      if (!jetonGmail) return 'autorisation Google introuvable';
+      const b64 = blob ? await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(blob); }) : undefined;
+      const rep = await fetch(ENVOI_GMAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: jetonGmail, to: dest, subject: objet, bodyText: texte, pdfBase64: b64, pdfFilename: nom }) }).catch(() => null);
+      if (!rep) return 'pas de connexion au service d’envoi';
+      const res = await rep.json().catch(() => null);
+      return res && res.success ? '' : String(res?.error?.message || res?.message || 'erreur ' + rep.status).slice(0, 140);
+    } catch (e) { return e.message || 'erreur'; }
+  }
+
+  // Lien « Ajouter à Google Agenda » (ouvre Google Agenda avec l'événement prérempli).
+  function lienGoogleAgenda(v) {
+    const d = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(v.titre) + '&dates=' + d(v.debut) + '/' + d(v.fin)
+      + '&details=' + encodeURIComponent(v.description || '') + '&location=' + encodeURIComponent(v.lieu || '');
   }
 
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
@@ -522,5 +584,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

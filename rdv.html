@@ -64,7 +64,8 @@
 
     <div class="bloc">
       <h2><span class="n">1</span>Choisissez un créneau</h2>
-      <p class="doux">Une personne majeure doit être présente dans l’appartement pendant toute la durée du créneau.</p>
+      <p class="doux">Une personne majeure doit être présente dans l’appartement pendant toute la durée du créneau. Vous ne pouvez pas être là ? Demandez à un voisin ou à une personne de confiance de vous représenter.</p>
+      <div class="alerte" style="margin-top:10px"><b>En cas d’absence au rendez-vous, le nouveau déplacement sera facturé 50 € TTC.</b></div>
       <div id="creneaux"></div>
     </div>
 
@@ -93,12 +94,14 @@
     <h1>Rendez-vous confirmé</h1>
     <p class="grand" id="merciQuand"></p>
     <p class="intro" id="merciTexte"></p>
-    <p style="margin-top:22px"><button type="button" class="btn plein" id="agenda">Ajouter à mon agenda</button></p>
+    <p class="alerte" style="text-align:left;max-width:560px;margin:14px auto 0">En cas d’absence, le nouveau déplacement sera facturé 50 € TTC. Empêché ? Une personne de confiance peut vous représenter.</p>
+    <p style="margin-top:22px"><a class="btn plein" id="agendaGoogle" target="_blank" rel="noopener">Ajouter à Google Agenda</a></p>
+    <p><button type="button" class="btn" id="agenda">Autre agenda (Outlook, iPhone…)</button></p>
     <p><button type="button" class="btn" id="changer">Changer de créneau</button></p>
   </section>
 </main>
 
-<script src="portail-commun.js?v=16"></script>
+<script src="portail-commun.js?v=17"></script>
 <script>
 'use strict';
 const { rpc, $, esc } = PS;
@@ -158,6 +161,9 @@ $('valider').onclick = async () => {
       telephone: $('tel').value.trim(), email: $('email').value.trim(), numero_appt: $('numeroAppt').value.trim() } });
     R.rdv = r;
     $('merciQuand').textContent = fmtCreneau(r);
+    const c = R.d.copro;
+    $('agendaGoogle').href = PS.lienGoogleAgenda({ debut: r.debut, fin: r.fin, titre: 'Installation interphone — Harmonie Électricité', lieu: [c.adresse, c.cp, c.ville].filter(Boolean).join(' '),
+      description: 'Intervention d’Harmonie Électricité dans votre appartement. Une personne majeure doit être présente. Contact : ' + PS.ENTREPRISE.tel });
     $('merciTexte').textContent = 'Merci de prévoir une personne présente dans l’appartement. Le technicien d’Harmonie Électricité se présentera pendant ce créneau.'
       + (R.d.mode === 'affiche' && !r.rattache ? ' Votre syndic vérifiera le numéro d’appartement indiqué.' : '');
     montrer('merci');

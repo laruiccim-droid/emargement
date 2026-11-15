@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#F7F4EE">
 <link rel="icon" href="assets/icone-192.png">
-<title>Choix de votre interphone · Harmonie Électricité</title>
+<title>Recensement · choix de votre interphone · Harmonie Électricité</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
 <style>
   /* Page lue par des copropriétaires de tous âges : fond clair, grands caractères, gros boutons, fort contraste. */
@@ -142,24 +142,33 @@
         <div><label for="tel">Téléphone <span class="ob">*</span></label><input type="tel" id="tel" autocomplete="tel" inputmode="tel"></div>
         <div><label for="email">E-mail</label><input type="email" id="email" autocomplete="email" inputmode="email" autocapitalize="off"></div>
       </div>
-      <label for="numeroAppt">N° de l’appartement <span class="ob" id="numeroOb">*</span></label>
-      <input type="text" id="numeroAppt" style="max-width:220px">
-      <p class="doux" style="font-size:16px">C’est le numéro de l’<b>étiquette blanche</b> collée sur le cadre de votre porte d’entrée.</p>
+      <div id="blocNumero">
+        <label for="numeroAppt">N° de l’appartement <span class="ob" id="numeroOb">*</span></label>
+        <input type="text" id="numeroAppt" style="max-width:220px">
+        <p class="doux" style="font-size:16px">C’est le numéro de l’<b>étiquette blanche</b> collée sur le cadre de votre porte d’entrée.</p>
+      </div>
     </div>
 
     <div class="bloc">
       <h2><span class="n" data-num></span>Récapitulatif</h2>
       <table class="recap" id="recap"></table>
-      <p class="doux" style="font-size:16px">Prix toutes taxes comprises (TVA 10 %), pose comprise. Le montant est facturé au syndic, qui le répartit sur votre compte de copropriétaire.</p>
+      <p class="doux" style="font-size:16px">Prix toutes taxes comprises (TVA 10 %), pose comprise. <b>C’est votre syndic qui vous facturera ce montant.</b></p>
     </div>
 
     <div class="bloc">
       <h2><span class="n" data-num></span>Signature</h2>
+      <div id="signOrdi" hidden>
+        <p>Pour signer, utilisez votre <b>téléphone</b> : touchez « Signer sur mon téléphone », puis scannez le QR code avec l’appareil photo. Vos choix vous y attendent.</p>
+        <button type="button" class="btn plein large" id="versTel">Signer sur mon téléphone</button>
+        <div id="qrTel" class="fin" hidden><div id="qrTelImg" style="margin:16px auto;width:240px"></div><p class="doux">En attente de votre signature sur le téléphone… Cette page se mettra à jour toute seule.</p></div>
+      </div>
+      <div id="signTel">
       <p>Signez avec le doigt dans le cadre ci-dessous.</p>
       <div class="papier"><canvas id="pad"></canvas><span>Signature</span></div>
       <p style="text-align:right;margin:6px 0 0"><button type="button" class="btn" id="effacer" style="min-height:46px;font-size:16px">Effacer</button></p>
       <label class="case"><input type="checkbox" id="accord"> J’ai vérifié mon choix : je commande ce matériel pour mon appartement.</label>
       <button type="button" class="btn plein large" id="signer" style="margin-top:18px">Signer mon bon de commande</button>
+      </div>
       <p class="message" id="message" role="status"></p>
     </div>
   </section>
@@ -176,12 +185,14 @@
 </main>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=16"></script>
+<script src="portail-commun.js?v=17"></script>
 <script>
 'use strict';
 const { rpc, $, esc, dateCourte, euros } = PS;
 const jeton = new URLSearchParams(location.search).get('j') || '';
 const E = { d: null, qte: {}, plaque: null, badges: 0, qualite: '', bon: null };
+// Ordinateur (souris) : la signature se fait sur le téléphone ; écran tactile : signature au doigt sur place.
+const surOrdinateur = !window.matchMedia('(pointer: coarse)').matches;
 let pad = null;
 
 function montrer(id) { ['chargement', 'erreur', 'formulaire', 'merci'].forEach(x => $(x).hidden = x !== id); window.scrollTo({ top: 0 }); }
@@ -210,7 +221,13 @@ async function charger() {
   const k = d.commande;
   $('nom').value = k?.nom || ''; $('prenom').value = k?.prenom || ''; $('tel').value = k?.telephone || l.telephone || '';
   $('email').value = k?.email || (l.emails || [])[0] || ''; $('numeroAppt').value = k?.numero_appt || l.numero || '';
-  if (k) {
+  // Choix faits sur l'ordinateur et gardés pour la signature sur le téléphone.
+  const br = d.brouillon;
+  if (br && (!k || new Date(br.le) > new Date(k.signe_le))) {
+    E.qte = br.qte || {}; E.plaque = br.plaque ?? null; E.badges = br.badges || 0; E.qualite = br.qualite || '';
+    ['nom', 'prenom', 'tel', 'email', 'numeroAppt'].forEach(id => { if (br[id] != null) $(id).value = br[id]; });
+    if (!surOrdinateur) { $('dejaSigne').hidden = false; $('dejaSigne').innerHTML = 'Vos choix faits sur l’ordinateur ont été repris : vérifiez-les puis <b>signez en bas de la page</b>.'; }
+  } else if (k) {
     for (const x of k.lignes) { if (x.type === 'plaque') E.plaque = true; else if (x.type === 'badge') E.badges = x.qte; else E.qte[x.ref] = x.qte; }
     if (E.plaque === null && plaque()) E.plaque = false;
     E.qualite = k.qualite;
@@ -225,7 +242,9 @@ async function charger() {
   $('blocPostes').hidden = !avecInterphone();
   rendreModeles(); rendrePlaque(); rendreBadges(); rendreQualite(); numeroter(); rendreRecap();
   montrer('formulaire');
+  $('signOrdi').hidden = !surOrdinateur; $('signTel').hidden = surOrdinateur;
   pad = PS.pad($('pad')); setTimeout(() => pad.taille(), 50);
+  if (!surOrdinateur && br) setTimeout(() => $('signTel').scrollIntoView({ behavior: 'smooth', block: 'center' }), 600);
 }
 
 // Postes regroupés : audio, vidéo, vidéo connectée.
@@ -243,7 +262,7 @@ function rendreModeles() {
         ${a.argument ? `<p class="arg">${esc(a.argument)}</p>` : ''}
         <ul>${(a.points || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
         <div class="prix">${esc(euros(ttc(a)))} <small>TTC, pose comprise</small></div>
-        ${a.notice ? `<a class="notice" href="${esc(a.notice)}" target="_blank" rel="noopener">Voir la notice (PDF)</a>` : ''}
+        ${a.brochure ? `<a class="notice" href="${esc(a.brochure)}" target="_blank" rel="noopener">Voir la brochure (PDF)</a>` : ''}
         ${q ? `<div class="qte"><button type="button" class="rond" data-moins="${esc(a.ref)}" aria-label="Un poste de moins">−</button><b>${q} poste${q > 1 ? 's' : ''}</b><button type="button" class="rond" data-plus="${esc(a.ref)}" aria-label="Un poste de plus">+</button></div>`
           : `<button type="button" class="btn plein choisir" data-choisir="${esc(a.ref)}">Je choisis ce modèle</button>`}
       </div>`;
@@ -265,7 +284,7 @@ function rendrePlaque() {
 }
 function rendreBadges() {
   const b = badge(); $('blocBadges').hidden = !b; if (!b) return;
-  $('badgeTexte').textContent = `Badge de proximité Vigik pour ouvrir les portes de la résidence${E.d.copro.travaux === 'vigik' ? '' : ''}. Indiquez combien de badges ${E.d.copro.travaux === 'vigik' ? 'vous souhaitez' : 'supplémentaires vous souhaitez'}.`;
+  $('badgeTexte').textContent = 'Badge de proximité Vigik pour ouvrir les portes de la résidence. Indiquez combien de badges vous souhaitez.';
   $('badgePrix').innerHTML = `${esc(euros(ttc(b)))} <small>TTC le badge</small>`;
   $('badgeQte').textContent = E.badges + ' badge' + (E.badges > 1 ? 's' : '');
 }
@@ -273,7 +292,7 @@ $('badgeMoins').onclick = () => { E.badges = Math.max(0, E.badges - 1); maj(); }
 $('badgePlus').onclick = () => { E.badges = Math.min(20, E.badges + 1); maj(); };
 function rendreQualite() {
   document.querySelectorAll('[data-qualite]').forEach(b => { b.setAttribute('aria-pressed', E.qualite === b.dataset.qualite); b.onclick = () => { E.qualite = b.dataset.qualite; rendreQualite(); }; });
-  $('numeroOb').hidden = E.qualite === 'bailleur';
+  $('blocNumero').hidden = E.qualite === 'bailleur';
 }
 function numeroter() { let n = 0; document.querySelectorAll('#formulaire .bloc').forEach(bl => { if (bl.hidden) return; n++; const s = bl.querySelector('.n'); if (s) s.textContent = n; }); }
 function lignes() {
@@ -291,6 +310,30 @@ function maj() { const y = window.scrollY; rendreModeles(); rendrePlaque(); rend
 $('effacer').onclick = () => pad.effacer();
 
 function message(t, err = true) { $('message').textContent = t; $('message').className = 'message' + (err ? ' erreur' : ''); }
+// Contrôles communs (ordinateur et téléphone) avant la signature.
+function controler() {
+  if (avecInterphone() && !nbPostes()) return 'Choisissez d’abord votre poste (étape 1).';
+  if (plaque() && avecInterphone() && E.plaque === null) return 'Indiquez si vous voulez la plaque de propreté.';
+  if (!E.qualite) return 'Indiquez si vous êtes propriétaire occupant ou bailleur.';
+  for (const [id, t] of [['nom', 'votre nom'], ['prenom', 'votre prénom'], ['tel', 'votre téléphone']]) if (!$(id).value.trim()) { $(id).focus(); return 'Indiquez ' + t + '.'; }
+  if (E.qualite === 'occupant' && !$('numeroAppt').value.trim()) { $('numeroAppt').focus(); return 'Indiquez le numéro de votre appartement (étiquette blanche sur la porte).'; }
+  if (!lignes().length) return 'Votre choix est vide.';
+  return '';
+}
+$('versTel').onclick = async () => {
+  const err = controler(); if (err) return message(err);
+  $('versTel').disabled = true; message('Préparation…', false);
+  try {
+    await rpc('ps_sondage_brouillon', { p_jeton: jeton, p: { qte: E.qte, plaque: E.plaque, badges: E.badges, qualite: E.qualite, nom: $('nom').value.trim(), prenom: $('prenom').value.trim(),
+      tel: $('tel').value.trim(), email: $('email').value.trim(), numeroAppt: $('numeroAppt').value.trim() } });
+    $('qrTelImg').innerHTML = await PS.qrSvg(location.href.split('#')[0], 240); $('qrTel').hidden = false; $('versTel').hidden = true; message('', false);
+    // On attend la signature faite sur le téléphone.
+    const debut = E.d.commande?.signe_le || '';
+    const t = setInterval(async () => {
+      try { const d = await rpc('ps_sondage_lire', { p_jeton: jeton }); if (d.commande && d.commande.signe_le !== debut) { clearInterval(t); E.d = d; afficherMerci({ ...d.commande, copro: d.copro, logement: d.logement }, false); } } catch {}
+    }, 4000);
+  } catch (e) { message(e.message || 'Impossible de préparer la signature.'); $('versTel').disabled = false; }
+};
 $('signer').onclick = async () => {
   if (avecInterphone() && !nbPostes()) return message('Choisissez d’abord votre poste (étape 1).');
   if (plaque() && avecInterphone() && E.plaque === null) return message('Indiquez si vous voulez la plaque de propreté.');
@@ -304,7 +347,7 @@ $('signer').onclick = async () => {
   try {
     const k = await rpc('ps_sondage_signer', { p_jeton: jeton, p: {
       lignes: lignes().map(x => ({ ref: x.a.ref, qte: x.q })), nom: $('nom').value.trim(), prenom: $('prenom').value.trim(), telephone: $('tel').value.trim(),
-      email: $('email').value.trim(), numero_appt: $('numeroAppt').value.trim(), qualite: E.qualite, signature: pad.image(), navigateur: navigator.userAgent } });
+      email: $('email').value.trim(), numero_appt: E.qualite === 'bailleur' ? '' : $('numeroAppt').value.trim(), qualite: E.qualite, signature: pad.image(), navigateur: navigator.userAgent } });
     E.d.commande = k; afficherMerci(k, false);
   } catch (e) { message(e.message || 'L’enregistrement a échoué : vérifiez votre connexion puis réessayez.'); }
   finally { $('signer').disabled = false; }

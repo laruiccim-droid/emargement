@@ -162,6 +162,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfertG">Transférer à un collègue</button><button type="button" class="btn btn-or" id="btnNouvelleRemise">+ Remettre des badges</button></div>
     </div>
     <div class="bloc" id="coTransfert" hidden></div>
+    <div class="bloc" id="coAlerteRatt" hidden style="border-color:#D9A35B;background:rgba(217,163,91,.10)"></div>
     <div class="bloc" id="coRecensement" hidden>
       <h2>Préparation du chantier</h2>
       <ol class="parcours" id="coParcours"></ol>
@@ -190,7 +191,7 @@
   <section id="vRecensement" hidden>
     <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
     <div class="sourcil" style="margin-top:8px" id="rcCopro"></div>
-    <h1>Recensement des logements</h1>
+    <h1>Fichier des copropriétaires</h1>
     <p class="intro">Listez chaque appartement avec son n° de lot et les coordonnées du propriétaire (le numéro d’appartement sera donné par le copropriétaire dans sa réponse au sondage). Ces informations serviront au sondage des copropriétaires, aux rendez-vous et à l’émargement.</p>
 
     <div class="bloc">
@@ -224,7 +225,6 @@
 
     <div class="bloc">
       <h2 id="rcTitreFin">3 · Validation</h2>
-      <div class="rappel">Avant l’envoi du sondage, une <b>étiquette blanche numérotée</b> doit être collée sur l’huisserie de chaque porte palière, avec le même numéro que dans la liste ci-dessus. C’est ce numéro que les copropriétaires et les locataires indiqueront. Harmonie Électricité valide la pose des étiquettes.</div>
       <div class="actions">
         <button type="button" class="btn" id="rcEnregistrer">Enregistrer le brouillon</button>
         <button type="button" class="btn btn-or" id="rcValider">Valider le recensement</button>
@@ -237,28 +237,30 @@
   <section id="vSondage" hidden>
     <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
     <div class="sourcil" style="margin-top:8px" id="soCopro"></div>
-    <h1>Sondage des copropriétaires</h1>
+    <h1>Recensement des copropriétaires</h1>
 
     <div class="bloc" id="soPreparer" hidden>
       <h2>Avant l’envoi</h2>
       <p class="aide" style="margin-top:0">Chaque copropriétaire reçoit un lien personnel : il choisit son poste, la plaque de propreté et ses badges, donne ses coordonnées et signe son bon de commande. Les prix affichés sont ceux du devis.</p>
-      <label for="soTexte">Message d’accueil du sondage</label>
+      <label for="soTexte">Message d’accueil du recensement</label>
       <textarea id="soTexte" rows="4"></textarea>
       <label>Matériel proposé</label>
       <ul class="liste" id="soArticles"></ul>
-      <div class="actions"><button type="button" class="btn btn-or" id="soOuvrir">Ouvrir le sondage</button></div>
+      <div class="actions"><button type="button" class="btn btn-or" id="soOuvrir">Préparer l’envoi aux copropriétaires</button></div>
       <p class="message" id="soMessage" role="status"></p>
     </div>
 
     <div id="soSuivi" hidden>
       <div class="tuiles" id="soTuiles" style="margin-top:14px"></div>
       <div class="bloc">
-        <h2>Envoyer les liens</h2>
-        <p class="aide" style="margin-top:0">Envoyez à chacun son lien depuis votre messagerie ou par SMS, ou montrez le QR code. Le propriétaire peut modifier son choix avec le même lien tant que le sondage est ouvert.</p>
+        <h2>Envoyer le recensement aux copropriétaires</h2>
+        <p class="aide" style="margin-top:0">Choisissez pour chacun le mode d’envoi : <b>e-mail</b> (envoyé automatiquement avec sa lettre personnelle), <b>courrier</b> (lettre à imprimer, avec son QR code) ou <b>QR code</b> à lui montrer. Le copropriétaire peut modifier son choix avec le même lien tant que le recensement est ouvert.</p>
         <div class="actions">
+          <button type="button" class="btn btn-or" id="soEnvoyerTous">Envoyer le recensement</button>
           <button type="button" class="btn btn-petit" id="soCopierTous">Copier tous les liens</button>
           <button type="button" class="btn btn-petit" id="soClore"></button>
         </div>
+        <p class="message" id="soEnvoiMsg" role="status"></p>
         <input type="search" id="soRecherche" placeholder="Rechercher un appartement, un nom…" style="margin-top:12px">
         <ul class="liste" id="soListe"></ul>
       </div>
@@ -437,6 +439,13 @@
   <p class="message" id="tgMessage"></p>
 </form></dialog>
 
+<dialog id="dlgRattAlerte"><div class="dlg">
+  <div class="sourcil">Action requise</div><h3>Locataires à rattacher à un propriétaire</h3>
+  <p>Des locataires ont pris rendez-vous sans que leur appartement soit reconnu. Rattachez-les à leur propriétaire pour que le chantier puisse continuer :</p>
+  <ul class="liste" id="raListe"></ul>
+  <div class="actions"><button type="button" class="btn btn-discret" id="raPlusTard">Plus tard</button></div>
+</div></dialog>
+
 <dialog id="dlgAnnuler"><div class="dlg">
   <div class="sourcil">Annuler une remise</div><h3 id="anTitre"></h3>
   <p class="aide">Rien n’est effacé : la remise reste visible comme « annulée » et ses badges reviennent en stock.</p>
@@ -445,7 +454,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=16"></script>
+<script src="portail-commun.js?v=17"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -583,8 +592,19 @@ $('pMdpChanger').onclick = async () => {
 };
 
 // ---------- Accueil ----------
+// À l'ouverture de l'espace : fenêtre d'alerte s'il y a des locataires à rattacher.
+function alerteRattachement() {
+  const cs = (S.etat?.copros || []).filter(c => (c.nb_rdv_a_rattacher || 0) > 0);
+  if (!cs.length || alerteRattachement.vue) return;
+  alerteRattachement.vue = true;
+  $('raListe').innerHTML = cs.map(c => `<li><div class="principal"><b>${esc(c.nom)}</b><div class="sous">${c.nb_rdv_a_rattacher} locataire${c.nb_rdv_a_rattacher > 1 ? 's' : ''} à rattacher</div></div><div class="droite"><button type="button" class="btn btn-petit btn-or" data-ra="${esc(c.id)}">Rattacher</button></div></li>`).join('');
+  $('raListe').querySelectorAll('[data-ra]').forEach(b => b.onclick = async () => { $('dlgRattAlerte').close(); await ouvrirCopro(b.dataset.ra); ouvrirCampagne(); });
+  $('dlgRattAlerte').showModal();
+}
+$('raPlusTard').onclick = () => $('dlgRattAlerte').close();
 function rendreAccueil() {
   const cs = S.etat.copros;
+  setTimeout(alerteRattachement, 400);
   $('listeCopros').innerHTML = cs.length ? cs.map(c => {
     const k = c.compteurs;
     return `<button type="button" class="carte" data-copro="${esc(c.id)}">
@@ -613,6 +633,12 @@ async function ouvrirCopro(id) {
   $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
   $('btnNouvelleRemise').disabled = !k.stock;
   rendreRemises(); rendreBadges(); rendreParcours(); rendreTransfertG();
+  const ar = c.nb_rdv_a_rattacher || 0;
+  $('coAlerteRatt').hidden = !ar;
+  if (ar) {
+    $('coAlerteRatt').innerHTML = `<h2 style="color:#D9A35B">⚠ ${ar} locataire${ar > 1 ? 's' : ''} à rattacher à un propriétaire</h2><p>Ces locataires ont pris rendez-vous sans que leur appartement soit reconnu. Tant qu’ils ne sont pas rattachés, la suite du chantier ne peut pas avancer.</p><div class="actions"><button type="button" class="btn btn-or" id="coRattacherMaintenant">Rattacher maintenant</button></div>`;
+    $('coRattacherMaintenant').onclick = () => ouvrirCampagne();
+  }
   montrer('vCopro');
 }
 document.querySelectorAll('[data-onglet]').forEach(b => b.onclick = () => {
@@ -659,21 +685,22 @@ function rendreParcours() {
   const etapes = [
     { fait: etiq, titre: 'Étiquettes de numérotation',
       texte: etiq ? `Pose des étiquettes validée par Harmonie Électricité le ${dateCourte(rec.etiquettes_le)}.`
-        : 'Une étiquette blanche numérotée (1, 2, 3…) doit être collée sur l’huisserie de chaque porte palière. Ce numéro identifiera l’appartement dans le sondage, les rendez-vous et l’émargement. Harmonie Électricité valide la pose avant l’envoi du sondage.',
+        : 'En attente : une étiquette blanche numérotée doit être collée sur l’huisserie de chaque porte palière, puis Harmonie Électricité valide la pose. Le recensement des appartements s’ouvre ensuite.',
       bouton: '' },
-    { fait: pret, titre: 'Recenser les appartements',
+    { fait: pret, titre: 'Fichier des copropriétaires',
       texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
         : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
-      bouton: `<button type="button" class="btn btn-petit ${pret ? '' : 'btn-or'}" data-parcours="recensement">${pret ? 'Modifier le recensement' : n ? 'Reprendre le recensement' : 'Lancer le recensement'}</button>` },
+      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : 'disabled title="En attente de la validation des étiquettes par Harmonie Électricité"'}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
     (() => {
-      const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0;
-      return { fait: clos, titre: 'Sondage des copropriétaires',
-        texte: clos ? `Sondage clos le ${dateCourte(so.clos_le)} : ${nc} / ${n} bons de commande signés.`
-          : ouvert ? `Sondage ouvert depuis le ${dateCourte(so.ouvert_le)} : ${nc} / ${n} bons de commande signés.`
-          : pret && etiq ? 'Tout est prêt : ouvrez le sondage, puis envoyez à chaque copropriétaire son lien personnel (e-mail, SMS ou QR code).'
-          : 'Disponible une fois les étiquettes posées et le recensement validé.',
-        bouton: `<button type="button" class="btn btn-petit ${ouvert && !clos ? '' : 'btn-or'}" data-parcours="sondage" ${pret && etiq ? '' : 'disabled'}>${ouvert ? 'Suivre le sondage' : 'Préparer le sondage'}</button>` };
+      const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0, tous = n > 0 && nc >= n;
+      return { fait: clos || tous, titre: 'Recensement des copropriétaires',
+        texte: tous ? `Tous les recensements sont signés (${nc} / ${n}). Harmonie Électricité commande le matériel.`
+          : clos ? `Recensement clos le ${dateCourte(so.clos_le)} : ${nc} / ${n} signés.`
+          : ouvert ? `Recensement envoyé : ${nc} / ${n} signés.`
+          : pret && etiq ? 'Le fichier est validé : envoyez le recensement à chaque copropriétaire (e-mail, courrier ou QR code).'
+          : 'Disponible une fois le fichier des copropriétaires validé.',
+        bouton: `<button type="button" class="btn btn-petit ${ouvert ? '' : 'btn-or'}" data-parcours="sondage" ${pret && etiq ? '' : 'disabled'}>${ouvert ? 'Suivre le recensement' : 'Envoyer le recensement aux copropriétaires'}</button>` };
     })(),
   ];
   {
@@ -681,7 +708,7 @@ function rendreParcours() {
     etapes.push({ fait: !!camp.envoyee_le && n > 0 && nr >= n, titre: 'Information des occupants et rendez-vous',
       texte: !planifie ? 'Dès réception du matériel, Harmonie Électricité fixe les jours d’intervention et envoie la campagne d’information aux occupants (avec la feuille d’affichage). Vous pourrez suivre les rendez-vous ici.'
         : `${camp.envoyee_le ? 'Campagne envoyée par Harmonie Électricité le ' + dateCourte(camp.envoyee_le) + '. ' : 'Jours d’intervention fixés : Harmonie Électricité envoie la campagne d’information. '}${nr} / ${n} appartements ont rendez-vous.${ar ? ` ${ar} locataire${ar > 1 ? 's' : ''} à rattacher à un propriétaire.` : ''}`,
-      bouton: planifie ? `<button type="button" class="btn btn-petit" data-parcours="campagne">Suivre les rendez-vous</button>` : '' });
+      bouton: planifie ? `<button type="button" class="btn btn-petit" data-parcours="campagne">Suivre la campagne</button>` : '' });
   }
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
@@ -769,9 +796,11 @@ $('caAffiche').onclick = async () => {
 
 
 // ---------- Sondage ----------
-const SO = { d: null };
+const SO = { d: null, modes: {} };
+// Mode d'envoi du recensement : e-mail si on a une adresse, sinon courrier.
+const modeEnvoi = l => SO.modes[l.id] || ((l.emails || []).length ? 'email' : 'courrier');
 const lienSondage = j => PS.urlPage('sondage.html') + '?j=' + j;
-const CANAUX = { email: 'e-mail', sms: 'SMS', qr: 'QR code' };
+const CANAUX = { email: 'e-mail', sms: 'SMS', qr: 'QR code', courrier: 'courrier', autre: 'courrier' };
 // Note l'envoi du lien (étape « Sondage envoyé ») sans bloquer l'ouverture de la messagerie.
 function noterInvitation(l, canal) {
   l.invite_le = new Date().toISOString(); l.invite_canal = canal;
@@ -811,8 +840,8 @@ function rendreSuiviSondage() {
   const d = SO.d, so = d.sondage || {}, lg = d.logements, signes = lg.filter(l => l.commande), invites = lg.filter(l => l.invite_le || l.commande);
   const total = signes.reduce((t, l) => t + (+l.commande.total_ttc || 0), 0);
   $('soTuiles').innerHTML = [['Liens envoyés', `${invites.length} / ${lg.length}`], ['Bons signés', `${signes.length} / ${lg.length}`, 'or'], ['Sans réponse', lg.length - signes.length], ['Total commandé TTC', PS.euros(total)],
-    ['Sondage', so.clos_le ? 'Clos le ' + dateCourte(so.clos_le) : 'Ouvert']].map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b style="font-size:20px">${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
-  $('soClore').textContent = so.clos_le ? 'Rouvrir le sondage' : 'Clore le sondage';
+    ['Recensement', so.clos_le ? 'Clos le ' + dateCourte(so.clos_le) : 'Ouvert']].map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b style="font-size:20px">${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+  $('soClore').textContent = so.clos_le ? 'Rouvrir le recensement' : 'Clore le recensement';
   const q = $('soRecherche').value.trim().toLowerCase();
   const vis = lg.filter(l => !q || [l.numero, l.lot, l.nom, ...(l.emails || [])].join(' ').toLowerCase().includes(q));
   $('soListe').innerHTML = vis.map(l => {
@@ -822,12 +851,15 @@ function rendreSuiviSondage() {
         : `<span class="pastille attente">${l.invite_le ? `Lien envoyé le ${esc(dateCourte(l.invite_le))} (${esc(CANAUX[l.invite_canal] || l.invite_canal)})` : 'Lien pas encore envoyé'}</span> ${esc([(l.emails || []).join(', '), l.telephone].filter(Boolean).join(' • ') || 'aucune coordonnée')}`}</div></div>
       <div class="droite">
         ${k ? `<button type="button" class="btn btn-petit" data-bon="${esc(k.id)}">Bon PDF</button>` : ''}
-        ${(l.emails || []).length ? `<button type="button" class="btn btn-petit" data-mail="${esc(l.id)}">E-mail</button>` : ''}
-        ${l.telephone ? `<button type="button" class="btn btn-petit" data-sms="${esc(l.id)}">SMS</button>` : ''}
+        ${k ? '' : `<select data-mode="${esc(l.id)}" style="min-height:36px;width:auto" aria-label="Mode d’envoi">
+          ${(l.emails || []).length ? `<option value="email" ${modeEnvoi(l) === 'email' ? 'selected' : ''}>E-mail</option>` : ''}
+          <option value="courrier" ${modeEnvoi(l) === 'courrier' ? 'selected' : ''}>Courrier</option>
+          <option value="qr" ${modeEnvoi(l) === 'qr' ? 'selected' : ''}>QR code</option></select>`}
         <button type="button" class="btn btn-petit btn-discret" data-qr="${esc(l.id)}">QR / lien</button>
       </div></li>`;
   }).join('') || '<li><div class="principal">Aucun appartement.</div></li>';
   const parId = id => lg.find(l => l.id === id);
+  $('soListe').querySelectorAll('[data-mode]').forEach(sel => sel.onchange = () => { SO.modes[sel.dataset.mode] = sel.value; });
   $('soListe').querySelectorAll('[data-mail]').forEach(b => b.onclick = () => {
     const l = parId(b.dataset.mail); noterInvitation(l, 'email');
     location.href = `mailto:${l.emails.map(encodeURIComponent).join(',')}?subject=${encodeURIComponent('Votre nouvel interphone — résidence ' + d.copro.nom)}&body=${encodeURIComponent(texteInvitation(l))}`;
@@ -846,6 +878,30 @@ function rendreSuiviSondage() {
 }
 document.querySelector('[data-fermer-qs]').onclick = () => $('dlgQrSondage').close();
 $('soRecherche').oninput = () => rendreSuiviSondage();
+// Envoi groupé : e-mails automatiques (lettre jointe), lettres à imprimer pour le courrier.
+$('soEnvoyerTous').onclick = async () => {
+  const d = SO.d, cibles = d.logements.filter(l => !l.commande);
+  const mails = cibles.filter(l => modeEnvoi(l) === 'email'), courriers = cibles.filter(l => modeEnvoi(l) === 'courrier'), qrs = cibles.filter(l => modeEnvoi(l) === 'qr');
+  if (!cibles.length) return message('soEnvoiMsg', 'Tous les copropriétaires ont déjà signé.', false);
+  if (!confirm(`Envoyer le recensement ?\n\n• ${mails.length} par e-mail (envoi automatique)\n• ${courriers.length} par courrier (lettres à imprimer)\n• ${qrs.length} par QR code (à leur montrer)`)) return;
+  $('soEnvoyerTous').disabled = true;
+  const donnees = { copro: d.copro, syndic: S.etat?.syndic, sondage: d.sondage };
+  const erreurs = [];
+  for (const [i, l] of mails.entries()) {
+    message('soEnvoiMsg', `Envoi des e-mails… ${i + 1} / ${mails.length}`, false);
+    const lettre = await PS.pdfLettresRecensement(donnees, [l], x => lienSondage(x.jeton));
+    const err = await PS.envoiGmail(l.emails.join(', '), 'Votre nouvel interphone — résidence ' + d.copro.nom, texteInvitation(l), lettre, `Recensement ${d.copro.nom} - ${PS.appt(l)}.pdf`);
+    if (err) erreurs.push(`${l.nom || PS.appt(l)} : ${err}`); else noterInvitation(l, 'email');
+  }
+  if (courriers.length) {
+    const blob = await PS.pdfLettresRecensement(donnees, courriers, x => lienSondage(x.jeton));
+    PS.telecharger(blob, `Lettres de recensement - ${d.copro.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
+    courriers.forEach(l => noterInvitation(l, 'courrier'));
+  }
+  $('soEnvoyerTous').disabled = false;
+  message('soEnvoiMsg', erreurs.length ? `${mails.length - erreurs.length} e-mail(s) envoyé(s). Échec pour : ${erreurs.join(' ; ')}`
+    : `${mails.length} e-mail(s) envoyé(s)${courriers.length ? `, ${courriers.length} lettre(s) à imprimer téléchargée(s)` : ''}${qrs.length ? `, ${qrs.length} QR code(s) à montrer (bouton « QR / lien »)` : ''}.`, !!erreurs.length);
+};
 $('soCopierTous').onclick = () => PS.copier(SO.d.logements.map(l => `${PS.appt(l)} — ${l.nom || ''} : ${lienSondage(l.jeton)}`).join('\n')).then(() => toast('Liens copiés.'));
 $('soClore').onclick = async () => {
   const clos = !!SO.d.sondage?.clos_le;
