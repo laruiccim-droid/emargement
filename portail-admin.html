@@ -1382,13 +1382,22 @@ async function rendreBadgesVigikAdmin(c) {
 // Fiche pour créer le chantier dans le logiciel Vigik : appartements, propriétaires, nombre de badges, droits.
 async function ficheVigik() {
   const d = BG.d, c = d.copro, droit = droitParDefaut(c);
-  const lignes = [...d.logements.filter(l => l.attendus > 0).map(l => [nomAppart(l), l.lot || '', l.nom || '', l.attendus, droit, l.qualite === 'bailleur' ? 'Bailleur' : 'Occupant']),
-    ...d.hors.filter(h => h.badges > 0).map(h => [h.type === 'stock' ? 'Stock syndic' : 'Intervenant', '', h.nom, h.badges, droit, ''])];
-  const cols = ['Appartement', 'Lot', 'Nom', 'Badges', 'Droit d’accès', 'Qualité'];
+  // Nom et prénom du propriétaire tels qu'il les a donnés au recensement (sinon le nom du fichier du syndic) ;
+  // une fiche modifiée à la main (changement de propriétaire) prime.
+  let parId = new Map();
+  try { parId = new Map((await appel('ps_admin_appartements', { p_copro: c.id })).logements.map(l => [l.id, l])); } catch {}
+  const proprio = l => {
+    const a = parId.get(l.id) || {}, k = a.commande;
+    if (a.coord_maj_le || !k?.nom) return [a.nom || l.nom || '', ''];
+    return [k.nom, k.prenom || ''];
+  };
+  const lignes = [...d.logements.filter(l => l.attendus > 0).map(l => [nomAppart(l), l.lot || '', ...proprio(l), l.attendus, droit, l.qualite === 'bailleur' ? 'Bailleur' : 'Occupant']),
+    ...d.hors.filter(h => h.badges > 0).map(h => [h.type === 'stock' ? 'Stock syndic' : 'Intervenant', '', h.nom, '', h.badges, droit, ''])];
+  const cols = ['Appartement', 'Lot', 'Nom', 'Prénom', 'Badges', 'Droit d’accès', 'Qualité'];
   const sep = ';', q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   PS.telecharger(new Blob(['﻿' + [cols, ...lignes].map(l => l.map(q).join(sep)).join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Programmation badges - ${c.nom}.csv`.replace(/[\\/:*?"<>|]+/g, ' '));
-  const total = lignes.reduce((t, l) => t + (+l[3] || 0), 0);
-  PS.telecharger(await PS.pdfTableau('Programmation des badges Vigik', `${c.nom} — ${[c.adresse, c.cp, c.ville].filter(Boolean).join(' ')} — ${total} badges${c.marque_vigik ? ' — ' + c.marque_vigik : ''}`, cols, lignes, [22, 10, 40, 10, 30, 14]),
+  const total = lignes.reduce((t, l) => t + (+l[4] || 0), 0);
+  PS.telecharger(await PS.pdfTableau('Programmation des badges Vigik', `${c.nom} — ${[c.adresse, c.cp, c.ville].filter(Boolean).join(' ')} — ${total} badges${c.marque_vigik ? ' — ' + c.marque_vigik : ''}`, cols, lignes, [20, 9, 28, 22, 9, 24, 14]),
     `Programmation badges - ${c.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
 }
 // Correspondance badge → appartement (pour les lier dans le logiciel).
