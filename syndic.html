@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Espace syndic · Harmonie Électricité</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=8">
+<link rel="stylesheet" href="portail.css?v=9">
 <style>
   .parcours { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
   .parcours li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border-hairline); border-radius: 8px; }
@@ -171,6 +171,7 @@
       <ol class="parcours" id="coParcours"></ol>
     </div>
     <div class="tuiles" id="coTuiles"></div>
+    <div id="coRaccourci" style="margin-top:14px"></div>
     <div id="coFrise"></div>
     <div class="onglets" role="tablist">
       <button type="button" role="tab" data-onglet="appartements" aria-selected="false" id="ongletApparts" hidden>Appartements</button>
@@ -629,13 +630,15 @@ function rendreAccueil() {
   setTimeout(alerteRattachement, 400);
   $('listeCopros').innerHTML = cs.length ? cs.map(c => {
     const k = c.compteurs;
-    return `<button type="button" class="carte" data-copro="${esc(c.id)}">
+    return `<div class="carte carte-chantier" role="button" tabindex="0" data-copro="${esc(c.id)}"><div class="haut-carte"><div>
       <div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
       <div class="meta">${esc([c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</div>
-      <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.reserves ? `<span class="pastille attente">${k.attente} en attente de signature</span>` : ''}</div>
-      ${PS.friseHtml(c)}</button>`;
+      <div class="chiffres"><span><b>${k.remis}</b> / ${k.livres} remis</span><span><b>${k.stock}</b> en stock</span>${k.reserves ? `<span class="pastille attente">${k.attente} en attente de signature</span>` : ''}</div></div>
+      ${zoneRaccourci(c)}</div>
+      ${PS.friseHtml(c)}</div>`;
   }).join('') : '<div class="vide">Aucune copropriété n’est encore rattachée à votre cabinet. Harmonie Électricité l’ajoutera lors de la livraison des badges.</div>';
-  document.querySelectorAll('[data-copro]').forEach(b => b.onclick = () => ouvrirCopro(b.dataset.copro));
+  document.querySelectorAll('#listeCopros [data-copro]').forEach(b => { b.onclick = () => ouvrirCopro(b.dataset.copro); b.onkeydown = e => { if (e.key === 'Enter') ouvrirCopro(b.dataset.copro); }; });
+  brancherRaccourcis($('listeCopros'));
   montrer('vAccueil');
   if (cs.length === 1 && !rendreAccueil.deja) { rendreAccueil.deja = true; ouvrirCopro(cs[0].id); }
 }
@@ -655,6 +658,7 @@ async function ouvrirCopro(id) {
   $('coTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente de signature', k.attente]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
+  $('coRaccourci').innerHTML = zoneRaccourci({ ...c, compteurs: k }); brancherRaccourcis($('coRaccourci'));
   $('btnNouvelleRemise').disabled = !k.stock;
   rendreRemises(); rendreBadges(); rendreParcours(); rendreTransfertG();
   // Chantier complet : l'onglet « Appartements » s'ouvre en premier.
@@ -777,6 +781,49 @@ function rendreParcours() {
     if (b.dataset.parcours === 'prevenir') return prevenirProprietaires();
     if (b.dataset.parcours === 'emargementBadges') return ouvrirEmargementBadges();
   });
+}
+
+// ---------- Zone raccourci : ce que le gestionnaire doit faire maintenant, ou ce qu'Harmonie est en train de faire ----------
+function etapeSyndic(c) {
+  const k = c.compteurs || {}, rec = c.recensement || {}, so = c.sondage || {}, fo = c.fourniture || {}, camp = c.campagne || {}, su = c.badges_suivi || {};
+  const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, nr = c.nb_rdv || 0, ne = c.nb_emarges || 0;
+  const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+  const H = (titre, texte) => ({ attente: titre, detail: texte });
+  if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
+  if (c.type !== 'complet') return k.stock ? { code: 'remise', libelle: '+ Remettre des badges' } : k.livres ? H('Tous les badges livrés sont remis.', '') : H('En attente de la livraison des badges', 'par Harmonie Électricité');
+  if (c.etat === 'attente_facturation') return H('Installation terminée', 'Facturation par Harmonie Électricité en cours');
+  if (!rec.etiquettes_le) return H('En attente de la validation des étiquettes', 'par Harmonie Électricité');
+  if (rec.etape !== 'pret') return { code: 'recensement', libelle: n ? 'Terminer le fichier des copropriétaires' : 'Créer le fichier des copropriétaires' };
+  if (!so.ouvert_le) return { code: 'sondage', libelle: 'Envoyer le recensement aux copropriétaires' };
+  if (!(so.clos_le || (n && nc >= n))) return { code: 'sondage', libelle: `Suivre le recensement (${nc} / ${n} signés)` };
+  if (c.nb_rdv_a_rattacher) return { code: 'campagne', libelle: `Rattacher ${c.nb_rdv_a_rattacher} locataire${c.nb_rdv_a_rattacher > 1 ? 's' : ''} à un propriétaire` };
+  if (vigik && k.livres && !su.prevenus_le) return { code: 'prevenir', libelle: 'Prévenir les propriétaires (badges à l’agence)' };
+  if (vigik && k.livres && (c.nb_badges_ok || 0) < (c.nb_badges_attendus || 0)) return { code: 'badges', libelle: `Remettre les badges (${c.nb_badges_ok || 0} / ${c.nb_badges_attendus} appartements)` };
+  if (!fo.envoyee_le) return H('En attente de la commande du matériel', 'par Harmonie Électricité');
+  if (!fo.recu_le) return H('Matériel commandé', 'En attente de la livraison du matériel chez Harmonie Électricité');
+  if (vigik && !k.livres) return H('En attente de la livraison des badges', 'Harmonie Électricité programme les badges');
+  if (!(camp.jours || []).length) return H('En attente de la date d’intervention', 'fixée par Harmonie Électricité');
+  if (!camp.envoyee_le) return H('Campagne d’information en préparation', 'par Harmonie Électricité');
+  if (n && nr < n) return { code: 'campagne', libelle: `Suivre les rendez-vous (${nr} / ${n})` };
+  return H(ne ? `Installation en cours : ${ne} / ${n} appartements` : 'En attente de l’installation', 'par Harmonie Électricité');
+}
+function zoneRaccourci(c) {
+  const e = etapeSyndic(c);
+  if (e.cloture) return `<div class="raccourci cloture"><span class="attente">${esc(e.cloture)}</span></div>`;
+  if (e.code) return `<div class="raccourci"><button type="button" class="btn btn-or" data-raccourci="${e.code}" data-copro-id="${esc(c.id)}">${esc(e.libelle)}</button></div>`;
+  return `<div class="raccourci"><span class="attente"><b>${esc(e.attente)}</b>${esc(e.detail || '')}</span></div>`;
+}
+async function executerRaccourci(id, code) {
+  if (S.copro !== id || $('vCopro').hidden) await ouvrirCopro(id);
+  if (code === 'recensement') return ouvrirRecensement();
+  if (code === 'sondage') return ouvrirSondage();
+  if (code === 'campagne') return ouvrirCampagne();
+  if (code === 'prevenir') return prevenirProprietaires();
+  if (code === 'badges') return ouvrirEmargementBadges();
+  if (code === 'remise') return nouvelleRemise();
+}
+function brancherRaccourcis(racine) {
+  racine.querySelectorAll('[data-raccourci]').forEach(b => b.onclick = e => { e.stopPropagation(); executerRaccourci(b.dataset.coproId, b.dataset.raccourci); });
 }
 
 // ---------- Badges : prévenir les propriétaires, émargement par appartement ----------

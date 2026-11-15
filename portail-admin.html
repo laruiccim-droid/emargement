@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=8">
+<link rel="stylesheet" href="portail.css?v=9">
 <style>
   .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
@@ -572,6 +572,7 @@ function rendreChantiers() {
     const et = etapeSuivante(c);
     const zone = et.code === 'facture' ? `<div class="raccourci depot-facture" data-depot="${c.id}">${ZONE_FACTURE}</div>`
       : et.code ? `<div class="raccourci"><button type="button" class="btn btn-or" data-etape="${et.code}" data-copro="${c.id}">${esc(et.libelle)}</button></div>`
+      : et.cloture ? `<div class="raccourci cloture"><span class="attente">${esc(et.cloture)}</span></div>`
       : et.attente ? `<div class="raccourci"><span class="attente">${esc(et.attente)}</span></div>` : '<div></div>';
     return `<div class="carte carte-chantier" role="button" tabindex="0" data-chantier="${c.id}"><div class="haut-carte"><div><div class="sourcil">${esc(PS.ETATS[c.etat] || c.etat)}</div><h3>${esc(c.nom)}</h3>
       <div class="meta">${esc([c.ville, nomSyndic(c.syndic_id) || 'Sans syndic', c.gestionnaire_id && nomGestionnaire(c.gestionnaire_id), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • '))}</div>
@@ -1005,7 +1006,7 @@ function etapeSuivante(c) {
   const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {}, k = c.compteurs || {};
   const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, nr = c.nb_rdv || 0, vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
   // Fin de chantier : la facture passe avant tout le reste.
-  if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { attente: 'Facturé, chantier terminé.' };
+  if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
   if (c.etat === 'attente_facturation') return { code: 'facture', libelle: 'Déposer la facture' };
   if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
   if (rec.etape !== 'pret') return { attente: 'En attente du fichier des copropriétaires (gestionnaire).' };
@@ -1021,7 +1022,7 @@ function etapeSuivante(c) {
   if (!c.chantier_id) return { code: 'generer', libelle: 'Générer le chantier d’émargement' };
   if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) return { attente: 'Installation en cours : l’émargement remonte de l’app.' };
   if (!(c.facture || {}).url) return { code: 'facture', libelle: 'Déposer la facture' };
-  return { attente: 'Facturé, chantier terminé.' };
+  return { cloture: 'Chantier terminé — dossier clôturé' };
 }
 // Réalise l'étape : directement quand c'est un clic (étiquettes, matériel reçu), sinon ouvre la fiche au bon endroit.
 async function executerEtape(c, code) {
@@ -1344,6 +1345,7 @@ function rendreAvancementAdmin(c, k) {
   const et = etapeSuivante({ ...e, ...c, compteurs: k });
   if (et.code) action = [et.libelle, () => et.code === 'facture' ? $('emFichierFacture').click() : executerEtape(c, et.code)];
   else attente = et.attente || '';
+  const cloture = et.cloture;
   if (et.code === 'facture') action = null;
   if (false) action = ['Valider la pose des étiquettes', async () => jalon('etiquettes', true)];
   else if (rec.etape !== 'pret') attente = 'En attente du fichier des copropriétaires (gestionnaire).';
@@ -1360,7 +1362,7 @@ function rendreAvancementAdmin(c, k) {
   else if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) attente = 'Installation en cours : l’émargement remonte de l’app.';
   else if (!(c.facture || {}).url) action = ['Déposer la facture', () => $('emFichierFacture').click()];
   async function jalon(j, fait) { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: fait, p_info: '' }); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {} }
-  $('dJalons').innerHTML = (et.code === 'facture' ? `<div class="raccourci depot-facture" id="dDepotFacture" style="min-width:280px">${ZONE_FACTURE}</div>` : '')
+  $('dJalons').innerHTML = (cloture ? `<div class="raccourci cloture" style="min-width:300px"><span class="attente">${esc(cloture)}</span></div>` : '') + (et.code === 'facture' ? `<div class="raccourci depot-facture" id="dDepotFacture" style="min-width:280px">${ZONE_FACTURE}</div>` : '')
     + (action ? `<button type="button" class="btn btn-or" id="dActionSuivante" style="min-height:52px;padding:0 26px;font-size:13px">${esc(action[0])}</button>` : '')
     + (attente ? `<span class="pastille attente">${esc(attente)}</span>` : '')
     + (rec.etiquettes_le ? ` <button type="button" class="btn btn-petit btn-discret" data-jalon="etiquettes" data-fait="0" title="Annuler cette validation">✓ Étiquettes validées le ${esc(dateCourte(rec.etiquettes_le))}</button>` : '');
