@@ -13,7 +13,7 @@
 --      → interphone : commander le matériel ; Vigik seul : attribuer les badges ;
 --  • demande de transfert d'un gestionnaire → la valider ;
 --  • Vigik seul : 80 % des appartements ont leurs badges → l'installation peut être lancée ;
---  • tous les appartements ont leurs badges ;
+--  • Vigik seul : tous les appartements ont leurs badges (installation pas encore lancée) ;
 --  • plus aucun badge en stock chez le syndic → prévoir une livraison.
 -- =====================================================================================
 
@@ -45,7 +45,7 @@ begin
   select * into c from ps_copros where id = p_copro;
   select s.nom into v_syndic from ps_syndics s where s.id = c.syndic_id;
   v_corps := p_texte || E'\n\n'
-    || coalesce('Chantier : ' || c.nom || nullif(' — ' || concat_ws(' ', nullif(c.adresse, ''), nullif(c.cp, ''), nullif(c.ville, '')), ' — ') || E'\n', '')
+    || coalesce('Chantier : ' || c.nom || coalesce(nullif(' — ' || concat_ws(' ', nullif(c.adresse, ''), nullif(c.cp, ''), nullif(c.ville, '')), ' — '), '') || E'\n', '')
     || coalesce('Syndic : ' || v_syndic || E'\n', '')
     || coalesce('Référence : ' || nullif(c.reference, '') || E'\n', '')
     || E'\nPortail admin : https://laruiccim-droid.github.io/emargement/portail-admin.html'
@@ -123,12 +123,10 @@ begin
       v_ok || ' appartements sur ' || v_att || ' ont récupéré leurs badges.' || E'\n\n'
       || 'À vous : vous pouvez lancer l’installation des centrales Vigik (bouton « Lancer l’installation »).');
   end if;
-  if v_att > 0 and v_ok >= v_att then
+  if v_att > 0 and v_ok >= v_att and c.travaux = 'vigik' and coalesce(c.badges_suivi->>'installation_le', '') = '' then
     perform ps__notifier_harmonie(c.id, 'badges_100', 'tous les badges distribués',
       'Les ' || v_att || ' appartements ont récupéré leurs badges.' || E'\n\n'
-      || case when c.travaux = 'vigik' and coalesce(c.badges_suivi->>'installation_le', '') = ''
-           then 'À vous : lancer l’installation des centrales Vigik (bouton « Lancer l’installation »).'
-           else 'Pour information : la distribution des badges est terminée.' end);
+      || 'À vous : lancer l’installation des centrales Vigik (bouton « Lancer l’installation »).');
   end if;
   -- Plus aucun badge en stock (clé liée au nombre de livraisons : nouvelle alerte après une nouvelle livraison).
   if exists (select 1 from ps_badges where copro_id = c.id) and not exists (select 1 from ps_badges where copro_id = c.id and statut = 'stock') then
