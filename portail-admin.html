@@ -347,7 +347,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=28"></script>
+<script src="portail-commun.js?v=29"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -606,6 +606,8 @@ function rendreChantiers() {
     const k = c.compteurs;
     const et = etapeSuivante(c);
     const zone = et.code === 'facture' ? `<div class="raccourci depot-facture" data-depot="${c.id}">${ZONE_FACTURE}</div>`
+      : et.code === 'listing' ? `<div class="raccourci depot-facture" data-depot-listing="${c.id}"><b>${esc(et.libelle)}</b><span>Glissez le fichier exporté de votre logiciel (Excel, CSV) ou cliquez</span></div>`
+      : et.code && et.note ? `<div class="raccourci" style="flex-direction:column;gap:6px"><button type="button" class="btn btn-or" data-etape="${et.code}" data-copro="${c.id}">${esc(et.libelle)}</button><span class="attente">${esc(et.note)}</span></div>`
       : et.code ? `<div class="raccourci"><button type="button" class="btn btn-or" data-etape="${et.code}" data-copro="${c.id}">${esc(et.libelle)}</button></div>`
       : et.cloture ? `<div class="raccourci cloture"><span class="attente">${esc(et.cloture)}</span></div>`
       : et.attente ? `<div class="raccourci"><span class="attente">${esc(et.attente)}</span></div>` : '<div></div>';
@@ -619,6 +621,7 @@ function rendreChantiers() {
   document.querySelectorAll('[data-chantier]').forEach(b => { b.onclick = () => ouvrirChantier(b.dataset.chantier); b.onkeydown = e => { if (e.key === 'Enter') ouvrirChantier(b.dataset.chantier); }; });
   document.querySelectorAll('#listeChantiers [data-etape]').forEach(b => b.onclick = e => { e.stopPropagation(); executerEtape(A.etat.copros.find(x => x.id === b.dataset.copro), b.dataset.etape); });
   document.querySelectorAll('#listeChantiers [data-depot]').forEach(z => brancherDepotFacture(z, z.dataset.depot));
+  document.querySelectorAll('#listeChantiers [data-depot-listing]').forEach(z => brancherDepotListing(z, z.dataset.depotListing));
 }
 $('chRecherche').oninput = rendreChantiers;
 
@@ -998,7 +1001,8 @@ async function rendreEmargementAdmin(c) {
   EM.c = c; EM.app = null; msg('emMsg', '');
   const lie = !!c.chantier_id;
   const e = A.etat.copros.find(x => x.id === c.id) || {}, nTot = e.nb_logements_saisis || 0, nRdv = e.nb_rdv || 0;
-  const rdvComplets = nTot > 0 && nRdv >= nTot;
+  // Vigik seul : pas de rendez-vous dans les appartements ; le chantier de l'app sert aux remises sur place après le lancement de l'installation.
+  const rdvComplets = (nTot > 0 && nRdv >= nTot) || (c.travaux === 'vigik' && !!(c.badges_suivi || {}).installation_le);
   $('emActions').innerHTML = `<button type="button" class="btn ${lie ? '' : 'btn-or'}" id="emCreer" ${lie || rdvComplets ? '' : 'disabled'}>${lie ? 'Mettre à jour le chantier de l’app' : 'Générer le chantier d’émargement'}</button>`
     + (lie || rdvComplets ? '' : ` <span class="pastille attente">Disponible quand tous les rendez-vous sont pris (${nRdv} / ${nTot})</span>`)
     + (lie ? ' <a class="btn btn-discret" href="index.html">Ouvrir l’app d’émargement</a>' : '');
@@ -1066,6 +1070,19 @@ function etapeSuivante(c) {
   // Fin de chantier : la facture passe avant tout le reste.
   if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
   if (c.etat === 'attente_facturation') return { code: 'facture', libelle: 'Déposer la facture' };
+  if (c.travaux === 'vigik') {
+    const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
+    if (!su.commande_le) return { attente: 'En attente de la commande des badges par le syndic.' };
+    if (!k.livres) return { code: 'listing', libelle: `Déposer le listing des badges (${su.commande_nb} commandés)` };
+    if (rec.etape !== 'pret') return { attente: 'En attente du fichier des copropriétaires (gestionnaire).' };
+    if (!so.ouvert_le) return { attente: 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).' };
+    if (!(so.clos_le || (n && nc >= n))) return { attente: `Recensement en cours : ${nc} / ${n} signés.` };
+    if (!su.attribues_le) return { code: 'attribuer', libelle: 'Attribuer les badges (listing des réponses)' };
+    if (!su.installation_le) return nba && nbo / nba >= 0.8 ? { code: 'installer', libelle: `Feu vert : lancer l’installation (${nbo} / ${nba})` }
+      : { code: 'installer', libelle: 'Lancer l’installation', note: `Badges récupérés : ${nbo} / ${nba} (feu vert à 80 %)` };
+    if (!su.service_le) return { code: 'service', libelle: 'Mise en service terminée' };
+    return { code: 'facture', libelle: 'Déposer la facture' };
+  }
   if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
   if (rec.etape !== 'pret') return { attente: 'En attente du fichier des copropriétaires (gestionnaire).' };
   if (!so.ouvert_le) return { attente: 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).' };
@@ -1087,10 +1104,13 @@ async function executerEtape(c, code) {
   const jalon = async (j) => { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: true, p_info: '' }); toast('Étape validée.'); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
   if (code === 'etiquettes') return jalon('etiquettes');
   if (code === 'recu') return jalon('fourniture_recue');
+  const jalonBadges = async (j, texte) => { try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: j, p_fait: true }); toast(texte); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
+  if (code === 'installer') { if (!confirm('Lancer l’installation des centrales Vigik ?' + ((c.nb_badges_ok || 0) < 0.8 * (c.nb_badges_attendus || 0) ? '\n\nMoins de 80 % des appartements ont récupéré leurs badges.' : ''))) return; return jalonBadges('installation', 'Installation lancée.'); }
+  if (code === 'service') { if (!confirm('Le nouveau système Vigik est en service ?\n\nPensez à afficher la fiche d’information « nouveau système » (bloc Émargement).')) return; return jalonBadges('service', 'Mise en service enregistrée : déposez la facture.'); }
   if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id);
   const aller = id => setTimeout(() => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
   if (code === 'commander') aller('dFourniture');
-  if (code === 'programmer') aller('dBadges');
+  if (code === 'programmer' || code === 'attribuer') aller('dBadges');
   if (code === 'livrer') { choisirOnglet('livrer'); aller('ongLivrer'); }
   if (code === 'planifier') aller('dCampagne');
   if (code === 'campagne') aller('caEnvoiAdmin');
@@ -1122,6 +1142,42 @@ function brancherDepotFacture(el, coproId) {
   el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); deposerFacture(coproId, e.dataTransfer.files[0]); });
 }
 const ZONE_FACTURE = '<b>Déposer la facture</b><span>Glissez le PDF ici ou cliquez</span>';
+// Vigik seul : listing des badges programmés (exporté du logiciel de gestion) → badges livrés au syndic,
+// ce qui débloque l'espace du gestionnaire et crée l'émargement des badges.
+async function lireNumerosBadges(f) {
+  let lignes;
+  if (/\.(csv|txt)$/i.test(f.name)) lignes = (await f.text()).split(/\r?\n/).map(l => l.split(/[;,\t]/));
+  else {
+    if (!window.XLSX) await PS.chargerScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = window.XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    lignes = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+  }
+  lignes = lignes.filter(l => l.some(v => String(v).trim()));
+  const nbCol = Math.max(...lignes.map(l => l.length));
+  let meilleure = 0, score = -1;
+  for (let c = 0; c < nbCol; c++) { const sc = lignes.filter(l => ressembleNumero(l[c] ?? '')).length; if (sc > score) { score = sc; meilleure = c; } }
+  return [...new Set(lignes.map(l => String(l[meilleure] ?? '').trim().toUpperCase()).filter(ressembleNumero))];
+}
+async function deposerListing(coproId, f) {
+  if (!f) return;
+  let nums; try { nums = await lireNumerosBadges(f); } catch (e) { return toast('Fichier illisible : ' + e.message, 5000); }
+  if (!nums.length) return toast('Aucun n° de badge reconnu dans ce fichier.', 5000);
+  const c = A.etat.copros.find(x => x.id === coproId), cde = c?.badges_suivi?.commande_nb;
+  if (!confirm(`${nums.length} badges trouvés (${nums[0]} … ${nums[nums.length - 1]})${cde ? ` pour ${cde} commandés` : ''}.\n\nLes livrer au syndic ? Cela débloque son espace pour ce chantier.`)) return;
+  try {
+    const r = await appel('ps_admin_livrer', { p_copro: coproId, p_badges: nums, p_commentaire: 'Badges programmés (listing déposé)', p_signataire: '', p_signature: '' });
+    toast(`${(r.ajoutes || nums).length} badges déposés : le gestionnaire peut commencer.`, 5000);
+    await charger(); if (!$('vChantier').hidden && A.copro === coproId) ouvrirChantier(coproId); else rendreChantiers();
+  } catch {}
+}
+function brancherDepotListing(el, coproId) {
+  const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx,.xls,.xlsm,.ods,.csv,.txt'; input.hidden = true; el.append(input);
+  el.onclick = e => { e.stopPropagation(); if (e.target !== input) input.click(); };
+  input.onchange = () => deposerListing(coproId, input.files[0]);
+  ['dragenter', 'dragover'].forEach(t => el.addEventListener(t, e => { e.preventDefault(); e.stopPropagation(); el.classList.add('survol'); }));
+  ['dragleave', 'drop'].forEach(t => el.addEventListener(t, () => el.classList.remove('survol')));
+  el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); deposerListing(coproId, e.dataTransfer.files[0]); });
+}
 
 // ---------- Appartements : tuiles et fiches ----------
 async function chargerAppartementsAdmin() {
@@ -1163,10 +1219,19 @@ async function rendreBadgesVigikAdmin(c) {
   const lg = d.logements.filter(l => l.attendus > 0), att = lg.reduce((t, l) => t + l.attendus, 0);
   const ok = lg.filter(l => l.remis + l.locataire >= l.attendus).length, hors = d.hors.reduce((t, h) => t + (h.badges || 0), 0);
   const supp = d.logements.reduce((t, l) => t + (l.supp || 0), 0);
-  $('bgInfo').textContent = (supp ? `${supp} badge${supp > 1 ? 's' : ''} supplémentaire${supp > 1 ? 's' : ''} attribué${supp > 1 ? 's' : ''} sur le stock syndic (à facturer). ` : '') + (!fo.recu_le ? 'La fiche de programmation des badges est disponible dès réception du matériel.'
+  if (c.travaux === 'vigik') { const cde = su.commande_nb; $('bgInfo').textContent = `${cde ? `Commande du syndic : ${cde} badges le ${dateCourte(su.commande_le)}${su.commande_par ? ' (' + su.commande_par + ')' : ''}. ` : 'Le syndic n’a pas encore commandé de badges. '}${k.livres ? `${k.livres} badges déposés • ${ok} / ${lg.length} appartements ont récupéré leurs badges.` : 'Déposez le listing des badges programmés (zone au-dessus de la barre).'}`; }
+  else $('bgInfo').textContent = (supp ? `${supp} badge${supp > 1 ? 's' : ''} supplémentaire${supp > 1 ? 's' : ''} attribué${supp > 1 ? 's' : ''} sur le stock syndic (à facturer). ` : '') + (!fo.recu_le ? 'La fiche de programmation des badges est disponible dès réception du matériel.'
     : `${att} badges pour ${lg.length} appartements + ${hors} pour le stock syndic et les entreprises • ${k.livres || 0} livrés au syndic • ${ok} / ${lg.length} appartements ont récupéré leurs badges.`);
   const etapes = [];
-  if (fo.recu_le) {
+  if (c.travaux === 'vigik') {
+    const so = c.sondage || {}, finis = so.clos_le || (lg.length && d.logements.every(l => l.qualite));
+    etapes.push(`<button type="button" class="btn" id="bgFiche">Listing des réponses (attribution)</button>`);
+    if (k.livres) etapes.push(su.attribues_le ? `<span class="pastille ok">Badges attribués le ${esc(dateCourte(su.attribues_le))}</span>` : `<button type="button" class="btn ${finis ? 'btn-or' : ''}" data-bgj="attribues">Attributions faites : prévenir le syndic</button>`);
+    if (su.attribues_le && !su.installation_le) etapes.push(`<button type="button" class="btn ${ok >= 0.8 * lg.length ? 'btn-or' : ''}" data-bgj="installation">Lancer l’installation</button>`);
+    if (su.installation_le && !su.service_le) etapes.push(`<span class="pastille attente">Installation lancée le ${esc(dateCourte(su.installation_le))}</span> <button type="button" class="btn btn-or" data-bgj="service">Mise en service terminée</button>`);
+    if (su.service_le) etapes.push(`<span class="pastille ok">En service depuis le ${esc(dateCourte(su.service_le))}</span>`);
+    if (k.livres) etapes.push('<button type="button" class="btn" id="bgCorresp">Correspondance badges / appartements</button>');
+  } else if (fo.recu_le) {
     etapes.push(`<button type="button" class="btn ${su.programmes_le ? '' : 'btn-or'}" id="bgFiche">Fiche de programmation Vigik</button>`);
     etapes.push(su.programmes_le ? `<span class="pastille ok">Badges programmés le ${esc(dateCourte(su.programmes_le))}</span>` : '<button type="button" class="btn btn-petit" data-bgj="programmes">Badges programmés dans le logiciel</button>');
     if (su.programmes_le && !k.livres) etapes.push('<button type="button" class="btn btn-or" id="bgLivrer">Livrer les badges au syndic</button>');
@@ -1191,6 +1256,7 @@ async function rendreBadgesVigikAdmin(c) {
   if ($('bgCorresp')) $('bgCorresp').onclick = correspondanceBadges;
   if ($('bgLivrer')) $('bgLivrer').onclick = () => { choisirOnglet('livrer'); document.querySelector('.onglets').scrollIntoView({ behavior: 'smooth' }); };
   $('bgEtapes').querySelectorAll('[data-bgj]').forEach(b => b.onclick = async () => {
+    if (b.dataset.bgj === 'installation' || b.dataset.bgj === 'service') return executerEtape(A.etat.copros.find(x => x.id === c.id) || c, b.dataset.bgj === 'installation' ? 'installer' : 'service');
     try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: b.dataset.bgj, p_fait: true }, 'bgMsg'); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {}
   });
 }
@@ -1453,12 +1519,16 @@ function rendreAvancementAdmin(c, k) {
   else if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) attente = 'Installation en cours : l’émargement remonte de l’app.';
   else if (!(c.facture || {}).url) action = ['Déposer la facture', () => $('emFichierFacture').click()];
   async function jalon(j, fait) { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: fait, p_info: '' }); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {} }
-  $('dJalons').innerHTML = (cloture ? `<div class="raccourci cloture" style="min-width:300px"><span class="attente">${esc(cloture)}</span></div>` : '') + (et.code === 'facture' ? `<div class="raccourci depot-facture" id="dDepotFacture" style="min-width:280px">${ZONE_FACTURE}</div>` : '')
+  if (et.code === 'listing') action = null;
+  $('dJalons').innerHTML = (et.code === 'listing' ? `<div class="raccourci depot-facture" id="dDepotListing" style="min-width:320px"><b>${esc(et.libelle)}</b><span>Glissez le fichier exporté de votre logiciel (Excel, CSV) ou cliquez</span></div>` : '')
+    + (et.note ? `<span class="pastille attente">${esc(et.note)}</span>` : '')
+    + (cloture ? `<div class="raccourci cloture" style="min-width:300px"><span class="attente">${esc(cloture)}</span></div>` : '') + (et.code === 'facture' ? `<div class="raccourci depot-facture" id="dDepotFacture" style="min-width:280px">${ZONE_FACTURE}</div>` : '')
     + (action ? `<button type="button" class="btn btn-or" id="dActionSuivante" style="min-height:52px;padding:0 26px;font-size:13px">${esc(action[0])}</button>` : '')
     + (attente ? `<span class="pastille attente">${esc(attente)}</span>` : '')
     + (rec.etiquettes_le ? ` <button type="button" class="btn btn-petit btn-discret" data-jalon="etiquettes" data-fait="0" title="Annuler cette validation">✓ Étiquettes validées le ${esc(dateCourte(rec.etiquettes_le))}</button>` : '');
   if (action) $('dActionSuivante').onclick = action[1];
   if ($('dDepotFacture')) brancherDepotFacture($('dDepotFacture'), c.id);
+  if ($('dDepotListing')) brancherDepotListing($('dDepotListing'), c.id);
   $('dJalons').querySelectorAll('[data-jalon]').forEach(b => b.onclick = async () => { if (confirm('Annuler la validation des étiquettes ?')) jalon('etiquettes', false); });
   return;
   const jalons = [

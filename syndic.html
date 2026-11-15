@@ -477,7 +477,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=28"></script>
+<script src="portail-commun.js?v=29"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -739,17 +739,27 @@ function rendreParcours() {
   const c = S.detail.copro, rec = c.recensement || {}, n = c.nb_logements_saisis || 0;
   $('coRecensement').hidden = c.type !== 'complet';
   if (c.type !== 'complet') return;
-  const etiq = !!rec.etiquettes_le, pret = rec.etape === 'pret';
-  const etapes = [
+  const vigikSeul = c.travaux === 'vigik', su0 = c.badges_suivi || {}, livres = (S.detail.compteurs || {}).livres > 0;
+  // Vigik seul : pas d'étiquettes ; le fichier s'ouvre quand Harmonie a déposé le listing des badges.
+  const etiq = vigikSeul ? livres : !!rec.etiquettes_le, pret = rec.etape === 'pret';
+  const etapes = vigikSeul ? [
+    { fait: !!su0.commande_le, titre: 'Commande des badges',
+      texte: su0.commande_le ? `${su0.commande_nb} badges commandés le ${dateCourte(su0.commande_le)}${su0.commande_par ? ' par ' + su0.commande_par : ''}.${livres ? ' Badges programmés et livrés par Harmonie Électricité.' : ' Harmonie Électricité programme les badges.'}`
+        : 'Indiquez le nombre total de badges à commander pour la résidence. Harmonie Électricité les programme, puis votre espace s’ouvre pour le recensement des copropriétaires.',
+      bouton: su0.commande_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="commander">Commander les badges</button>' },
+  ] : [
+    
     { fait: etiq, titre: 'Étiquettes de numérotation',
       texte: etiq ? `Pose des étiquettes validée par Harmonie Électricité le ${dateCourte(rec.etiquettes_le)}.`
         : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité : une étiquette blanche numérotée sur l’huisserie de chaque porte palière. Le recensement des appartements s’ouvre ensuite.',
       bouton: '' },
+  ];
+  etapes.push(
     { fait: pret, titre: 'Fichier des copropriétaires',
       texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
         : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
-      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : 'disabled title="En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité"'}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
+      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : `disabled title="${vigikSeul ? 'En attente du dépôt des badges programmés par Harmonie Électricité' : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité'}"`}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
     (() => {
       const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0, tous = n > 0 && nc >= n;
       return { fait: clos || tous, titre: 'Recensement des copropriétaires',
@@ -760,8 +770,8 @@ function rendreParcours() {
           : 'Disponible une fois le fichier des copropriétaires validé.',
         bouton: `<button type="button" class="btn btn-petit ${ouvert ? '' : 'btn-or'}" data-parcours="sondage" ${pret && etiq ? '' : 'disabled'}>${ouvert ? 'Suivre le recensement' : 'Envoyer le recensement aux copropriétaires'}</button>` };
     })(),
-  ];
-  {
+  );
+  if (!vigikSeul) {
     const camp = c.campagne || {}, planifie = (camp.jours || []).length > 0, nr = c.nb_rdv || 0, ar = c.nb_rdv_a_rattacher || 0;
     etapes.push({ fait: !!camp.envoyee_le && n > 0 && nr >= n, titre: 'Information des occupants et rendez-vous',
       texte: !planifie ? 'Dès réception du matériel, Harmonie Électricité fixe les jours d’intervention et envoie la campagne d’information aux occupants (avec la feuille d’affichage). Vous pourrez suivre les rendez-vous ici.'
@@ -773,13 +783,14 @@ function rendreParcours() {
     etapes.push({ fait: lg.length > 0 && ok >= lg.length, titre: 'Remise des badges aux propriétaires',
       texte: !k.livres ? 'Harmonie Électricité programme les badges et vous les livre à l’agence (bon de livraison signé).'
         : `${k.livres} badges livrés à l’agence. ${ok} / ${lg.length} appartements ont récupéré leurs badges.${su.prevenus_le ? ` Propriétaires prévenus le ${dateCourte(su.prevenus_le)}.` : ' Prévenez les propriétaires qu’ils peuvent passer les chercher.'}`,
-      bouton: k.livres ? `${su.prevenus_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="prevenir">Prévenir les propriétaires</button>'}<button type="button" class="btn btn-petit" data-parcours="emargementBadges">Émargement des badges</button>` : '' });
+      bouton: k.livres && (!vigikSeul || su.attribues_le) ? `${su.prevenus_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="prevenir">Prévenir les propriétaires</button>'}<button type="button" class="btn btn-petit" data-parcours="emargementBadges">Émargement des badges</button>` : '' });
   }
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
     <span class="num">${e.fait ? '✓' : i + 1}</span><div><h3>${esc(e.titre)}</h3><p>${esc(e.texte)}</p>${e.bouton ? `<div class="actions">${e.bouton}</div>` : ''}</div></li>`).join('');
   $('coParcours').querySelectorAll('[data-parcours]').forEach(b => b.onclick = async () => {
     if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
+    if (b.dataset.parcours === 'commander') return commanderBadges();
     if (b.dataset.parcours === 'sondage') return ouvrirSondage();
     if (b.dataset.parcours === 'campagne') return ouvrirCampagne();
     if (b.dataset.parcours === 'prevenir') return prevenirProprietaires();
@@ -794,6 +805,19 @@ function etapeSyndic(c) {
   const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
   const H = (titre, texte) => ({ attente: titre, detail: texte });
   if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
+  if (c.type === 'complet' && vigik && c.travaux === 'vigik') {
+    if (!su.commande_le) return { code: 'commander', libelle: 'Commander les badges' };
+    if (!k.livres) return H('Programmation des badges en cours', `par Harmonie Électricité (${su.commande_nb} commandés)`);
+    if (rec.etape !== 'pret') return { code: 'recensement', libelle: n ? 'Terminer le fichier des copropriétaires' : 'Créer le fichier des copropriétaires' };
+    if (!so.ouvert_le) return { code: 'sondage', libelle: 'Envoyer le recensement aux copropriétaires' };
+    if (!(so.clos_le || (n && nc >= n))) return { code: 'sondage', libelle: `Suivre le recensement (${nc} / ${n} signés)` };
+    if (!su.attribues_le) return H('Attribution des badges aux appartements', 'par Harmonie Électricité');
+    if (!su.prevenus_le) return { code: 'prevenir', libelle: 'Prévenir les propriétaires (badges à l’agence)' };
+    if (!su.installation_le && (c.nb_badges_ok || 0) < (c.nb_badges_attendus || 0)) return { code: 'badges', libelle: `Remettre les badges (${c.nb_badges_ok || 0} / ${c.nb_badges_attendus} appartements)` };
+    if (!su.installation_le) return H('Badges distribués', 'En attente de l’installation des centrales par Harmonie Électricité');
+    if (!su.service_le) return H('Installation des centrales en cours', 'par Harmonie Électricité');
+    return H('Nouveau système Vigik en service', 'Facturation par Harmonie Électricité en cours');
+  }
   if (c.type !== 'complet') return k.stock ? { code: 'remise', libelle: '+ Remettre des badges' } : k.livres ? H('Tous les badges livrés sont remis.', '') : H('En attente de la livraison des badges', 'par Harmonie Électricité');
   if (c.etat === 'attente_facturation') return H('Installation terminée', 'Facturation par Harmonie Électricité en cours');
   if (!rec.etiquettes_le) return H('En attente de la mise en place des étiquettes', 'de numérotation des appartements par Harmonie Électricité');
@@ -825,9 +849,21 @@ async function executerRaccourci(id, code) {
   if (code === 'prevenir') return prevenirProprietaires();
   if (code === 'badges') return ouvrirEmargementBadges();
   if (code === 'remise') return nouvelleRemise();
+  if (code === 'commander') return commanderBadges();
 }
 function brancherRaccourcis(racine) {
   racine.querySelectorAll('[data-raccourci]').forEach(b => b.onclick = e => { e.stopPropagation(); executerRaccourci(b.dataset.coproId, b.dataset.raccourci); });
+}
+
+// ---------- Vigik seul : commande du nombre total de badges ----------
+async function commanderBadges() {
+  const c = S.detail?.copro; if (!c) return;
+  const v = prompt(`Combien de badges commander pour « ${c.nom} » ?\n\nNombre total pour la résidence (copropriétaires, stock du syndic, entreprises). Harmonie Électricité les programme, puis votre espace s’ouvre pour le recensement.`, '');
+  if (v === null) return;
+  const nb = parseInt(String(v).replace(/\D/g, ''), 10);
+  if (!nb || nb < 1) return toast('Indiquez un nombre de badges.');
+  if (!confirm(`Commander ${nb} badges pour « ${c.nom} » ?`)) return;
+  try { await appel('ps_syndic_badges_commander', { p_session: S.session, p_copro: S.copro, p_nb: nb }); toast(`Commande de ${nb} badges envoyée à Harmonie Électricité.`); ouvrirCopro(S.copro); } catch {}
 }
 
 // ---------- Badges : prévenir les propriétaires, émargement par appartement ----------

@@ -38,6 +38,7 @@ const PS = (() => {
     SIGNATURE_INVALIDE: 'Signez dans le cadre prévu.',
     TELEPHONE_OBLIGATOIRE: 'Indiquez votre numéro de téléphone.',
     ETIQUETTES_A_VALIDER: 'Le recensement commence quand Harmonie Électricité a validé la pose des étiquettes de numérotation.',
+    BADGES_A_DEPOSER: 'Le fichier des copropriétaires s’ouvre quand Harmonie Électricité a déposé le listing des badges programmés.',
     CRENEAU_INDISPONIBLE: 'Ce créneau n’est plus proposé : choisissez-en un autre.',
     CRENEAU_COMPLET: 'Ce créneau vient d’être pris : choisissez-en un autre.',
   };
@@ -234,6 +235,24 @@ const PS = (() => {
         { cle: 'livres', titre: 'Badges livrés au syndic', fait: k.livres > 0 || apres('livres', 'distribution', 'termine') ? 1 : 0, attente: 'En attente de la livraison des badges au syndic' },
         badges,
         { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
+      ];
+    } else if (c.travaux === 'vigik') {
+      // Vigik seul : commande du syndic → listing déposé → fichier → recensement → attributions → remises → installation → facture.
+      const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
+      E = [
+        { cle: 'commande', titre: 'Commande des badges par le syndic', fait: su.commande_le ? 1 : 0, attente: 'En attente de la commande des badges (syndic)' },
+        { cle: 'listing', titre: 'Badges programmés, listing déposé', fait: k.livres > 0 ? 1 : 0, attente: 'Programmation des badges par Harmonie Électricité' },
+        { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
+          enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
+        { cle: 'sondage', titre: 'Recensement envoyé', fait: so.clos_le || (n && ni >= n) ? 1 : so.ouvert_le && n ? ni / n : 0,
+          enCours: `Envoi du recensement : ${ni} / ${n} copropriétaires`, attente: 'Recensement à envoyer aux copropriétaires' },
+        { cle: 'reponses', titre: 'Recensements signés', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
+          enCours: `Recensement en cours : ${nc} / ${n} signés`, attente: 'En attente des réponses des copropriétaires' },
+        { cle: 'attribues', titre: 'Badges attribués aux appartements', fait: su.attribues_le ? 1 : 0, attente: 'Attribution des badges par Harmonie Électricité' },
+        { cle: 'badges', titre: 'Badges récupérés', fait: nba ? Math.min(1, nbo / nba) : 0, enCours: `Badges récupérés : ${nbo} / ${nba} appartements`, attente: 'Distribution des badges à l’agence' },
+        { cle: 'installation', titre: 'Installation et mise en service', fait: su.service_le || apres('attente_facturation', 'facture', 'termine') ? 1 : su.installation_le ? 0.5 : 0,
+          enCours: 'Installation des centrales en cours', attente: 'En attente de l’installation des centrales' },
+        { cle: 'facture', titre: 'Facturé, chantier terminé', fait: facture ? 1 : 0, attente: fini || su.service_le ? 'Système en service, en attente de facturation' : 'Facturation' },
       ];
     } else {
       const commande = apres('commande', 'installation', 'reserves', 'attente_facturation', 'facture', 'termine'), surSite = apres('installation', 'reserves', 'attente_facturation', 'facture', 'termine');
@@ -670,7 +689,7 @@ const PS = (() => {
         const reste = att - bp.length - bl.length - enAtt - (l.badges_locataire || 0);
         return reste > 0 ? `<p style="margin-top:8px"><b style="color:var(--he-white)">${reste} badge${reste > 1 ? 's' : ''} à remettre</b>${enAtt ? ` • ${enAtt} en attente de signature` : ''}</p>` + (actions.remettre ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-or" data-remettre="${esc(l.id)}">Remettre des badges</button></div>` : '') : ''; })()}
       ${(l.badges_supp_hist || []).length ? `<p class="aide">Badges supplémentaires : ${l.badges_supp_hist.map(h => `${h.nb} pour le ${h.pour === 'locataire' ? 'locataire' : 'propriétaire'} le ${esc(dateCourte(h.le))}${h.motif ? ' (' + esc(h.motif) + ')' : ''}`).join(' • ')}</p>` : ''}
-      ${actions.supplementaires ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-petit" data-supp-ouvrir>+ Badges supplémentaires</button></div>
+      ${actions.supplementaires ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-petit ${k ? '' : 'btn-or'}" data-supp-ouvrir>${k ? '+ Badges supplémentaires' : 'Attribuer des badges (sans réponse au recensement)'}</button></div>
         <div id="suppForm" hidden style="margin-top:8px;padding:12px;border:1px solid var(--border-subtle);border-radius:8px">
           <div class="grille-2"><div><label for="suppNb">Nombre</label><select id="suppNb">${[1, 2, 3, 4, 5].map(n => `<option>${n}</option>`).join('')}</select></div>
           <div><label for="suppPour">Pour</label><select id="suppPour"><option value="proprietaire">Le propriétaire</option><option value="locataire">Le locataire</option></select></div></div>
