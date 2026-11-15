@@ -272,6 +272,12 @@
       <input type="file" id="chDevis" accept="application/pdf,.pdf" hidden>
       <p class="aide">Commencez par le devis : glissez le PDF ici ou touchez « Déposer le devis ». Le nom de la copropriété, l’adresse du chantier, la référence, la marque et le syndic sont repris automatiquement — vérifiez-les ci-dessous. Le devis reste attaché au chantier pour le sondage et les bons de commande.</p>
       <p class="message" id="chDevisLu"></p>
+      <div id="chPrixBloc" hidden style="margin-top:12px">
+        <h4 style="margin:0 0 4px">Prix proposés aux copropriétaires (ce chantier)</h4>
+        <p class="aide" style="margin:0 0 8px">Repris des lignes du devis et rapprochés des articles du catalogue. Seuls les prix changent : photos, descriptions et brochures restent ceux du catalogue. Case vide = prix du catalogue.</p>
+        <div id="chPrix"></div>
+        <div class="actions" style="margin-top:6px"><button type="button" class="btn btn-petit btn-discret" id="chPrixRelire">Relire les prix du devis</button></div>
+      </div>
     </div>
     <div style="grid-column:1/-1"><label for="chNom">Nom de la copropriété *</label><input type="text" id="chNom" required placeholder="Saint Antoine"></div>
     <div style="grid-column:1/-1"><label for="chAdresse">Adresse</label><input type="text" id="chAdresse"></div>
@@ -349,7 +355,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=29"></script>
+<script src="portail-commun.js?v=30"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -778,6 +784,19 @@ async function lireDevis(octets) {
   res.numero = (p1.map(i => i.t).join(' ').match(/\b(D\d{4,})\b/) || [])[1] || '';
   res.date = (tout.match(/Date\s*:\s*(\d{2}\/\d{2}\/\d{4})/) || [])[1] || '';
   Object.assign(res, nombreAppartements(p1, enTete, tout));
+  // Lignes chiffrées : « Désignation   Qté   P.U. HT   Montant HT   TVA » (les options à quantité 0 gardent leur prix unitaire).
+  const reLigne = /^(.*?\S)\s+(\d+,\d{2})\s+(\d{1,3}(?: \d{3})*,\d{2})\s+(\d{1,3}(?: \d{3})*,\d{2})\s+(\d{1,2},\d{2})$/;
+  const nb = t => parseFloat(t.replace(/\s/g, '').replace(',', '.'));
+  // Un devis peut proposer plusieurs marques : chaque ligne est rattachée à la dernière marque citée (« Modèle Bticino… »).
+  const reMarque = new RegExp('\\b(' + MARQUES_TOUTES.join('|') + ')\\b', 'i');
+  let marqueCourante = '';
+  res.lignes = [];
+  for (const pg of pages) for (const l of lignes(pg)) {
+    const mq = l.t.match(reMarque); if (mq) marqueCourante = MARQUES_TOUTES.find(x => x.toLowerCase() === mq[1].toLowerCase());
+    const m = l.t.match(reLigne); if (!m) continue;
+    const pu = nb(m[3]); if (!(pu > 0) || pu > 100000) continue;
+    if (res.lignes.length < 200) res.lignes.push({ d: m[1].slice(0, 160), q: nb(m[2]), pu, tva: nb(m[5]), m: marqueCourante });
+  }
   const comptes = MARQUES_TOUTES.map(m => [m, (tout.match(new RegExp('\\b' + m + '\\b', 'gi')) || []).length]).filter(c => c[1]).sort((a, b) => b[1] - a[1]);
   res.marque = comptes[0]?.[0] || '';
   const bas = tout.toLowerCase();
@@ -808,6 +827,75 @@ function nombreAppartements(p1, enTete, tout) {
   n = lire(tout, simple);
   return n ? { appartements: n, appartementsSource: 'devis' } : { appartements: 0, appartementsSource: '' };
 }
+// ---------- Prix du devis → articles du catalogue proposés au recensement ----------
+// Les lignes du devis n'ont pas de référence catalogue : rapprochement par le type (combiné, moniteur, plaque, badge)
+// et les caractéristiques (mains libres, à combiné, connecté, taille d'écran). Vérifiable et corrigeable à la main.
+// Mots-clés cherchés sans espaces ni tirets : le PDF coupe parfois les mots (« av ec c ombiné », « W IFI », « mains-llibres »).
+const traitsPrix = t => {
+  const s = (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), c = s.replace(/[\s'’-]+/g, '');
+  return { s, c, type: /plaque/.test(c) ? 'plaque' : /badge/.test(c) ? 'badge' : /moniteur|video|ecran/.test(c) ? 'moniteur' : /combin|poste|audio/.test(c) ? 'combine' : '',
+    ml: /mains?l+ibres?/.test(c), cb: /combin/.test(c.replace(/sanscombin/g, '')), cx: /connect|wifi|smartphone|appli/.test(c),
+    ecran: ((s.match(/(\d{1,2}(?:[,.]\d)?)\s*(?:"|''|pouces)/) || [])[1] || '').replace(',', '.') };
+};
+// Noms de modèle (ART4, ART7, Veo-XS, Veo-XL…) : un bon indice quand le devis les reprend.
+const modeles = t => [...new Set(((t || '').toLowerCase().match(/[a-z]*\d[a-z\d]*|[a-z]{2,}-[a-z\d]{1,3}\b/g) || []).map(x => x.replace(/-/g, '')).filter(x => x.length >= 3 && !/^\d+$/.test(x)))];
+function rapprocherPrix(lignes, articles, marque) {
+  const res = {};
+  for (const a of articles) {
+    const ta = traitsPrix([a.nom, a.argument, ...(a.points || [])].join(' ')), mod = modeles(a.nom);
+    let best = null;
+    for (const l of lignes || []) {
+      // Lignes d'une autre marque écartées (sauf badges, souvent sans marque).
+      if (a.type !== 'badge' && l.m && marque && l.m !== marque) continue;
+      const tl = traitsPrix(l.d), refOk = a.ref && a.ref.length > 2 && tl.c.includes(a.ref.toLowerCase().replace(/[\s-]+/g, ''));
+      if (!refOk && tl.type !== a.type) continue;
+      let sc = refOk ? 20 : 0;
+      sc += tl.ml === ta.ml ? 2 : -2; sc += tl.cx === ta.cx ? 2 : -2;
+      if (a.type === 'combine') sc += tl.cb === ta.cb ? 2 : -2;
+      if (a.type === 'moniteur') sc += tl.cb === ta.cb ? 1 : -1;
+      if (tl.ecran && ta.ecran) sc += tl.ecran === ta.ecran ? 3 : -3;
+      sc += 3 * mod.filter(x => tl.c.includes(x)).length;
+      if (l.q > 0) sc += 0.5;
+      if (!best || sc > best.sc) best = { sc, l };
+    }
+    if (best && best.sc >= 0) res[a.ref] = { prix: best.l.pu, ligne: best.l.d };
+  }
+  return res;
+}
+// Articles du catalogue que le recensement proposera (même règle que le serveur).
+function articlesDuChantier() {
+  const t = $('chTravaux').value, mi = $('chMarqueInterphone').value, mv = $('chMarqueVigik').value;
+  const actifs = (CT.articles || []).filter(a => a.actif !== false);
+  const postes = t === 'vigik' ? [] : actifs.filter(a => a.marque === mi && ['combine', 'moniteur', 'plaque'].includes(a.type));
+  const badges = t === 'interphone' ? [] : actifs.filter(a => a.type === 'badge').sort((x, y) => (y.marque === mv) - (x.marque === mv) || (y.marque === mi) - (x.marque === mi) || x.prix_ht - y.prix_ht).slice(0, 1);
+  return [...postes.sort((x, y) => (x.ordre ?? 0) - (y.ordre ?? 0)), ...badges];
+}
+async function rendrePrixChantier(relire) {
+  const ex = A.devis?.extrait || {};
+  if (!ex.lignes?.length || $('chType').value !== 'complet') { $('chPrixBloc').hidden = true; return; }
+  if (!CT.articles?.length) { try { CT.articles = await appel('ps_admin_catalogue', {}); } catch { return; } }
+  const arts = articlesDuChantier(), auto = rapprocherPrix(ex.lignes, arts, $('chMarqueInterphone').value);
+  if (relire || !A.prix) A.prix = Object.fromEntries(Object.entries(auto).map(([r, v]) => [r, v.prix]));
+  $('chPrixBloc').hidden = false;
+  $('chPrix').innerHTML = arts.length ? `<ul class="liste">${arts.map(a => `<li><div class="principal"><b>${esc(a.nom)}</b>
+      <div class="sous">${esc([a.marque, a.ref, 'catalogue ' + PS.euros(a.prix_ht) + ' HT'].join(' • '))}</div>
+      <div class="sous">${auto[a.ref] ? 'Devis : « ' + esc(auto[a.ref].ligne) + ' » — ' + PS.euros(auto[a.ref].prix) + ' HT' : 'Pas trouvé dans le devis : prix du catalogue si la case reste vide.'}</div></div>
+      <div class="droite"><input type="number" step="0.01" min="0" data-prix="${esc(a.ref)}" value="${A.prix[a.ref] ?? ''}" placeholder="${esc(String(a.prix_ht))}" aria-label="Prix HT pour ce chantier" style="width:110px"> € HT</div></li>`).join('')}</ul>`
+    : '<p class="aide">Choisissez la marque d’interphone pour voir les articles proposés.</p>';
+  $('chPrix').querySelectorAll('[data-prix]').forEach(inp => inp.oninput = () => {
+    const v = parseFloat(inp.value); if (v > 0) A.prix[inp.dataset.prix] = Math.round(v * 100) / 100; else delete A.prix[inp.dataset.prix];
+  });
+}
+$('chPrixRelire').onclick = () => { if (confirm('Remplacer les prix de ce chantier par ceux relus sur le devis ?')) rendrePrixChantier(true); };
+['chMarqueInterphone', 'chMarqueVigik', 'chType'].forEach(id => $(id).addEventListener('change', () => rendrePrixChantier()));
+$('chTravaux').addEventListener('change', () => rendrePrixChantier());
+// Devis enregistré : nombre d'appartements et prix du chantier gardés dans l'extrait.
+function devisAEnregistrer() {
+  const n = Math.min(parseInt($('chAppartements').value, 10) || 0, 2000);
+  if (!A.devis?.url) return A.devis || {};
+  return { ...A.devis, extrait: { ...(A.devis.extrait || {}), appartements: n, prix: A.prix || A.devis.extrait?.prix || {} } };
+}
+
 // Syndic retrouvé par l'e-mail d'un gestionnaire, sinon par le domaine (foncia.com → Foncia…).
 function syndicDuDevis(emails, sousCouvert) {
   const nrm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -834,7 +922,7 @@ function preremplirDepuisDevis(d, tout) {
     rendreAccesPortail();
   }
   const vus = [d.client && 'copropriété « ' + d.client + ' »', d.sousCouvert && 'S/C ' + d.sousCouvert, d.adresse && 'adresse ' + [d.adresse, d.cp, d.ville].join(' '), d.numero && 'devis ' + d.numero,
-    d.appartements && d.appartements + ' appartements' + (d.appartementsSource ? ' (' + d.appartementsSource + ')' : ''), d.marque && 'marque ' + d.marque, sid ? 'syndic ' + nomSyndic(sid) : d.emails.length && 'syndic non reconnu (' + d.emails.join(', ') + ')'].filter(Boolean);
+    d.appartements && d.appartements + ' appartements' + (d.appartementsSource ? ' (' + d.appartementsSource + ')' : ''), d.marque && 'marque ' + d.marque, d.lignes?.length && d.lignes.length + ' lignes de prix', sid ? 'syndic ' + nomSyndic(sid) : d.emails.length && 'syndic non reconnu (' + d.emails.join(', ') + ')'].filter(Boolean);
   $('chDevisLu').className = 'message'; $('chDevisLu').textContent = vus.length ? 'Repris du devis : ' + vus.join(' • ') + '. Vérifiez avant d’enregistrer.' : 'Rien n’a pu être lu dans ce devis : complétez à la main.';
 }
 
@@ -854,13 +942,13 @@ async function deposerDevis(f) {
       headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/pdf' }, body: f });
     if (!rep.ok) throw new Error();
     A.devis = { url: `${SUPA_URL}/storage/v1/object/public/bon-photos/${chemin}`, nom: f.name, taille: f.size, depose_le: new Date().toISOString(), extrait };
-    rendreDevis(); msg('chMessage', 'Devis déposé : pensez à « Enregistrer ».', false);
+    rendreDevis(); A.prix = null; rendrePrixChantier(true); msg('chMessage', 'Devis déposé : pensez à « Enregistrer ».', false);
   } catch { msg('chMessage', 'Le devis n’a pas pu être envoyé. Vérifiez la connexion puis réessayez.', true); }
   finally { $('chDevisChoisir').disabled = false; $('chDevis').value = ''; }
 }
 $('chDevisChoisir').onclick = () => $('chDevis').click();
 $('chDevis').onchange = e => deposerDevis(e.target.files[0]);
-$('chDevisRetirer').onclick = () => { A.devis = {}; $('chAppartements').value = ''; rendreDevis(); msg('chMessage', 'Devis retiré : pensez à « Enregistrer ».', false); };
+$('chDevisRetirer').onclick = () => { A.devis = {}; A.prix = null; $('chAppartements').value = ''; $('chPrixBloc').hidden = true; rendreDevis(); msg('chMessage', 'Devis retiré : pensez à « Enregistrer ».', false); };
 {
   const z = $('chDevisZone');
   ['dragenter', 'dragover'].forEach(t => z.addEventListener(t, e => { e.preventDefault(); z.classList.add('survol'); }));
@@ -881,16 +969,18 @@ async function ouvrirFormChantier(c) {
   $('chMarqueInterphone').value = c?.marque_interphone || ''; $('chMarqueVigik').value = c?.marque_vigik || '';
   A.devis = c?.devis?.url || c?.devis?.extrait ? { ...c.devis } : {}; rendreDevis(); $('chDevisLu').textContent = '';
   $('chAppartements').value = c?.devis?.extrait?.appartements || '';
+  A.prix = c?.devis?.extrait?.prix ? { ...c.devis.extrait.prix } : null; $('chPrixBloc').hidden = true;
   A.vigik = JSON.parse(JSON.stringify(c?.vigik?.portes?.length ? c.vigik : { portes: ['Porte d’entrée'], autorisations: [{ nom: '', portes: [0] }] }));
   rendreAccesPortail();
   await remplirChantiersApp($('chLien'), '— Aucun —'); $('chLien').value = c?.chantier_id || '';
   msg('chMessage', ''); $('dlgChantier').showModal();
+  rendrePrixChantier();
 }
 $('formChantier').onsubmit = async e => {
   e.preventDefault();
   const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
     reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
-    devis: (n => n || A.devis?.extrait ? { ...(A.devis || {}), extrait: { ...(A.devis?.extrait || {}), appartements: n } } : A.devis || {})(Math.min(parseInt($('chAppartements').value, 10) || 0, 2000)),
+    devis: devisAEnregistrer(),
     marque_interphone: $('chTravaux').value === 'vigik' ? '' : $('chMarqueInterphone').value,
     marque_vigik: $('chTravaux').value === 'interphone' ? '' : $('chMarqueVigik').value,
     travaux: $('chTravaux').value, vigik: $('chTravaux').value === 'interphone' ? { portes: [], autorisations: [] }

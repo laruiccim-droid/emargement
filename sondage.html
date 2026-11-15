@@ -101,7 +101,7 @@
     <h1 id="titre"></h1>
     <p class="doux" id="adresse"></p>
     <span class="appt" id="appt"></span>
-    <p class="intro" id="texte" style="margin-top:16px"></p>
+    <p class="intro" id="texte" style="margin-top:16px;white-space:pre-line"></p>
     <div class="encart" id="dejaSigne" hidden></div>
 
     <div class="bloc" id="blocPostes">
@@ -185,7 +185,7 @@
 </main>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=29"></script>
+<script src="portail-commun.js?v=30"></script>
 <script>
 'use strict';
 const { rpc, $, esc, dateCourte, euros } = PS;
@@ -214,9 +214,7 @@ async function charger() {
   $('titre').textContent = c.nom;
   $('adresse').textContent = [c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   $('appt').textContent = [l.numero && 'Appartement n° ' + l.numero, l.lot && 'Lot n° ' + l.lot].filter(Boolean).join(' • ') || 'Votre appartement';
-  $('texte').textContent = d.texte || (avecInterphone()
-    ? `Suite à la validation du devis pour le remplacement du système d’interphone de la résidence, veuillez choisir le poste qui sera installé dans votre appartement.`
-    : `Suite à la validation du devis pour l’installation du contrôle d’accès Vigik de la résidence, veuillez indiquer le nombre de badges souhaités pour votre appartement.`);
+  $('texte').textContent = d.texte || PS.texteRecensement(c, d.articles);
   // Coordonnées connues du syndic, puis réponse déjà signée.
   const k = d.commande;
   $('nom').value = k?.nom || ''; $('prenom').value = k?.prenom || ''; $('tel').value = k?.telephone || l.telephone || '';

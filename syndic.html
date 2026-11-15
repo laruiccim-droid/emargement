@@ -249,7 +249,7 @@
       <h2>Avant l’envoi</h2>
       <p class="aide" style="margin-top:0">Chaque copropriétaire reçoit un lien personnel : il choisit son poste, la plaque de propreté et ses badges, donne ses coordonnées et signe son bon de commande. Les prix affichés sont ceux du devis.</p>
       <label for="soTexte">Message d’accueil du recensement</label>
-      <textarea id="soTexte" rows="4"></textarea>
+      <textarea id="soTexte" rows="6"></textarea>
       <label>Matériel proposé</label>
       <ul class="liste" id="soArticles"></ul>
       <div class="actions"><button type="button" class="btn btn-or" id="soOuvrir">Préparer l’envoi aux copropriétaires</button></div>
@@ -477,7 +477,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=29"></script>
+<script src="portail-commun.js?v=30"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -993,9 +993,7 @@ async function ouvrirSondage() {
   const ouvert = !!so.ouvert_le;
   $('soPreparer').hidden = ouvert; $('soSuivi').hidden = !ouvert;
   if (!ouvert) {
-    $('soTexte').value = so.texte || (c.travaux === 'vigik'
-      ? `Suite à la validation du devis pour l’installation du contrôle d’accès Vigik de la résidence ${c.nom}, veuillez indiquer le nombre de badges souhaités pour votre appartement.`
-      : `Suite à la validation du devis pour le remplacement du système d’interphone de la résidence ${c.nom}, veuillez choisir le poste qui sera installé dans votre appartement.`);
+    $('soTexte').value = so.texte || PS.texteRecensement(c, d.articles);
     const ttc = a => a.prix_ht * (1 + a.tva / 100);
     $('soArticles').innerHTML = d.articles.length ? d.articles.map(a => `<li><div class="principal"><b>${esc(a.nom)}</b><div class="sous">${esc([a.marque, a.ref].filter(Boolean).join(' '))}</div></div><div class="droite">${esc(PS.euros(ttc(a)))} TTC</div></li>`).join('')
       : `<li><div class="principal">Aucun matériel au catalogue pour la marque « ${esc(c.marque_interphone || 'non précisée')} ». Contactez Harmonie Électricité avant d’ouvrir le sondage.</div></li>`;

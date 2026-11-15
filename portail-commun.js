@@ -394,6 +394,24 @@ const PS = (() => {
     return doc.output('blob');
   }
   // ---------- PDF : bon de commande signé par le copropriétaire ----------
+  // Message d'accueil du recensement, construit d'après le devis : travaux (interphone, Vigik ou les deux),
+  // marque et matériel proposé (combinés, moniteurs, plaque, badges).
+  function texteRecensement(c, articles) {
+    const arts = articles || [], a = t => arts.filter(x => x.type === t);
+    const interphone = c.travaux !== 'vigik', vigik = c.travaux !== 'interphone';
+    const residence = c.nom ? ` de la résidence ${c.nom}` : '';
+    const travaux = interphone && vigik ? 'le remplacement de l’interphone et l’installation du contrôle d’accès Vigik'
+      : interphone ? 'le remplacement du système d’interphone' : 'l’installation du contrôle d’accès Vigik';
+    const sortes = [a('combine').length && 'combiné audio', a('moniteur').length && 'moniteur vidéo'].filter(Boolean);
+    const poste = `le poste intérieur qui sera installé dans votre appartement${sortes.length ? ' (au choix : ' + sortes.join(' ou ') + (c.marque_interphone ? ' ' + c.marque_interphone : '') + ')' : ''}`;
+    const b = a('badge')[0], badges = `le nombre de badges Vigik souhaités pour votre foyer${b ? ` (${euros(b.prix_ht * (1 + b.tva / 100))} TTC le badge)` : ''}`;
+    const choix = interphone && vigik ? [poste, badges] : interphone ? [poste] : [badges];
+    let t = `Suite à la validation du devis pour ${travaux}${residence}, `
+      + (choix.length > 1 ? `nous vous invitons à faire deux choix :\n${choix.map((x, i) => `${i + 1}. ${x.charAt(0).toUpperCase() + x.slice(1)} ;`).join('\n').replace(/ ;$/, '.')}` : `veuillez ${interphone ? 'choisir' : 'indiquer'} ${choix[0]}.`);
+    if (interphone && a('plaque').length) t += `\nUne plaque de propreté vous est aussi proposée pour masquer les traces laissées par l’ancien poste.`;
+    return t + `\nVotre choix, signé en ligne, vaut bon de commande.`;
+  }
+
   const euros = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const QUALITES_COMMANDE = { occupant: 'Propriétaire occupant', bailleur: 'Propriétaire bailleur' };
   async function pdfCommande(k) {
@@ -824,5 +842,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();
