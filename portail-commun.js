@@ -12,6 +12,7 @@ const PS = (() => {
     ADMIN_DEJA_DEFINI: 'Le mot de passe administrateur existe déjà.',
     MDP_TROP_COURT: 'Le mot de passe doit faire au moins 10 caractères.',
     MDP_FAIBLE: 'Mot de passe trop faible : au moins 10 caractères, avec au moins une lettre et un chiffre.',
+    SYNDIC_A_DES_CHANTIERS: 'Ce syndic a encore des chantiers : transférez-les ou supprimez-les avec lui.',
     TROP_DE_TENTATIVES: 'Trop de tentatives : accès bloqué 15 minutes par sécurité. Réessayez plus tard.',
     SESSION_INVALIDE: 'Votre session a expiré : reconnectez-vous.',
     IDENTIFIANTS_INCORRECTS: 'Adresse e-mail ou mot de passe incorrect.',

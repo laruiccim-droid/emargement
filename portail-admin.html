@@ -334,7 +334,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=25"></script>
+<script src="portail-commun.js?v=26"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -497,7 +497,7 @@ function rendreSyndics() {
   $('listeSyndics').innerHTML = ss.length ? ss.map(s => `<div class="bloc">
     <div class="titre-ligne" style="margin:0"><div><h3>${esc(s.nom)}</h3><div class="aide">${esc([s.adresse, [s.cp, s.ville].filter(Boolean).join(' '), s.tel, s.email].filter(Boolean).join(' • ')) || 'Coordonnées à compléter'}</div>
       <div class="aide">${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => esc(c.nom)).join(', ') || 'Aucun chantier lié'}</div></div>
-      <div class="droite" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-petit" data-modifier-syndic="${s.id}">Modifier</button><button type="button" class="btn btn-petit btn-or" data-ajouter-user="${s.id}">+ Gestionnaire</button></div></div>
+      <div class="droite" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-petit" data-modifier-syndic="${s.id}">Modifier</button><button type="button" class="btn btn-petit btn-danger" data-suppr-syndic="${s.id}">Supprimer</button><button type="button" class="btn btn-petit btn-or" data-ajouter-user="${s.id}">+ Gestionnaire</button></div></div>
     <ul class="liste" style="margin-top:8px">${s.users.map(u => `<li><div class="principal"><b>${esc(u.nom || u.email)}</b> ${pastilleUser(u)}
         <div class="sous">${esc(u.email)}${u.tel ? ' • ' + esc(u.tel) : ''}${u.derniere_connexion ? ' • dernière connexion ' + horodatage(u.derniere_connexion) : ''}</div></div>
       <div class="droite">
@@ -507,6 +507,24 @@ function rendreSyndics() {
         <button type="button" class="btn btn-petit btn-danger" data-suppr-user="${u.id}" data-nom="${esc(u.nom || u.email)}">Supprimer</button></div></li>`).join('') || '<li><span class="aide">Aucun gestionnaire : ajoutez-en un pour lui créer un accès.</span></li>'}</ul>
   </div>`).join('') : '<div class="vide">Aucun syndic. Créez le premier cabinet.</div>';
   document.querySelectorAll('[data-modifier-syndic]').forEach(b => b.onclick = () => ouvrirSyndic(ss.find(s => s.id === b.dataset.modifierSyndic)));
+  // Suppression d'un syndic : ses gestionnaires partent avec lui ; ses chantiers seulement si on le confirme en tapant son nom.
+  document.querySelectorAll('[data-suppr-syndic]').forEach(b => b.onclick = async () => {
+    const s = ss.find(x => x.id === b.dataset.supprSyndic), cs = A.etat.copros.filter(c => c.syndic_id === s.id);
+    let avec = false;
+    if (cs.length) {
+      const tape = prompt(`« ${s.nom} » a ${cs.length} chantier(s) : ${cs.map(c => c.nom).join(', ')}.
+
+Pour supprimer le syndic ET ces chantiers (appartements, recensements, bons, rendez-vous, badges, chantier de l’app d’émargement), tapez son nom exact ci-dessous.
+
+Sinon, annulez et transférez d’abord les chantiers vers un autre syndic.`);
+      if (tape === null) return;
+      if (tape.trim() !== s.nom.trim()) return toast('Nom différent : rien n’a été supprimé.', 4000);
+      avec = true;
+    } else if (!confirm(`Supprimer définitivement le syndic « ${s.nom} » et ses ${s.users.length} gestionnaire(s) ?
+
+Cette suppression est définitive.`)) return;
+    try { const r = await appel('ps_admin_syndic_supprimer', { p_syndic: s.id, p_avec_chantiers: avec }); toast(`Syndic supprimé${r.chantiers_supprimes ? ` avec ${r.chantiers_supprimes} chantier(s)` : ''}.`); await charger(); rendreSyndics(); } catch {}
+  });
   document.querySelectorAll('[data-ajouter-user]').forEach(b => b.onclick = () => ouvrirUser(ss.find(s => s.id === b.dataset.ajouterUser)));
   document.querySelectorAll('[data-modifier-user]').forEach(b => b.onclick = () => { const s = ss.find(x => x.users.some(u => u.id === b.dataset.modifierUser)); ouvrirUser(s, s.users.find(u => u.id === b.dataset.modifierUser)); });
   document.querySelectorAll('[data-inviter]').forEach(b => b.onclick = () => inviter(b.dataset.inviter));
