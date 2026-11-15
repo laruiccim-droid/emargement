@@ -88,7 +88,7 @@
     <button type="button" class="btn btn-discret btn-petit" data-aller="chantiers">‹ Chantiers</button>
     <div class="titre-ligne" style="margin-top:8px">
       <div><div class="sourcil" id="dEtat"></div><h1 id="dNom"></h1><p class="aide" id="dInfos"></p><p class="aide" id="dDevis"></p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-or" id="btnEspaceSyndic" title="Faire ce que fait le gestionnaire : remises de badges, fichier, recensement…">Espace syndic</button><button type="button" class="btn" id="btnTransfert">Transférer</button><button type="button" class="btn" id="btnModifierChantier">Modifier</button><button type="button" class="btn btn-danger" id="btnSupprimerChantier">Supprimer</button></div>
     </div>
     <div class="bloc" id="dTransfertDemande" hidden></div>
     <div id="dFrise"></div>
@@ -355,7 +355,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=32"></script>
+<script src="portail-commun.js?v=33"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1314,6 +1314,8 @@ async function chargerAppartementsAdmin() {
   let d; try { d = await appel('ps_admin_appartements', { p_copro: A.copro }); } catch { zone.innerHTML = ''; return; }
   EM.apparts = d; verifierCoordApp();
   PS.vueAppartements(zone, d, {
+    // Remise de badges : faite dans l'espace syndic (mode Harmonie), ouvert sur cet appartement.
+    remettre: id => ouvrirEspaceSyndic(A.copro, { remise: id }),
     pdfCommande: async id => { try { const k = await appel('ps_admin_commande', { p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
     pdfRemise: async id => { try { const r = await appel('ps_admin_remise', { p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
     modifier: async (id, p) => {
@@ -1330,6 +1332,19 @@ async function chargerAppartementsAdmin() {
     },
   });
 }
+
+// ---------- Espace syndic en mode Harmonie : tout ce que peut faire le gestionnaire ----------
+// L'onglet s'ouvre tout de suite (sinon le navigateur le bloque), puis reçoit la session.
+async function ouvrirEspaceSyndic(coproId, o = {}) {
+  const w = window.open('about:blank', '_blank');
+  try {
+    const r = await appel('ps_admin_session_syndic', { p_copro: coproId });
+    const h = new URLSearchParams({ harmonie: r.session, copro: coproId, ...(o.remise ? { remise: o.remise } : {}) });
+    const url = PS.urlPage('syndic.html') + '#' + h.toString();
+    if (w) w.location = url; else location.href = url;
+  } catch { if (w) w.close(); }
+}
+$('btnEspaceSyndic').onclick = () => A.copro && ouvrirEspaceSyndic(A.copro);
 
 // ---------- Badges Vigik : programmation, livraison au syndic, suivi par appartement, correspondance ----------
 const BG = { d: null, c: null };

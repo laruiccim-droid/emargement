@@ -50,6 +50,10 @@
       <button type="button" class="btn btn-petit btn-discret" id="btnDeconnexion">Déconnexion</button>
     </div>
   </header>
+  <div id="bandeauHarmonie" hidden style="background:linear-gradient(90deg,#C9A86A,#E2C792);color:#1C1B18;padding:10px 16px;font-weight:600;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <span id="bandeauHarmonieTexte">Mode Harmonie Électricité</span>
+    <button type="button" class="btn btn-petit" id="btnFinHarmonie" style="background:#1C1B18;color:#E2C792;border-color:#1C1B18">Quitter</button>
+  </div>
   <div class="trace"></div>
 
   <section id="vChargement"><p>Chargement…</p></section>
@@ -477,7 +481,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=32"></script>
+<script src="portail-commun.js?v=33"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -510,10 +514,25 @@ async function demarrer() {
   const params = new URLSearchParams(location.search);
   const invitation = params.get('invitation');
   if (invitation) return ouvrirActivation(invitation);
-  try { S.session = localStorage.getItem(CLE_SESSION); } catch {}
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('harmonie')) {
+    try { sessionStorage.setItem(CLE_HARMONIE, h.get('harmonie')); } catch {}
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+  try { S.harmonie = !!sessionStorage.getItem(CLE_HARMONIE); S.session = sessionStorage.getItem(CLE_HARMONIE) || localStorage.getItem(CLE_SESSION); } catch {}
   if (!S.session) return montrer('vConnexion');
   await chargerEtat();
+  if (!S.harmonie || !S.etat) return;
+  $('bandeauHarmonie').hidden = false;
+  $('bandeauHarmonieTexte').textContent = `Mode Harmonie Électricité — espace de ${S.etat.syndic.nom}${S.etat.user.email ? ' (' + S.etat.user.email + ')' : ''} : ce que vous faites ici est enregistré au nom d’Harmonie Électricité.`;
+  // Ouverture directe d'un chantier, et éventuellement d'une remise de badges pour un appartement.
+  if (h.get('copro')) {
+    await ouvrirCopro(h.get('copro'));
+    if (h.get('remise')) nouvelleRemise(h.get('remise'));
+  }
 }
+const CLE_HARMONIE = 'ps_session_harmonie';
+$('btnFinHarmonie').onclick = () => { deconnecter(); window.close(); };
 async function chargerEtat() {
   try { S.etat = await rpc('ps_syndic_etat', { p_session: S.session }); }
   catch (e) { if (e.code === 'SESSION_INVALIDE') return deconnecter(); montrer('vConnexion'); return message('cMessage', e.message); }
@@ -524,7 +543,9 @@ async function chargerEtat() {
 }
 function deconnecter() {
   if (S.session) rpc('ps_deconnexion', { p_session: S.session }).catch(() => {});
-  S.session = null; try { localStorage.removeItem(CLE_SESSION); } catch {}
+  if (S.harmonie) { try { sessionStorage.removeItem(CLE_HARMONIE); } catch {} S.harmonie = false; $('bandeauHarmonie').hidden = true; }
+  else { try { localStorage.removeItem(CLE_SESSION); } catch {} }
+  S.session = null;
   montrer('vConnexion');
 }
 $('btnDeconnexion').onclick = deconnecter;
