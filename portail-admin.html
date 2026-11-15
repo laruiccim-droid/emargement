@@ -1079,7 +1079,15 @@ async function genererAppAuto(cs) {
     if (A.genAuto.has(c.id)) continue;
     A.genAuto.add(c.id);
     EM.c = c;
-    if (await creerOuMajChantierApp({ auto: true })) toast(`Rapprochement terminé : chantier d’émargement créé dans l’app pour « ${c.nom} ».`, 6000);
+    if (await creerOuMajChantierApp({ auto: true })) {
+      toast(`Rapprochement terminé : chantier d’émargement créé dans l’app pour « ${c.nom} ».`, 6000);
+      // E-mail de confirmation à Harmonie : le chantier est prêt pour l'intervention.
+      const quand = PS.datesIntervention(c.campagne);
+      PS.envoiGmail(PS.ENTREPRISE.email, `Chantier d’émargement prêt — ${c.nom}`,
+        `Bonjour,\n\nLe rapprochement locataires / propriétaires de la résidence **${c.nom}** est terminé : le chantier d’émargement a été créé automatiquement dans l’app.\n\n`
+        + `Rendez-vous : **${c.nb_rdv} / ${c.nb_logements_saisis}** appartements.` + (quand ? `\nIntervention prévue ${quand}.` : '')
+        + `\n\nLe chantier est prêt pour l’intervention (logements, rendez-vous, badges, boutons d’appel).\n\nCordialement,`).catch(() => {});
+    }
   }
 }
 async function creerOuMajChantierApp(o = {}) {
