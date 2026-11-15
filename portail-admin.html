@@ -356,7 +356,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=37"></script>
+<script src="portail-commun.js?v=38"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1221,6 +1221,7 @@ function etapeSuivante(c) {
   if (vigik && !k.livres) return { code: 'livrer', libelle: 'Livrer les badges au syndic' };
   if (!(camp.jours || []).length) return { code: 'planifier', libelle: 'Planifier la campagne d’information' };
   if (!camp.envoyee_le) return { code: 'campagne', libelle: 'Envoyer la campagne d’information' };
+  if (!camp.affichee_le) return { code: 'affichage', libelle: 'Feuille d’information affichée dans la résidence', note: 'Liens envoyés le ' + dateCourte(camp.envoyee_le) };
   if (n && nr < n) return { attente: `Campagne envoyée : ${nr} / ${n} rendez-vous pris.` };
   if (!c.chantier_id) return { code: 'generer', libelle: 'Générer le chantier d’émargement' };
   if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) return { attente: 'Installation en cours : l’émargement remonte de l’app.' };
@@ -1232,6 +1233,7 @@ async function executerEtape(c, code) {
   const jalon = async (j) => { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: true, p_info: '' }); toast('Étape validée.'); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
   if (code === 'etiquettes') return jalon('etiquettes');
   if (code === 'recu') return jalon('fourniture_recue');
+  if (code === 'affichage') { if (!confirm('La feuille d’information est affichée dans la résidence ?')) return; return jalon('affichage'); }
   const jalonBadges = async (j, texte) => { try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: j, p_fait: true }); toast(texte); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
   if (code === 'installer') { if (!confirm('Lancer l’installation des centrales Vigik ?' + ((c.nb_badges_ok || 0) < 0.8 * (c.nb_badges_attendus || 0) ? '\n\nMoins de 80 % des appartements ont récupéré leurs badges.' : ''))) return; return jalonBadges('installation', 'Installation lancée.'); }
   if (code === 'programmer') {
@@ -1640,16 +1642,27 @@ function rendreEnvoiCampagneAdmin() {
     rendreEnvoiCampagneAdmin();
     const ok = aEnvoyer.length - erreurs.length;
     alert(`${ok} e-mail${ok > 1 ? 's' : ''} envoyé${ok > 1 ? 's' : ''}.` + (erreurs.length ? '\n\nÉchec pour :\n' + erreurs.join('\n') : ''));
+    // Liens envoyés : la campagne passe à l'étape suivante (affichage dans la résidence).
+    if (ok && !camp.envoyee_le) {
+      try { await appel('ps_admin_jalon', { p_copro: A.copro, p_jalon: 'campagne', p_fait: true, p_info: 'email' }); await charger(); ouvrirChantier(A.copro); } catch {}
+    }
   };
   $('caOccupantsAdmin').querySelectorAll('[data-cas]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cas); noter(l, 'sms'); location.href = PS.lienSms(l.commande?.telephone || l.telephone, texteRdvAdmin(l)); });
   $('caOccupantsAdmin').querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { const l = parId(b.dataset.cal); noter(l, 'autre'); PS.copier(lienRdvAdmin(l.jeton)).then(() => toast('Lien copié.')); });
-  $('caEnvoyeeAdmin').innerHTML = camp.envoyee_le
-    ? `<span class="pastille ok">Campagne envoyée le ${esc(dateCourte(camp.envoyee_le))}</span> <button type="button" class="btn btn-petit btn-discret" data-campagne="0">Annuler</button>`
-    : '<button type="button" class="btn btn-or" data-campagne="1">La campagne est envoyée et la feuille affichée</button>';
+  // Deux temps : liens envoyés (automatique avec « Tout envoyer par e-mail »), puis feuille affichée dans la résidence.
+  $('caEnvoyeeAdmin').innerHTML = !camp.envoyee_le
+    ? '<button type="button" class="btn" data-campagne="campagne:1">Liens envoyés autrement (SMS, en main propre)</button>'
+    : `<span class="pastille ok">Liens envoyés le ${esc(dateCourte(camp.envoyee_le))}</span> `
+      + (camp.affichee_le ? `<span class="pastille ok">Feuille affichée le ${esc(dateCourte(camp.affichee_le))}</span> <button type="button" class="btn btn-petit btn-discret" data-campagne="affichage:0">Annuler l’affichage</button>`
+        : '<button type="button" class="btn btn-or" data-campagne="affichage:1">Feuille d’information affichée dans la résidence</button> <button type="button" class="btn btn-petit btn-discret" data-campagne="campagne:0">Annuler l’envoi</button>');
   $('caEnvoyeeAdmin').querySelectorAll('[data-campagne]').forEach(b => b.onclick = async () => {
-    const fait = b.dataset.campagne === '1';
-    if (!fait && !confirm('Annuler l’envoi de la campagne ?')) return;
-    try { await appel('ps_admin_jalon', { p_copro: A.copro, p_jalon: 'campagne', p_fait: fait, p_info: '' }); toast(fait ? 'Campagne notée comme envoyée.' : 'Annulé.'); rendreCampagneAdmin({ id: A.copro, type: 'complet' }); } catch {}
+    const [jalon, v] = b.dataset.campagne.split(':'), fait = v === '1';
+    if (!fait && !confirm(jalon === 'affichage' ? 'Annuler l’affichage ?' : 'Annuler l’envoi de la campagne ?')) return;
+    try {
+      await appel('ps_admin_jalon', { p_copro: A.copro, p_jalon: jalon, p_fait: fait, p_info: '' });
+      toast(!fait ? 'Annulé.' : jalon === 'affichage' ? 'Affichage noté : les rendez-vous peuvent être pris.' : 'Liens notés comme envoyés.');
+      await charger(); ouvrirChantier(A.copro);
+    } catch {}
   });
 }
 function rendreSuiviCampagneAdmin() {

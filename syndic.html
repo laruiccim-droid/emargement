@@ -481,7 +481,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=37"></script>
+<script src="portail-commun.js?v=38"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -853,6 +853,7 @@ function etapeSyndic(c) {
   if (vigik && !k.livres) return H('En attente de la livraison des badges', 'Harmonie Électricité programme les badges');
   if (!(camp.jours || []).length) return H('En attente de la date d’intervention', 'fixée par Harmonie Électricité');
   if (!camp.envoyee_le) return H('Campagne d’information en préparation', 'par Harmonie Électricité');
+  if (!camp.affichee_le) return H('En attente de l’affichage dans la résidence', 'par Harmonie Électricité');
   if (n && nr < n) return { code: 'campagne', libelle: `Suivre les rendez-vous (${nr} / ${n})` };
   return H(ne ? `Installation en cours : ${ne} / ${n} appartements` : 'En attente de l’installation', 'par Harmonie Électricité');
 }
