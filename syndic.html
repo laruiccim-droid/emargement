@@ -153,7 +153,7 @@
 
   <!-- Accueil : copropriétés -->
   <section id="vAccueil" hidden>
-    <div class="titre-ligne"><div><div class="sourcil">Vos copropriétés</div><h1>Badges</h1></div></div>
+    <div class="titre-ligne"><div><div class="sourcil">Vos copropriétés</div><h1>Chantiers</h1></div></div>
     <div class="grille" id="listeCopros"></div>
   </section>
 
@@ -641,7 +641,6 @@ function rendreAccueil() {
   document.querySelectorAll('#listeCopros [data-copro]').forEach(b => { b.onclick = () => ouvrirCopro(b.dataset.copro); b.onkeydown = e => { if (e.key === 'Enter') ouvrirCopro(b.dataset.copro); }; });
   brancherRaccourcis($('listeCopros'));
   montrer('vAccueil');
-  if (cs.length === 1 && !rendreAccueil.deja) { rendreAccueil.deja = true; ouvrirCopro(cs[0].id); }
 }
 document.querySelectorAll('[data-retour]').forEach(b => b.onclick = () => {
   if (b.dataset.retour === 'accueil') chargerEtat(); else ouvrirCopro(S.copro);
