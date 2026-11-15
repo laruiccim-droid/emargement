@@ -238,7 +238,9 @@ const PS = (() => {
           enCours: `Installation : ${ne} / ${n} appartements émargés`, attente: 'En attente de l’installation' },
       ];
       // Les badges sont souvent remis avant l'intervention : étape en parallèle, comptée dans le pourcentage.
-      if (vigik) E.push({ ...badges, parallele: true });
+      // Badges récupérés appartement par appartement (stock syndic et intervenants exclus).
+      const nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
+      if (vigik) E.push({ ...badges, parallele: true, ...(nba ? { fait: nbo / nba, enCours: `Badges récupérés : ${nbo} / ${nba} appartements` } : {}) });
       E.push({ cle: 'facture', titre: 'Facturé, chantier terminé', fait: facture ? 1 : 0,
         attente: fini ? 'Installation terminée, en attente de facturation' : etat === 'reserves' ? 'Réserves à lever' : 'Facturation' });
     }
@@ -540,6 +542,34 @@ const PS = (() => {
       + '&details=' + encodeURIComponent(v.description || '') + '&location=' + encodeURIComponent(v.lieu || '');
   }
 
+  // ---------- PDF : tableau simple (fiche de programmation Vigik, correspondance des badges) ----------
+  async function pdfTableau(titre, sousTitre, colonnes, lignes, largeurs) {
+    const JsPDF = await jsPdf();
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true });
+    const W = 297, M = 12, ENC = [23, 24, 28], GRIS = [107, 102, 88], OR = [168, 132, 63], FILET = [217, 212, 200];
+    const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 9); doc.setTextColor(...(o.c || ENC)); doc.text(String(t ?? ''), x, y); };
+    const total = largeurs.reduce((a, b) => a + b, 0), k = (W - 2 * M) / total, ws = largeurs.map(x => x * k);
+    let y = 14;
+    const entete = () => {
+      if (typeof LOGO_NOIR_OR !== 'undefined') { try { doc.addImage(LOGO_NOIR_OR, 'PNG', M, y - 6, 34, 34 * LOGO_NOIR_OR_RATIO); } catch {} }
+      T(titre, M + 40, y, { s: 13, b: true }); T(sousTitre, M + 40, y + 5.5, { s: 9, c: GRIS }); y += 14;
+      let x = M; doc.setFillColor(243, 235, 221); doc.rect(M, y - 4.5, W - 2 * M, 7, 'F');
+      colonnes.forEach((c, i) => { T(c, x + 1.5, y, { s: 8, b: true, c: OR }); x += ws[i]; }); y += 6;
+    };
+    entete();
+    for (const l of lignes) {
+      const cellules = l.map((v, i) => doc.splitTextToSize(String(v ?? ''), ws[i] - 3));
+      const h = Math.max(...cellules.map(c => c.length)) * 4 + 2;
+      if (y + h > 200) { doc.addPage(); y = 14; entete(); }
+      let x = M; doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...ENC);
+      cellules.forEach((c, i) => { doc.text(c, x + 1.5, y); x += ws[i]; });
+      y += h; doc.setDrawColor(...FILET); doc.setLineWidth(0.15); doc.line(M, y - 3.5, W - M, y - 3.5);
+    }
+    const n = doc.getNumberOfPages();
+    for (let p = 1; p <= n; p++) { doc.setPage(p); T(`${ENTREPRISE.nom} • ${titre} • page ${p} / ${n}`, M, 203, { s: 7, c: GRIS }); }
+    return doc.output('blob');
+  }
+
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
 
   // Ouvre / télécharge / partage un PDF.
@@ -584,5 +614,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

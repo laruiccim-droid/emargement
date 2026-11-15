@@ -303,6 +303,15 @@
     </div>
   </section>
 
+  <!-- Émargement des badges par appartement -->
+  <section id="vEmargementBadges" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
+    <div class="sourcil" style="margin-top:8px" id="ebCopro"></div>
+    <h1>Émargement des badges</h1>
+    <p class="intro">Touchez « Remettre » quand un propriétaire passe à l’agence : il signe la réception de ses badges. S’il n’en prend qu’une partie, le reste est réservé à son locataire et remis le jour de l’installation.</p>
+    <ul class="liste" id="ebListe" style="margin-top:12px"></ul>
+  </section>
+
   <!-- Nouvelle remise -->
   <section id="vRemise" hidden>
     <button type="button" class="btn btn-discret btn-petit" data-retour="copro">‹ Retour</button>
@@ -327,6 +336,12 @@
 
     <div class="bloc">
       <h2>2 · Bénéficiaire</h2>
+      <div id="reAppartBloc" hidden>
+        <label for="reAppart">Appartement</label>
+        <select id="reAppart"></select>
+        <p class="aide" id="reAppartInfo"></p>
+        <label class="case" id="reResteBloc" hidden><input type="checkbox" id="reReste"> <span id="reResteTexte"></span></label>
+      </div>
       <label for="reNom">Nom du propriétaire ou de l’occupant *</label>
       <input type="text" id="reNom" autocomplete="off">
       <label>Qualité</label>
@@ -457,7 +472,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=17"></script>
+<script src="portail-commun.js?v=18"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -466,7 +481,7 @@ const S = { session: null, etat: null, copro: null, detail: null, remise: null, 
 let padProfil = null, padSigne = null;
 let tamponCourant = '';
 
-const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRecensement', 'vSondage', 'vCampagne', 'vRemise', 'vSigner', 'vFin'];
+const vues = ['vChargement', 'vConnexion', 'vActivation', 'vProfil', 'vAccueil', 'vCopro', 'vRecensement', 'vSondage', 'vCampagne', 'vEmargementBadges', 'vRemise', 'vSigner', 'vFin'];
 function montrer(v) {
   vues.forEach(x => { $(x).hidden = x !== v; });
   $('barreRemise').hidden = v !== 'vRemise';
@@ -628,6 +643,8 @@ document.querySelectorAll('[data-retour]').forEach(b => b.onclick = () => {
 async function ouvrirCopro(id) {
   S.copro = id;
   try { S.detail = await appel('ps_syndic_copro', { p_session: S.session, p_copro: id }); } catch { return; }
+  S.badgesSuivi = null;
+  if (S.detail.copro.type === 'complet' && avecVigik(S.detail.copro)) { try { S.badgesSuivi = await rpc('ps_syndic_badges', { p_session: S.session, p_copro: id }); } catch {} }
   const c = S.detail.copro, k = S.detail.compteurs;
   $('coNom').textContent = c.nom; $('coEtat').textContent = PS.ETATS[c.etat] || c.etat;
   $('coAdresse').textContent = [c.adresse, [c.cp, c.ville].filter(Boolean).join(' '), c.reference && 'Réf. ' + c.reference].filter(Boolean).join(' • ');
@@ -713,6 +730,13 @@ function rendreParcours() {
         : `${camp.envoyee_le ? 'Campagne envoyée par Harmonie Électricité le ' + dateCourte(camp.envoyee_le) + '. ' : 'Jours d’intervention fixés : Harmonie Électricité envoie la campagne d’information. '}${nr} / ${n} appartements ont rendez-vous.${ar ? ` ${ar} locataire${ar > 1 ? 's' : ''} à rattacher à un propriétaire.` : ''}`,
       bouton: planifie ? `<button type="button" class="btn btn-petit" data-parcours="campagne">Suivre la campagne</button>` : '' });
   }
+  if (avecVigik(c) && S.badgesSuivi) {
+    const bs = S.badgesSuivi, lg = bs.logements.filter(l => l.attendus > 0), ok = lg.filter(l => l.remis + l.locataire >= l.attendus).length, k = bs.compteurs || {}, su = bs.suivi || {};
+    etapes.push({ fait: lg.length > 0 && ok >= lg.length, titre: 'Remise des badges aux propriétaires',
+      texte: !k.livres ? 'Harmonie Électricité programme les badges et vous les livre à l’agence (bon de livraison signé).'
+        : `${k.livres} badges livrés à l’agence. ${ok} / ${lg.length} appartements ont récupéré leurs badges.${su.prevenus_le ? ` Propriétaires prévenus le ${dateCourte(su.prevenus_le)}.` : ' Prévenez les propriétaires qu’ils peuvent passer les chercher.'}`,
+      bouton: k.livres ? `${su.prevenus_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="prevenir">Prévenir les propriétaires</button>'}<button type="button" class="btn btn-petit" data-parcours="emargementBadges">Émargement des badges</button>` : '' });
+  }
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
     <span class="num">${e.fait ? '✓' : i + 1}</span><div><h3>${esc(e.titre)}</h3><p>${esc(e.texte)}</p>${e.bouton ? `<div class="actions">${e.bouton}</div>` : ''}</div></li>`).join('');
@@ -720,7 +744,30 @@ function rendreParcours() {
     if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
     if (b.dataset.parcours === 'sondage') return ouvrirSondage();
     if (b.dataset.parcours === 'campagne') return ouvrirCampagne();
+    if (b.dataset.parcours === 'prevenir') return prevenirProprietaires();
+    if (b.dataset.parcours === 'emargementBadges') return ouvrirEmargementBadges();
   });
+}
+
+// ---------- Badges : prévenir les propriétaires, émargement par appartement ----------
+async function prevenirProprietaires() {
+  const bs = S.badgesSuivi, c = S.detail.copro, lg = bs.logements.filter(l => l.attendus > 0);
+  const mails = [...new Set(lg.flatMap(l => l.emails || []))];
+  if (!confirm(`Prévenir les ${lg.length} propriétaires que leurs badges sont disponibles à l’agence ?\n\nVotre messagerie s’ouvre avec les ${mails.length} adresses en copie cachée.`)) return;
+  const texte = `Bonjour,\n\nLes badges d’accès de la résidence ${c.nom} sont disponibles à l’agence ${S.etat?.syndic?.nom || ''}. Merci de passer les récupérer (une signature vous sera demandée).\nSi vous louez votre appartement, vous pouvez en laisser une partie : ils seront remis à votre locataire le jour de l’installation.\n\nCordialement,\n${[nomGest(), nomCabinet()].filter(Boolean).join(' — ')}`;
+  location.href = `mailto:?bcc=${mails.map(encodeURIComponent).join(',')}&subject=${encodeURIComponent('Vos badges d’accès — résidence ' + c.nom)}&body=${encodeURIComponent(texte)}`;
+  try { await appel('ps_syndic_badges_prevenus', { p_session: S.session, p_copro: S.copro }); toast('Propriétaires notés comme prévenus.'); setTimeout(() => ouvrirCopro(S.copro), 800); } catch {}
+}
+function ouvrirEmargementBadges() {
+  const bs = S.badgesSuivi, lg = bs.logements.filter(l => l.attendus > 0);
+  $('ebCopro').textContent = S.detail.copro.nom;
+  $('ebListe').innerHTML = lg.map(l => {
+    const fait = l.remis + l.locataire >= l.attendus;
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b><div class="sous">${l.attendus} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} pour le locataire (jour de l’installation)` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
+      <div class="droite">${fait ? '<span class="pastille ok">Récupérés</span>' : `<button type="button" class="btn btn-petit btn-or" data-eb="${esc(l.id)}">Remettre</button>`}</div></li>`;
+  }).join('') + bs.hors.filter(h => h.badges > 0).map(h => `<li><div class="principal"><b>${esc(h.nom)}</b><div class="sous">${h.badges} badge${h.badges > 1 ? 's' : ''} • ${h.type === 'stock' ? 'stock du syndic (déjà signé à la livraison)' : 'entreprise intervenante'}</div></div></li>`).join('');
+  $('ebListe').querySelectorAll('[data-eb]').forEach(b => b.onclick = () => nouvelleRemise(b.dataset.eb));
+  montrer('vEmargementBadges');
 }
 
 // ---------- Campagne d'information et rendez-vous ----------
@@ -1121,11 +1168,32 @@ function rendreDroitsRemise() {
 $('reDroitTous').onchange = e => { if (!e.target.value) return; S.droitTous = e.target.value; for (const n of S.choisis) S.acces[n] = e.target.value; rendreDroitsRemise(); };
 const badgesAvecDroit = (badges, acces) => badges.map(b => b + (acces && acces[b] ? ` (${acces[b]})` : ''));
 
-function nouvelleRemise() {
+// Badges par appartement (chantier complet avec Vigik) : choix de l'appartement, reste pour le locataire.
+const lgBadges = () => (S.badgesSuivi?.logements || []).filter(l => l.attendus > 0);
+function majAppartRemise() {
+  const l = lgBadges().find(x => x.id === $('reAppart').value);
+  $('reResteBloc').hidden = !l;
+  if (!l) { $('reAppartInfo').textContent = ''; return; }
+  const deja = l.remis + l.en_attente, reste = Math.max(0, l.attendus - deja - S.choisis.size);
+  $('reAppartInfo').textContent = `${l.attendus} badge${l.attendus > 1 ? 's' : ''} commandé${l.attendus > 1 ? 's' : ''} • ${deja} déjà remis • ${S.choisis.size} dans cette remise.`;
+  $('reResteBloc').hidden = reste <= 0;
+  $('reResteTexte').textContent = `Le propriétaire ne prend que ${S.choisis.size} badge${S.choisis.size > 1 ? 's' : ''} : les ${reste} autre${reste > 1 ? 's' : ''} seront remis au locataire le jour de l’installation.`;
+}
+function nouvelleRemise(lgId) {
   S.choisis = new Set(); S.photos = []; S.qualite = 'proprietaire'; S.attente = null; S.acces = {}; S.droitTous = '';
   ['reNom', 'reBatiment', 'reLot', 'reTel', 'reEmail', 'reCommentaire', 'reRecherche'].forEach(id => { $(id).value = ''; });
   document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x.dataset.q === 'proprietaire'));
   $('reCopro').textContent = S.detail.copro.nom;
+  const lgs = lgBadges();
+  $('reAppartBloc').hidden = !lgs.length; $('reReste').checked = false;
+  $('reAppart').innerHTML = '<option value="">— Hors appartement (stock, entreprise…) —</option>' + lgs.map(l => `<option value="${esc(l.id)}">${esc(PS.appt(l))} — ${esc(l.nom || '')} (${l.remis + l.locataire >= l.attendus ? 'récupérés' : l.remis + ' / ' + l.attendus})</option>`).join('');
+  $('reAppart').value = lgId || '';
+  $('reAppart').onchange = () => {
+    const l = lgs.find(x => x.id === $('reAppart').value);
+    if (l) { $('reNom').value = l.nom || ''; $('reLot').value = [l.numero && 'Appt ' + l.numero, l.lot && 'lot ' + l.lot].filter(Boolean).join(' — '); $('reEmail').value = (l.emails || [])[0] || ''; $('reTel').value = l.telephone || ''; }
+    majAppartRemise();
+  };
+  if (lgId) $('reAppart').onchange();
   rendreChoixBadges(); rendrePhotos(); message('reMessage', '');
   montrer('vRemise');
   setTimeout(() => $('reRecherche').focus(), 50);
@@ -1141,6 +1209,7 @@ function rendreChoixBadges() {
 }
 function basculer(n) { if (S.choisis.has(n)) S.choisis.delete(n); else S.choisis.add(n); rendreChoixBadges(); }
 function majChoisis() {
+  if (!$('reAppartBloc').hidden) setTimeout(majAppartRemise, 0);
   const t = [...S.choisis];
   $('reChoisis').innerHTML = t.length ? `<b style="color:var(--he-white)">${t.length} badge${t.length > 1 ? 's' : ''} sélectionné${t.length > 1 ? 's' : ''}</b> : <span class="mono">${esc(t.join(', '))}</span>` : 'Aucun badge sélectionné.';
   $('barreResume').textContent = t.length ? `${t.length} badge${t.length > 1 ? 's' : ''}` : '';
@@ -1164,7 +1233,9 @@ function rendrePhotos() {
   document.querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => { S.photos.splice(+b.dataset.suppr, 1); rendrePhotos(); });
 }
 function donneesRemise() {
-  return { copro_id: S.copro, badges: [...S.choisis], proprietaire: $('reNom').value.trim(), qualite: S.qualite, batiment: $('reBatiment').value.trim(), lot: $('reLot').value.trim(),
+  const l = lgBadges().find(x => x.id === $('reAppart').value);
+  const reste = l && $('reReste').checked ? Math.max(0, l.attendus - l.remis - l.en_attente - S.choisis.size) : (l ? l.locataire : 0);
+  return { logement_id: l?.id || '', reste_locataire: reste, copro_id: S.copro, badges: [...S.choisis], proprietaire: $('reNom').value.trim(), qualite: S.qualite, batiment: $('reBatiment').value.trim(), lot: $('reLot').value.trim(),
     tel: $('reTel').value.trim(), email: $('reEmail').value.trim(), commentaire: $('reCommentaire').value.trim(), photos: S.photos,
     acces: droitsChantier().length ? Object.fromEntries([...S.choisis].map(n => [n, S.acces[n] || ''])) : {} };
 }
@@ -1177,6 +1248,12 @@ $('btnVersSignature').onclick = () => {
   message('reMessage', '');
   ouvrirSignature(d);
 };
+
+async function lierRemise(id) {
+  const b = S.brouillon || {};
+  if (!b.logement_id) return;
+  try { await rpc('ps_syndic_remise_lier', { p_session: S.session, p_remise: id, p_logement: b.logement_id, p_reste: b.reste_locataire || 0 }); } catch {}
+}
 
 // ---------- Signature ----------
 function recapHtml(d) {
@@ -1216,7 +1293,7 @@ $('sValider').onclick = async () => {
   $('sValider').disabled = true; message('sMessage', 'Enregistrement…', false);
   try {
     const r = await appel('ps_syndic_remise_creer', { p_session: S.session, p: { ...S.brouillon, signature: padSigne.image(), signataire: $('sNom').value.trim(), navigateur: navigator.userAgent } }, 'sMessage');
-    message('sMessage', ''); await terminer(r.id);
+    message('sMessage', ''); await lierRemise(r.id); await terminer(r.id);
   } catch {} finally { $('sValider').disabled = false; }
 };
 
@@ -1263,7 +1340,7 @@ async function reprendreAttente(id) {
   let r; try { r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); } catch { return; }
   if (r.statut !== 'attente') return terminer(id);
   const d = { proprietaire: r.proprietaire, qualite: r.qualite, batiment: r.batiment, lot: r.lot, badges: r.badges, acces: r.acces || {}, commentaire: r.commentaire, photos: r.photos || [], email: r.email, tel: r.tel };
-  S.brouillon = d; S.attente = { id: r.id, jeton: r.jeton, brouillon: d };
+  S.brouillon = d; S.attente = { id: r.id, jeton: r.jeton, brouillon: d }; lierRemise(r.id);
   $('sTitre').textContent = d.proprietaire; $('sRecap').innerHTML = recapHtml(d);
   $('sChoix').hidden = true; $('sEcran').hidden = true; message('sMessage', '');
   montrer('vSigner'); afficherAttente(PS.estTel() ? 'lien' : 'qr');

@@ -109,6 +109,14 @@
       <div class="actions" id="foSuite"></div>
       <p class="message" id="foMsg"></p>
     </div>
+    <div class="bloc" id="dBadges" hidden>
+      <h2>Badges Vigik</h2>
+      <p class="aide" style="margin-top:0" id="bgInfo"></p>
+      <div class="actions" id="bgEtapes"></div>
+      <div id="bgAlerte"></div>
+      <ul class="liste" id="bgListe"></ul>
+      <p class="message" id="bgMsg"></p>
+    </div>
     <div class="bloc" id="dCampagne" hidden>
       <h2>Intervention et rendez-vous</h2>
       <p class="aide" style="margin-top:0">Fixez les jours d’intervention : le gestionnaire envoie ensuite la campagne d’information aux propriétaires occupants et affiche la feuille de rendez-vous (QR code) pour les locataires.</p>
@@ -323,7 +331,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=17"></script>
+<script src="portail-commun.js?v=18"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -384,7 +392,17 @@ async function charger() {
   $('resumeChantiers').textContent = `${cs.length} chantier${cs.length > 1 ? 's' : ''}`;
   $('resumeSyndics').textContent = `${ss.length} cabinet${ss.length > 1 ? 's' : ''} • ${ss.reduce((t, s) => t + s.users.length, 0)} accès`;
   const aCreer = cs.filter(c => c.compteurs.a_creer);
+  const autres = [];
+  for (const c of cs) {
+    const jours = (c.campagne?.jours || []).map(j => j.date).sort(), premier = jours[0] ? new Date(jours[0] + 'T08:00:00') : null;
+    if (c.transfert_demande?.vers) autres.push([c, `Transfert demandé vers ${c.transfert_demande.vers_nom}`]);
+    if (c.nb_rdv_a_rattacher) autres.push([c, `${c.nb_rdv_a_rattacher} locataire(s) à rattacher à un propriétaire`]);
+    if (premier && c.compteurs.livres && !c.badges_suivi?.correspondance_le && premier - Date.now() < 2.5 * 864e5 && premier - Date.now() > -864e5) autres.push([c, `Intervention le ${premier.toLocaleDateString('fr-FR')} : lier les badges aux appartements`]);
+    if (c.nb_badges_attendus && c.nb_rdv >= (c.nb_logements_saisis || 1) && c.nb_badges_ok < c.nb_badges_attendus) autres.push([c, `Rendez-vous tous pris, ${c.nb_badges_attendus - c.nb_badges_ok} appartement(s) sans leurs badges`]);
+  }
   $('aFaire').innerHTML = `<h2>À faire</h2>` + (aCreer.length ? `<ul class="liste">${aCreer.map(c => `<li><div class="principal"><b>${esc(c.nom)}</b><div class="sous">${c.compteurs.a_creer} remise${c.compteurs.a_creer > 1 ? 's' : ''} signée${c.compteurs.a_creer > 1 ? 's' : ''} à créer dans le contrôle d’accès</div></div><div class="droite"><button type="button" class="btn btn-petit" data-ouvrir="${c.id}">Ouvrir</button></div></li>`).join('')}</ul>` : '<p class="aide">Rien en attente : toutes les remises signées sont créées dans le contrôle d’accès.</p>');
+  if (autres.length) $('aFaire').innerHTML += `<ul class="liste">${autres.map(([c, t]) => `<li><div class="principal"><b>${esc(c.nom)}</b><div class="sous">⚠ ${esc(t)}</div></div><div class="droite"><button type="button" class="btn btn-petit btn-or" data-ouvrir2="${c.id}">Ouvrir</button></div></li>`).join('')}</ul>`;
+  document.querySelectorAll('#aFaire [data-ouvrir2]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.ouvrir2));
   document.querySelectorAll('#aFaire [data-ouvrir]').forEach(b => b.onclick = () => ouvrirChantier(b.dataset.ouvrir, 'remises'));
 }
 document.querySelectorAll('[data-aller]').forEach(b => b.onclick = async () => {
@@ -842,7 +860,7 @@ const heureLocale = t => new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digi
 function champsLogementApp(l) {
   const k = l.commande, r = l.rdv, lignes = k?.lignes || [];
   const postes = lignes.filter(x => x.type === 'combine' || x.type === 'moniteur');
-  const nbBadges = lignes.filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0);
+  const nbBadges = EM.reste ? (EM.reste.get(l.id) || 0) : lignes.filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0);
   const proprio = k ? [k.prenom, k.nom].filter(Boolean).join(' ') : l.nom;
   const occupant = r ? [r.prenom, r.nom].filter(Boolean).join(' ') : proprio;
   const champs = {
@@ -868,6 +886,9 @@ function logementApp(l) {
 async function creerOuMajChantierApp() {
   const c = EM.c;
   let prep; try { prep = await appel('ps_admin_preparation_app', { p_copro: c.id }, 'emMsg'); } catch { return; }
+  // Badges déjà livrés au syndic : on ne laisse au locataire que les badges qui lui sont réservés.
+  EM.reste = null;
+  try { const bs = await PS.rpc('ps_admin_badges', { p_admin: A.mdp, p_copro: c.id }); if (bs.compteurs?.livres) EM.reste = new Map(bs.logements.map(l => [l.id, l.locataire])); } catch {}
   const p = prep.copro, s = prep.syndic || {};
   const premierJour = (p.campagne?.jours || [])[0]?.date || new Date().toLocaleDateString('sv-SE');
   let app = p.chantier_id ? await lireChantierApp(p.chantier_id).catch(() => null) : null;
@@ -959,6 +980,76 @@ $('emFichierFacture').onchange = async e => {
     toast('Facture déposée : chantier facturé.'); await charger(); ouvrirChantier(EM.c.id);
   } catch { msg('emMsg', 'La facture n’a pas pu être envoyée.'); }
 };
+
+// ---------- Badges Vigik : programmation, livraison au syndic, suivi par appartement, correspondance ----------
+const BG = { d: null, c: null };
+const nomAppart = l => l.numero ? 'Appt ' + l.numero : l.lot ? 'Lot ' + l.lot : (l.nom || 'Appartement');
+function droitParDefaut(c) { return (c.vigik?.autorisations || [])[0]?.nom || ''; }
+async function rendreBadgesVigikAdmin(c) {
+  const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
+  $('dBadges').hidden = c.type !== 'complet' || !vigik;
+  if ($('dBadges').hidden) return;
+  BG.c = c;
+  try { BG.d = await PS.rpc('ps_admin_badges', { p_admin: A.mdp, p_copro: c.id }); }
+  catch { $('bgInfo').textContent = 'Suivi des badges indisponible (script SQL n° 22 à exécuter ?).'; return; }
+  if (A.copro !== c.id) return;
+  const d = BG.d, su = d.suivi || {}, k = d.compteurs || {}, fo = c.fourniture || {};
+  const lg = d.logements.filter(l => l.attendus > 0), att = lg.reduce((t, l) => t + l.attendus, 0);
+  const ok = lg.filter(l => l.remis + l.locataire >= l.attendus).length, hors = d.hors.reduce((t, h) => t + (h.badges || 0), 0);
+  $('bgInfo').textContent = !fo.recu_le ? 'La fiche de programmation des badges est disponible dès réception du matériel.'
+    : `${att} badges pour ${lg.length} appartements + ${hors} pour le stock syndic et les entreprises • ${k.livres || 0} livrés au syndic • ${ok} / ${lg.length} appartements ont récupéré leurs badges.`;
+  const etapes = [];
+  if (fo.recu_le) {
+    etapes.push(`<button type="button" class="btn ${su.programmes_le ? '' : 'btn-or'}" id="bgFiche">Fiche de programmation Vigik</button>`);
+    etapes.push(su.programmes_le ? `<span class="pastille ok">Badges programmés le ${esc(dateCourte(su.programmes_le))}</span>` : '<button type="button" class="btn btn-petit" data-bgj="programmes">Badges programmés dans le logiciel</button>');
+    if (su.programmes_le && !k.livres) etapes.push('<button type="button" class="btn btn-or" id="bgLivrer">Livrer les badges au syndic</button>');
+    if (k.livres) etapes.push(`<span class="pastille ok">${k.livres} badges livrés au syndic</span>${su.prevenus_le ? ` <span class="pastille ok">Propriétaires prévenus le ${esc(dateCourte(su.prevenus_le))}</span>` : ' <span class="pastille attente">Le syndic doit prévenir les propriétaires</span>'}`);
+    if (k.livres) etapes.push('<button type="button" class="btn" id="bgCorresp">Correspondance badges / appartements</button>');
+    if (k.livres) etapes.push(su.correspondance_le ? `<span class="pastille ok">Badges liés dans le logiciel le ${esc(dateCourte(su.correspondance_le))}</span>` : '<button type="button" class="btn btn-petit" data-bgj="correspondance">Badges liés aux appartements dans le logiciel</button>');
+  }
+  $('bgEtapes').innerHTML = etapes.join(' ');
+  // Alertes : J-2 avant l'intervention ; rendez-vous tous pris mais badges pas tous récupérés.
+  const jours = (d.campagne?.jours || []).map(j => j.date).sort(), premier = jours[0] ? new Date(jours[0] + 'T08:00:00') : null;
+  const alertes = [];
+  if (premier && k.livres && !su.correspondance_le && (premier - Date.now()) < 2.5 * 864e5) alertes.push(`Intervention le ${premier.toLocaleDateString('fr-FR')} : liez les badges aux appartements dans votre logiciel (bouton « Correspondance badges / appartements »).`);
+  const e = A.etat.copros.find(x => x.id === c.id) || {};
+  if (k.livres && e.nb_logements_saisis && e.nb_rdv >= e.nb_logements_saisis && ok < lg.length) alertes.push(`Tous les rendez-vous sont pris mais ${lg.length - ok} appartement${lg.length - ok > 1 ? 's n’ont' : ' n’a'} pas encore récupéré ses badges.`);
+  $('bgAlerte').innerHTML = alertes.map(a => `<div class="bloc" style="border-color:#D9A35B;background:rgba(217,163,91,.10);margin-top:10px">⚠ ${esc(a)}</div>`).join('');
+  $('bgListe').innerHTML = k.livres || su.programmes_le ? lg.map(l => {
+    const fait = l.remis + l.locataire >= l.attendus;
+    return `<li><div class="principal"><b>${esc(nomAppart(l))} — ${esc(l.nom || '')}</b><div class="sous">${l.attendus} badge${l.attendus > 1 ? 's' : ''} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} réservé${l.locataire > 1 ? 's' : ''} au locataire` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
+      <div class="droite"><span class="pastille ${fait ? 'ok' : 'attente'}">${fait ? 'Récupérés' : 'À récupérer'}</span></div></li>`;
+  }).join('') : '';
+  if ($('bgFiche')) $('bgFiche').onclick = ficheVigik;
+  if ($('bgCorresp')) $('bgCorresp').onclick = correspondanceBadges;
+  if ($('bgLivrer')) $('bgLivrer').onclick = () => { choisirOnglet('livrer'); document.querySelector('.onglets').scrollIntoView({ behavior: 'smooth' }); };
+  $('bgEtapes').querySelectorAll('[data-bgj]').forEach(b => b.onclick = async () => {
+    try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: b.dataset.bgj, p_fait: true }, 'bgMsg'); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {}
+  });
+}
+// Fiche pour créer le chantier dans le logiciel Vigik : appartements, propriétaires, nombre de badges, droits.
+async function ficheVigik() {
+  const d = BG.d, c = d.copro, droit = droitParDefaut(c);
+  const lignes = [...d.logements.filter(l => l.attendus > 0).map(l => [nomAppart(l), l.lot || '', l.nom || '', l.attendus, droit, l.qualite === 'bailleur' ? 'Bailleur' : 'Occupant']),
+    ...d.hors.filter(h => h.badges > 0).map(h => [h.type === 'stock' ? 'Stock syndic' : 'Intervenant', '', h.nom, h.badges, droit, ''])];
+  const cols = ['Appartement', 'Lot', 'Nom', 'Badges', 'Droit d’accès', 'Qualité'];
+  const sep = ';', q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  PS.telecharger(new Blob(['﻿' + [cols, ...lignes].map(l => l.map(q).join(sep)).join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Programmation badges - ${c.nom}.csv`.replace(/[\\/:*?"<>|]+/g, ' '));
+  const total = lignes.reduce((t, l) => t + (+l[3] || 0), 0);
+  PS.telecharger(await PS.pdfTableau('Programmation des badges Vigik', `${c.nom} — ${[c.adresse, c.cp, c.ville].filter(Boolean).join(' ')} — ${total} badges${c.marque_vigik ? ' — ' + c.marque_vigik : ''}`, cols, lignes, [22, 10, 40, 10, 30, 14]),
+    `Programmation badges - ${c.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
+}
+// Correspondance badge → appartement (pour les lier dans le logiciel).
+async function correspondanceBadges() {
+  const d = BG.d, c = d.copro;
+  const rang = { remis: 0, reserve: 1, stock: 2 };
+  const lignes = d.correspondance.slice().sort((a, b) => (rang[a.statut] ?? 9) - (rang[b.statut] ?? 9) || String(a.appartement || '').localeCompare(String(b.appartement || ''), 'fr', { numeric: true }))
+    .map(b => [b.numero, b.appartement || (b.statut === 'stock' ? 'Non remis (stock)' : ''), b.beneficiaire || '', b.droit || '', PS.STATUTS_BADGE[b.statut] || b.statut]);
+  const cols = ['N° de badge', 'Appartement', 'Bénéficiaire', 'Droit d’accès', 'Statut'];
+  const sep = ';', q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  PS.telecharger(new Blob(['﻿' + [cols, ...lignes].map(l => l.map(q).join(sep)).join('\r\n')], { type: 'text/csv;charset=utf-8' }), `Correspondance badges - ${c.nom}.csv`.replace(/[\\/:*?"<>|]+/g, ' '));
+  PS.telecharger(await PS.pdfTableau('Correspondance badges / appartements', `${c.nom} — ${lignes.length} badges`, cols, lignes, [22, 22, 40, 30, 16]), `Correspondance badges - ${c.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
+}
 
 // ---------- Commande du matériel au fournisseur ----------
 const FO = { lignes: [], manquants: 0, copro: null };
@@ -1145,7 +1236,7 @@ $('caIcs').onclick = () => {
 // Avancement du chantier et jalons validés par Harmonie (étiquettes posées, campagne d'information).
 function rendreAvancementAdmin(c, k) {
   const e = A.etat.copros.find(x => x.id === c.id) || {};
-  $('dFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k, nb_logements_saisis: e.nb_logements_saisis, nb_invites: e.nb_invites, nb_commandes: e.nb_commandes, nb_rdv: e.nb_rdv, nb_emarges: e.nb_emarges });
+  $('dFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k, nb_logements_saisis: e.nb_logements_saisis, nb_invites: e.nb_invites, nb_commandes: e.nb_commandes, nb_rdv: e.nb_rdv, nb_emarges: e.nb_emarges, nb_badges_attendus: e.nb_badges_attendus, nb_badges_ok: e.nb_badges_ok, badges_suivi: e.badges_suivi });
   if (c.type !== 'complet') { $('dJalons').innerHTML = ''; return; }
   const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {};
   const n = e.nb_logements_saisis || 0, nc = e.nb_commandes || 0, nr = e.nb_rdv || 0;
@@ -1158,6 +1249,8 @@ function rendreAvancementAdmin(c, k) {
   else if (!(so.clos_le || (n && nc >= n))) attente = `Recensement en cours : ${nc} / ${n} signés.`;
   else if (!fo.envoyee_le) action = ['Commander le matériel', aller('dFourniture')];
   else if (!fo.recu_le) action = ['Matériel reçu', async () => jalon('fourniture_recue', true)];
+  else if ((c.travaux === 'vigik' || c.travaux === 'interphone_vigik') && !(c.badges_suivi || {}).programmes_le) action = ['Programmer les badges (fiche Vigik)', aller('dBadges')];
+  else if ((c.travaux === 'vigik' || c.travaux === 'interphone_vigik') && !k.livres) action = ['Livrer les badges au syndic', () => { choisirOnglet('livrer'); document.querySelector('.onglets').scrollIntoView({ behavior: 'smooth' }); }];
   else if (!(camp.jours || []).length) action = ['Planifier la campagne d’information', aller('dCampagne')];
   else if (!camp.envoyee_le) action = ['Envoyer la campagne d’information', aller('caEnvoiAdmin')];
   else if (n && nr < n) attente = `Campagne envoyée : ${nr} / ${n} rendez-vous pris.`;
@@ -1229,7 +1322,7 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); rendreFournitureAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); rendreFournitureAdmin(c); rendreBadgesVigikAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));
