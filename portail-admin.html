@@ -1232,7 +1232,8 @@ function etapeSuivante(c) {
   if (!camp.affichee_le) return { code: 'affichage', libelle: 'Feuille d’information affichée dans la résidence', note: 'Liens envoyés le ' + dateCourte(camp.envoyee_le) };
   if (n && nr < n) return { attente: `Campagne envoyée : ${nr} / ${n} rendez-vous pris.` };
   if (!c.chantier_id) return { code: 'generer', libelle: 'Générer le chantier d’émargement' };
-  if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) return { attente: 'Installation en cours : l’émargement remonte de l’app.' };
+  // « Installation en cours » seulement à partir du premier émargement remonté de l'app.
+  if (!['attente_facturation', 'facture', 'termine'].includes(c.etat)) return { attente: c.nb_emarges ? `Installation en cours : ${c.nb_emarges} / ${n} appartements` : 'En attente de l’installation' };
   if (!(c.facture || {}).url) return { code: 'facture', libelle: 'Déposer la facture' };
   return { cloture: 'Chantier terminé — dossier clôturé' };
 }
