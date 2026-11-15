@@ -267,6 +267,8 @@ const PS = (() => {
           enCours: `Recensement en cours : ${nc} / ${n} signés`, attente: 'En attente des réponses des copropriétaires' },
         { cle: 'commande', titre: 'Commande envoyée au fournisseur', fait: fo.envoyee_le || commande ? 1 : 0, attente: 'En attente de la commande du matériel par Harmonie Électricité' },
         { cle: 'reception', titre: 'Matériel reçu', fait: fo.recu_le || surSite ? 1 : 0, attente: 'En attente de la livraison du matériel' },
+        ...(vigik ? [{ cle: 'programmes', titre: 'Badges programmés sur le site de gestion', fait: (c.badges_suivi || {}).programmes_le || k.livres > 0 || surSite ? 1 : 0,
+          attente: 'Programmation des badges par Harmonie Électricité' }] : []),
         { cle: 'campagne', titre: 'Campagne d’information (date d’intervention, affichage)', fait: camp.planifiee_le || (camp.jours || []).length || surSite ? 1 : 0,
           attente: 'Planification de la campagne d’information : date d’intervention et feuille d’affichage' },
         { cle: 'rdv', titre: 'Rendez-vous validés par tous les appartements', fait: surSite || (n && nr >= n) ? 1 : n ? nr / n : 0,

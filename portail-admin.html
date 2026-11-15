@@ -355,7 +355,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=30"></script>
+<script src="portail-commun.js?v=31"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1208,7 +1208,10 @@ function etapeSuivante(c) {
   if (!(so.clos_le || (n && nc >= n))) return { attente: `Recensement en cours : ${nc} / ${n} signés.` };
   if (!fo.envoyee_le) return { code: 'commander', libelle: 'Commander le matériel' };
   if (!fo.recu_le) return { code: 'recu', libelle: 'Matériel reçu' };
-  if (vigik && !(c.badges_suivi || {}).programmes_le && !k.livres) return { code: 'programmer', libelle: 'Programmer les badges (fiche Vigik)' };
+  // Programmation : 1) télécharger la fiche, 2) confirmer « programmés sur le site de gestion » (fait avancer la barre).
+  if (vigik && !(c.badges_suivi || {}).programmes_le && !k.livres) return ficheTelechargee(c.id)
+    ? { code: 'programmes', libelle: 'Badges programmés sur le site de gestion : OK', note: 'Fiche de programmation téléchargée' }
+    : { code: 'programmer', libelle: 'Programmer les badges (télécharger la fiche)' };
   if (vigik && !k.livres) return { code: 'livrer', libelle: 'Livrer les badges au syndic' };
   if (!(camp.jours || []).length) return { code: 'planifier', libelle: 'Planifier la campagne d’information' };
   if (!camp.envoyee_le) return { code: 'campagne', libelle: 'Envoyer la campagne d’information' };
@@ -1225,11 +1228,17 @@ async function executerEtape(c, code) {
   if (code === 'recu') return jalon('fourniture_recue');
   const jalonBadges = async (j, texte) => { try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: j, p_fait: true }); toast(texte); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
   if (code === 'installer') { if (!confirm('Lancer l’installation des centrales Vigik ?' + ((c.nb_badges_ok || 0) < 0.8 * (c.nb_badges_attendus || 0) ? '\n\nMoins de 80 % des appartements ont récupéré leurs badges.' : ''))) return; return jalonBadges('installation', 'Installation lancée.'); }
+  if (code === 'programmer') {
+    try { await ficheVigik(c.id); } catch { return toast('Fiche de programmation impossible à créer.'); }
+    if (!$('vChantier').hidden && A.copro === c.id) ouvrirChantier(c.id); else rendreChantiers();
+    return;
+  }
+  if (code === 'programmes') { if (!confirm('Les badges sont programmés sur le site de gestion ?')) return; return jalonBadges('programmes', 'Badges programmés : vous pouvez les livrer au syndic.'); }
   if (code === 'service') { if (!confirm('Le nouveau système Vigik est en service ?\n\nPensez à afficher la fiche d’information « nouveau système » (bloc Émargement).')) return; return jalonBadges('service', 'Mise en service enregistrée : déposez la facture.'); }
   if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id);
   const aller = id => setTimeout(() => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
   if (code === 'commander') aller('dFourniture');
-  if (code === 'programmer' || code === 'attribuer') aller('dBadges');
+  if (code === 'attribuer') aller('dBadges');
   if (code === 'livrer') { choisirOnglet('livrer'); aller('ongLivrer'); }
   if (code === 'planifier') aller('dCampagne');
   if (code === 'campagne') aller('caEnvoiAdmin');
@@ -1371,7 +1380,7 @@ async function rendreBadgesVigikAdmin(c) {
     return `<li><div class="principal"><b>${esc(nomAppart(l))} — ${esc(l.nom || '')}</b><div class="sous">${l.attendus} badge${l.attendus > 1 ? 's' : ''} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} réservé${l.locataire > 1 ? 's' : ''} au locataire` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
       <div class="droite"><span class="pastille ${fait ? 'ok' : 'attente'}">${fait ? 'Récupérés' : 'À récupérer'}</span></div></li>`;
   }).join('') : '';
-  if ($('bgFiche')) $('bgFiche').onclick = ficheVigik;
+  if ($('bgFiche')) $('bgFiche').onclick = async () => { await ficheVigik(); if (c.travaux !== 'vigik' && !su.programmes_le) ouvrirChantier(c.id); };
   if ($('bgCorresp')) $('bgCorresp').onclick = correspondanceBadges;
   if ($('bgLivrer')) $('bgLivrer').onclick = () => { choisirOnglet('livrer'); document.querySelector('.onglets').scrollIntoView({ behavior: 'smooth' }); };
   $('bgEtapes').querySelectorAll('[data-bgj]').forEach(b => b.onclick = async () => {
@@ -1379,8 +1388,11 @@ async function rendreBadgesVigikAdmin(c) {
     try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: b.dataset.bgj, p_fait: true }, 'bgMsg'); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {}
   });
 }
+// Fiche téléchargée (mémorisée sur cet appareil) : l'étape suivante devient « Badges programmés : OK ».
+const ficheTelechargee = id => { try { return !!localStorage.getItem('he.fiche-vigik.' + id); } catch { return false; } };
 // Fiche pour créer le chantier dans le logiciel Vigik : appartements, propriétaires, nombre de badges, droits.
-async function ficheVigik() {
+async function ficheVigik(coproId) {
+  if (typeof coproId === 'string' && (!BG.d || BG.d.copro.id !== coproId)) BG.d = await PS.rpc('ps_admin_badges', { p_admin: A.mdp, p_copro: coproId });
   const d = BG.d, c = d.copro, droit = droitParDefaut(c);
   // Nom et prénom du propriétaire tels qu'il les a donnés au recensement (sinon le nom du fichier du syndic) ;
   // une fiche modifiée à la main (changement de propriétaire) prime.
@@ -1399,6 +1411,7 @@ async function ficheVigik() {
   const total = lignes.reduce((t, l) => t + (+l[4] || 0), 0);
   PS.telecharger(await PS.pdfTableau('Programmation des badges Vigik', `${c.nom} — ${[c.adresse, c.cp, c.ville].filter(Boolean).join(' ')} — ${total} badges${c.marque_vigik ? ' — ' + c.marque_vigik : ''}`, cols, lignes, [20, 9, 28, 22, 9, 24, 14]),
     `Programmation badges - ${c.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
+  try { localStorage.setItem('he.fiche-vigik.' + c.id, new Date().toISOString()); } catch {}
 }
 // Correspondance badge → appartement (pour les lier dans le logiciel).
 async function correspondanceBadges() {
