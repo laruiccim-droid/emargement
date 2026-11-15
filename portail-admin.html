@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=6">
+<link rel="stylesheet" href="portail.css?v=7">
 <style>
   .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
@@ -159,12 +159,14 @@
       <ul class="liste" id="dRecListe"></ul>
     </div>
     <div class="onglets" role="tablist">
+      <button type="button" role="tab" data-ong="appartements" aria-selected="false" id="ongletAppartsAdmin" hidden>Appartements</button>
       <button type="button" role="tab" data-ong="livrer" aria-selected="true">Livrer des badges</button>
       <button type="button" role="tab" data-ong="remises" aria-selected="false">Remises</button>
       <button type="button" role="tab" data-ong="badges" aria-selected="false">Badges</button>
       <button type="button" role="tab" data-ong="livraisons" aria-selected="false">Livraisons</button>
     </div>
 
+    <div id="ongAppartements" hidden></div>
     <div id="ongLivrer">
       <div class="bloc">
         <h2>1 · Listing des badges livrés à l’agence</h2>
@@ -331,7 +333,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=18"></script>
+<script src="portail-commun.js?v=19"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -987,6 +989,16 @@ $('emFichierFacture').onchange = async e => {
   } catch { msg('emMsg', 'La facture n’a pas pu être envoyée.'); }
 };
 
+// ---------- Appartements : tuiles et fiches ----------
+async function chargerAppartementsAdmin() {
+  $('ongAppartements').innerHTML = '<p class="aide" style="margin-top:14px">Chargement…</p>';
+  let d; try { d = await appel('ps_admin_appartements', { p_copro: A.copro }); } catch { $('ongAppartements').innerHTML = ''; return; }
+  PS.vueAppartements($('ongAppartements'), d, {
+    pdfCommande: async id => { try { const k = await appel('ps_admin_commande', { p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
+    pdfRemise: async id => { try { const r = await appel('ps_admin_remise', { p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
+  });
+}
+
 // ---------- Badges Vigik : programmation, livraison au syndic, suivi par appartement, correspondance ----------
 const BG = { d: null, c: null };
 const nomAppart = l => l.numero ? 'Appt ' + l.numero : l.lot ? 'Lot ' + l.lot : (l.nom || 'Appartement');
@@ -1328,7 +1340,9 @@ async function ouvrirChantier(id, onglet) {
     : 'Aucun devis déposé : « Modifier » pour l’ajouter.';
   $('dTuiles').innerHTML = [['Livrés', k.livres], ['Remis', k.remis, 'or'], ['En stock', k.stock], ['En attente', k.attente], ['À créer (contrôle)', k.a_creer]]
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
-  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); rendreFournitureAdmin(c); rendreBadgesVigikAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
+  rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); $('ongletAppartsAdmin').hidden = c.type !== 'complet';
+  if (!onglet) choisirOnglet(c.type === 'complet' ? 'appartements' : 'livrer');
+  rendreFournitureAdmin(c); rendreBadgesVigikAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
   if (!lvPad) lvPad = PS.pad($('lvPad'));
@@ -1338,7 +1352,8 @@ async function ouvrirChantier(id, onglet) {
 }
 function choisirOnglet(o) {
   document.querySelectorAll('[data-ong]').forEach(x => x.setAttribute('aria-selected', x.dataset.ong === o));
-  ['livrer', 'remises', 'badges', 'livraisons'].forEach(k => { $('ong' + k.charAt(0).toUpperCase() + k.slice(1)).hidden = k !== o; });
+  ['appartements', 'livrer', 'remises', 'badges', 'livraisons'].forEach(k => { $('ong' + k.charAt(0).toUpperCase() + k.slice(1)).hidden = k !== o; });
+  if (o === 'appartements') chargerAppartementsAdmin();
   if (o === 'livrer') setTimeout(() => lvPad && lvPad.taille(), 30);
 }
 document.querySelectorAll('[data-ong]').forEach(b => b.onclick = () => choisirOnglet(b.dataset.ong));

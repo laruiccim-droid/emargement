@@ -570,6 +570,60 @@ const PS = (() => {
     return doc.output('blob');
   }
 
+  // ---------- Appartements : grandes tuiles cliquables et fiche complète (espace syndic et portail admin) ----------
+  // actions = { pdfCommande(id), pdfRemise(id) } : ouverture des documents signés selon l'espace.
+  const catalogues = {};
+  async function vueAppartements(conteneur, d, actions) {
+    const marque = d.copro.marque_interphone;
+    if (marque && !catalogues[marque]) { try { catalogues[marque] = await rpc('ps_catalogue_lire', { p_marque: marque }); } catch { catalogues[marque] = []; } }
+    const cat = new Map((catalogues[marque] || []).map(a => [a.ref, a]));
+    const nomAffiche = l => (l.commande?.nom || l.nom || '').toUpperCase();
+    const badgesDe = (l, loc) => l.remises.filter(r => r.statut === 'signe' && ((r.qualite === 'locataire' || r.mode === 'installation') === loc)).flatMap(r => r.badges);
+    conteneur.innerHTML = d.logements.length ? `<div class="apparts">${d.logements.map(l => {
+      const k = l.commande, em = l.emarge || {}, att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0);
+      const remis = badgesDe(l, false).length + badgesDe(l, true).length;
+      return `<button type="button" class="appart" data-appart="${esc(l.id)}">
+        <div class="num"><small>${l.numero ? 'Appartement' : l.lot ? 'Lot' : 'Appartement'}</small>${esc(l.numero || l.lot || '?')}</div>
+        <div class="qui">${esc(nomAffiche(l) || '—')}${k?.qualite === 'bailleur' ? ' · bailleur' : ''}</div>
+        <div class="etats"><span class="${k ? 'ok' : ''}">${k ? '✓ commande' : 'commande'}</span><span class="${l.rdv ? 'ok' : ''}">${l.rdv ? '✓ rdv' : 'rdv'}</span>
+          ${att ? `<span class="${remis >= att ? 'ok' : ''}">badges ${remis}/${att}</span>` : ''}<span class="${em.statut === 'signe' ? 'ok' : ''}">${em.statut === 'signe' ? '✓ installé' : 'installation'}</span></div>
+      </button>`;
+    }).join('')}</div>` : '<div class="vide">Aucun appartement : le fichier des copropriétaires n’est pas encore fait.</div>';
+    conteneur.querySelectorAll('[data-appart]').forEach(b => b.onclick = () => ficheAppartement(d.logements.find(l => l.id === b.dataset.appart), d, cat, actions, nomAffiche, badgesDe));
+  }
+  function ficheAppartement(l, d, cat, actions, nomAffiche, badgesDe) {
+    let dlg = document.getElementById('dlgFicheAppart');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'dlgFicheAppart'; dlg.className = 'fiche-appart'; document.body.append(dlg); }
+    const k = l.commande, r = l.rdv, em = l.emarge || {}, kv = lignes => `<div class="kv">${lignes.filter(x => x[1]).map(([a, b]) => `<span>${esc(a)}</span><span>${b}</span>`).join('')}</div>`;
+    const postes = (k?.lignes || []).filter(x => x.type === 'combine' || x.type === 'moniteur'), plaque = (k?.lignes || []).some(x => x.type === 'plaque');
+    const locataire = r && r.qualite === 'locataire' ? r : null;
+    const bp = badgesDe(l, false), bl = badgesDe(l, true);
+    const docsPostes = postes.map(x => { const a = cat.get(x.ref) || {}; return [a.notice && `<a class="btn btn-petit" href="${esc(a.notice)}" target="_blank" rel="noopener">Notice ${esc(x.ref)}</a>`, a.brochure && `<a class="btn btn-petit" href="${esc(a.brochure)}" target="_blank" rel="noopener">Brochure ${esc(x.ref)}</a>`].filter(Boolean).join(' '); }).join(' ');
+    dlg.innerHTML = `<div class="dlg">
+      <div class="sourcil">${esc(d.copro.nom)}</div>
+      <h3>${l.numero ? 'Appartement ' + esc(l.numero) : l.lot ? 'Lot ' + esc(l.lot) : 'Appartement'}${l.numero && l.lot ? ` <span class="aide">— lot ${esc(l.lot)}</span>` : ''}</h3>
+      <h4>Nom affiché sur l’interphone</h4><div style="font-size:20px;letter-spacing:.06em;color:var(--he-white)">${esc(nomAffiche(l) || '—')}</div>
+      <h4>Propriétaire${k?.qualite === 'bailleur' ? ' (bailleur)' : k?.qualite === 'occupant' ? ' (occupant)' : ''}</h4>
+      ${kv([['Nom', esc([k?.prenom, k?.nom].filter(Boolean).join(' ') || l.nom || '')], ['Téléphone', esc(k?.telephone || l.telephone || '')], ['E-mail', esc([k?.email, ...(l.emails || [])].filter(Boolean).filter((x, i, t) => t.indexOf(x) === i).join(', '))]])}
+      ${locataire ? `<h4>Locataire</h4>${kv([['Nom', esc([locataire.prenom, locataire.nom].join(' '))], ['Téléphone', esc(locataire.telephone || '')], ['E-mail', esc(locataire.email || '')]])}` : k?.qualite === 'bailleur' ? '<h4>Locataire</h4><p class="aide">Pas encore connu (il se fait connaître en prenant rendez-vous par l’affiche).</p>' : ''}
+      <h4>Matériel</h4>
+      ${k ? kv([['Poste', esc(postes.map(x => (x.qte > 1 ? x.qte + ' × ' : '') + [x.marque, x.ref].filter(Boolean).join(' ') + ' — ' + x.nom).join(' + ') || '—')], ['Plaque de propreté', plaque ? 'Oui' : 'Non']]) : '<p class="aide">Pas encore de bon de commande signé.</p>'}
+      ${docsPostes ? `<div class="docs" style="margin-top:8px">${docsPostes}</div>` : ''}
+      <h4>Badges</h4>
+      ${kv([['Propriétaire', bp.length ? `<span class="mono">${esc(bp.join(' • '))}</span>` : 'aucun remis'], ['Locataire', bl.length ? `<span class="mono">${esc(bl.join(' • '))}</span>` : l.badges_locataire ? `${l.badges_locataire} réservé${l.badges_locataire > 1 ? 's' : ''} (remis le jour de l’installation)` : '—']])}
+      <h4>Rendez-vous et installation</h4>
+      ${kv([['Rendez-vous', r ? esc(new Date(r.debut).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) + ` — ${esc([r.prenom, r.nom].join(' '))}` : '—'], ['Installation', em.statut === 'signe' ? 'Faite le ' + esc(dateCourte(em.signe_le)) : em.statut === 'absent' ? 'Absent' : '—']])}
+      <h4>Documents signés</h4>
+      <div class="docs">${[k && `<button type="button" class="btn btn-petit" data-doc-commande="${esc(k.id)}">Bon de commande ${esc(k.numero)}</button>`,
+        ...l.remises.filter(x => x.statut === 'signe' && x.mode !== 'installation').map(x => `<button type="button" class="btn btn-petit" data-doc-remise="${esc(x.id)}">Remise de badges ${esc(x.numero)}</button>`),
+        em.bon_url && `<a class="btn btn-petit" href="${esc(em.bon_url)}" target="_blank" rel="noopener">Bon d’intervention ${esc(em.bon || '')}</a>`].filter(Boolean).join('') || '<span class="aide">Aucun document signé pour l’instant.</span>'}</div>
+      <div class="actions"><button type="button" class="btn btn-or" data-fermer-fiche>Fermer</button></div></div>`;
+    dlg.querySelector('[data-fermer-fiche]').onclick = () => dlg.close();
+    dlg.querySelectorAll('[data-doc-commande]').forEach(b => b.onclick = () => actions.pdfCommande(b.dataset.docCommande));
+    dlg.querySelectorAll('[data-doc-remise]').forEach(b => b.onclick = () => actions.pdfRemise(b.dataset.docRemise));
+    dlg.showModal();
+  }
+
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
 
   // Ouvre / télécharge / partage un PDF.
@@ -614,5 +668,5 @@ const PS = (() => {
   }
 
   return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, QUALITES_COMMANDE, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

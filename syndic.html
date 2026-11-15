@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Espace syndic · Harmonie Électricité</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=6">
+<link rel="stylesheet" href="portail.css?v=7">
 <style>
   .parcours { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
   .parcours li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border-hairline); border-radius: 8px; }
@@ -173,9 +173,11 @@
     <div class="tuiles" id="coTuiles"></div>
     <div id="coFrise"></div>
     <div class="onglets" role="tablist">
+      <button type="button" role="tab" data-onglet="appartements" aria-selected="false" id="ongletApparts" hidden>Appartements</button>
       <button type="button" role="tab" data-onglet="remises" aria-selected="true">Remises</button>
       <button type="button" role="tab" data-onglet="badges" aria-selected="false">Badges</button>
     </div>
+    <div id="ongAppartements" hidden></div>
     <div id="ongRemises">
       <input type="search" id="rRecherche" placeholder="Rechercher un nom, un logement, un n° de badge…" style="margin-top:14px">
       <ul class="liste" id="listeRemises"></ul>
@@ -474,7 +476,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=18"></script>
+<script src="portail-commun.js?v=19"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -655,6 +657,9 @@ async function ouvrirCopro(id) {
   $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
   $('btnNouvelleRemise').disabled = !k.stock;
   rendreRemises(); rendreBadges(); rendreParcours(); rendreTransfertG();
+  // Chantier complet : l'onglet « Appartements » s'ouvre en premier.
+  $('ongletApparts').hidden = c.type !== 'complet';
+  if (c.type === 'complet') document.querySelector('[data-onglet="appartements"]').click();
   const ar = c.nb_rdv_a_rattacher || 0;
   $('coAlerteRatt').hidden = !ar;
   if (ar) {
@@ -666,7 +671,19 @@ async function ouvrirCopro(id) {
 document.querySelectorAll('[data-onglet]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-onglet]').forEach(x => x.setAttribute('aria-selected', x === b));
   $('ongRemises').hidden = b.dataset.onglet !== 'remises'; $('ongBadges').hidden = b.dataset.onglet !== 'badges';
+  $('ongAppartements').hidden = b.dataset.onglet !== 'appartements';
+  if (b.dataset.onglet === 'appartements') chargerAppartements();
 });
+// ---------- Appartements : tuiles et fiches ----------
+async function chargerAppartements() {
+  $('ongAppartements').innerHTML = '<p class="aide" style="margin-top:14px">Chargement…</p>';
+  let d; try { d = await appel('ps_syndic_appartements', { p_session: S.session, p_copro: S.copro }); } catch { $('ongAppartements').innerHTML = ''; return; }
+  PS.vueAppartements($('ongAppartements'), d, {
+    pdfCommande: async id => { try { const k = await appel('ps_syndic_commande', { p_session: S.session, p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
+    pdfRemise: async id => { try { const r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
+  });
+}
+
 // ---------- Transfert à un collègue : demande validée par Harmonie ----------
 function rendreTransfertG() {
   const t = S.detail.copro.transfert_demande || {};
