@@ -333,7 +333,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=20"></script>
+<script src="portail-commun.js?v=21"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -996,6 +996,10 @@ async function chargerAppartementsAdmin() {
   PS.vueAppartements($('ongAppartements'), d, {
     pdfCommande: async id => { try { const k = await appel('ps_admin_commande', { p_commande: id }); const blob = await PS.pdfCommande(k); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierCommande(k)); } catch {} },
     pdfRemise: async id => { try { const r = await appel('ps_admin_remise', { p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
+    supplementaires: async (id, nb, pour, motif) => {
+      try { await appel('ps_admin_badges_supp', { p_logement: id, p_nb: nb, p_pour: pour, p_motif: motif }); } catch { return false; }
+      toast(`${nb} badge${nb > 1 ? 's' : ''} supplémentaire${nb > 1 ? 's' : ''} attribué${nb > 1 ? 's' : ''} : le syndic les remettra.`); chargerAppartementsAdmin(); return true;
+    },
   });
 }
 
@@ -1014,8 +1018,9 @@ async function rendreBadgesVigikAdmin(c) {
   const d = BG.d, su = d.suivi || {}, k = d.compteurs || {}, fo = c.fourniture || {};
   const lg = d.logements.filter(l => l.attendus > 0), att = lg.reduce((t, l) => t + l.attendus, 0);
   const ok = lg.filter(l => l.remis + l.locataire >= l.attendus).length, hors = d.hors.reduce((t, h) => t + (h.badges || 0), 0);
-  $('bgInfo').textContent = !fo.recu_le ? 'La fiche de programmation des badges est disponible dès réception du matériel.'
-    : `${att} badges pour ${lg.length} appartements + ${hors} pour le stock syndic et les entreprises • ${k.livres || 0} livrés au syndic • ${ok} / ${lg.length} appartements ont récupéré leurs badges.`;
+  const supp = d.logements.reduce((t, l) => t + (l.supp || 0), 0);
+  $('bgInfo').textContent = (supp ? `${supp} badge${supp > 1 ? 's' : ''} supplémentaire${supp > 1 ? 's' : ''} attribué${supp > 1 ? 's' : ''} sur le stock syndic (à facturer). ` : '') + (!fo.recu_le ? 'La fiche de programmation des badges est disponible dès réception du matériel.'
+    : `${att} badges pour ${lg.length} appartements + ${hors} pour le stock syndic et les entreprises • ${k.livres || 0} livrés au syndic • ${ok} / ${lg.length} appartements ont récupéré leurs badges.`);
   const etapes = [];
   if (fo.recu_le) {
     etapes.push(`<button type="button" class="btn ${su.programmes_le ? '' : 'btn-or'}" id="bgFiche">Fiche de programmation Vigik</button>`);

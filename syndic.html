@@ -476,7 +476,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=20"></script>
+<script src="portail-commun.js?v=21"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -683,6 +683,15 @@ async function chargerAppartements() {
     pdfRemise: async id => { try { const r = await appel('ps_syndic_remise', { p_session: S.session, p_remise: id }); const blob = await PS.pdfRemise(r); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFichierRemise(r)); } catch {} },
     // Badges encore à remettre : remise directe depuis la fiche (badges livrés à l'agence seulement).
     remettre: S.detail.compteurs?.stock > 0 ? id => nouvelleRemise(id) : null,
+    // Badges supplémentaires pris sur le stock du syndic, puis remise proposée tout de suite.
+    supplementaires: async (id, nb, pour, motif) => {
+      try { await appel('ps_syndic_badges_supp', { p_session: S.session, p_logement: id, p_nb: nb, p_pour: pour, p_motif: motif }); } catch { return false; }
+      toast(`${nb} badge${nb > 1 ? 's' : ''} supplémentaire${nb > 1 ? 's' : ''} attribué${nb > 1 ? 's' : ''} sur le stock syndic.`);
+      await ouvrirCopro(S.copro);
+      if (S.detail.compteurs?.stock > 0 && confirm('Remettre ces badges maintenant (signature du bénéficiaire) ?')) nouvelleRemise(id);
+      else document.querySelector('[data-onglet="appartements"]')?.click();
+      return true;
+    },
   });
 }
 

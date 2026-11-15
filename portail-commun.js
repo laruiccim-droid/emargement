@@ -580,7 +580,7 @@ const PS = (() => {
     const nomAffiche = l => (l.commande?.nom || l.nom || '').toUpperCase();
     const badgesDe = (l, loc) => l.remises.filter(r => r.statut === 'signe' && ((r.qualite === 'locataire' || r.mode === 'installation') === loc)).flatMap(r => r.badges);
     conteneur.innerHTML = d.logements.length ? `<div class="apparts">${d.logements.map(l => {
-      const k = l.commande, em = l.emarge || {}, att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0);
+      const k = l.commande, em = l.emarge || {}, att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0);
       const remis = badgesDe(l, false).length + badgesDe(l, true).length;
       return `<button type="button" class="appart" data-appart="${esc(l.id)}">
         <div class="num"><small>${l.numero ? 'Appartement' : l.lot ? 'Lot' : 'Appartement'}</small>${esc(l.numero || l.lot || '?')}</div>
@@ -611,9 +611,17 @@ const PS = (() => {
       ${docsPostes ? `<div class="docs" style="margin-top:8px">${docsPostes}</div>` : ''}
       <h4>Badges</h4>
       ${kv([['Propriétaire', bp.length ? `<span class="mono">${esc(bp.join(' • '))}</span>` : 'aucun remis'], ['Locataire', bl.length ? `<span class="mono">${esc(bl.join(' • '))}</span>` : l.badges_locataire ? `${l.badges_locataire} réservé${l.badges_locataire > 1 ? 's' : ''} (remis le jour de l’installation)` : '—']])}
-      ${(() => { const att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0), enAtt = l.remises.filter(x => x.statut === 'attente').reduce((t, x) => t + x.badges.length, 0);
+      ${(() => { const att = (k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0), enAtt = l.remises.filter(x => x.statut === 'attente').reduce((t, x) => t + x.badges.length, 0);
         const reste = att - bp.length - bl.length - enAtt - (l.badges_locataire || 0);
         return reste > 0 ? `<p style="margin-top:8px"><b style="color:var(--he-white)">${reste} badge${reste > 1 ? 's' : ''} à remettre</b>${enAtt ? ` • ${enAtt} en attente de signature` : ''}</p>` + (actions.remettre ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-or" data-remettre="${esc(l.id)}">Remettre des badges</button></div>` : '') : ''; })()}
+      ${(l.badges_supp_hist || []).length ? `<p class="aide">Badges supplémentaires : ${l.badges_supp_hist.map(h => `${h.nb} pour le ${h.pour === 'locataire' ? 'locataire' : 'propriétaire'} le ${esc(dateCourte(h.le))}${h.motif ? ' (' + esc(h.motif) + ')' : ''}`).join(' • ')}</p>` : ''}
+      ${actions.supplementaires ? `<div class="actions" style="margin-top:6px"><button type="button" class="btn btn-petit" data-supp-ouvrir>+ Badges supplémentaires</button></div>
+        <div id="suppForm" hidden style="margin-top:8px;padding:12px;border:1px solid var(--border-subtle);border-radius:8px">
+          <div class="grille-2"><div><label for="suppNb">Nombre</label><select id="suppNb">${[1, 2, 3, 4, 5].map(n => `<option>${n}</option>`).join('')}</select></div>
+          <div><label for="suppPour">Pour</label><select id="suppPour"><option value="proprietaire">Le propriétaire</option><option value="locataire">Le locataire</option></select></div></div>
+          <label for="suppMotif">Motif (facultatif)</label><input type="text" id="suppMotif" placeholder="Ex. : badge pour la femme de ménage">
+          <p class="aide">Les badges sont pris sur le stock du syndic et s’ajoutent aux badges à remettre de l’appartement.</p>
+          <div class="actions"><button type="button" class="btn btn-or" data-supp-valider>Attribuer sur le stock syndic</button></div></div>` : ''}
       <h4>Rendez-vous et installation</h4>
       ${kv([['Rendez-vous', r ? esc(new Date(r.debut).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) + ` — ${esc([r.prenom, r.nom].join(' '))}` : '—'], ['Installation', em.statut === 'signe' ? 'Faite le ' + esc(dateCourte(em.signe_le)) : em.statut === 'absent' ? 'Absent' : '—']])}
       <h4>Documents signés</h4>
@@ -625,6 +633,15 @@ const PS = (() => {
     dlg.querySelectorAll('[data-doc-commande]').forEach(b => b.onclick = () => actions.pdfCommande(b.dataset.docCommande));
     dlg.querySelectorAll('[data-doc-remise]').forEach(b => b.onclick = () => actions.pdfRemise(b.dataset.docRemise));
     dlg.querySelectorAll('[data-remettre]').forEach(b => b.onclick = () => { dlg.close(); actions.remettre(b.dataset.remettre); });
+    const ouvrirSupp = dlg.querySelector('[data-supp-ouvrir]');
+    if (ouvrirSupp) ouvrirSupp.onclick = () => { dlg.querySelector('#suppForm').hidden = false; ouvrirSupp.hidden = true; };
+    const validerSupp = dlg.querySelector('[data-supp-valider]');
+    if (validerSupp) validerSupp.onclick = async () => {
+      validerSupp.disabled = true;
+      const ok = await actions.supplementaires(l.id, +dlg.querySelector('#suppNb').value, dlg.querySelector('#suppPour').value, dlg.querySelector('#suppMotif').value.trim());
+      validerSupp.disabled = false;
+      if (ok) dlg.close();
+    };
     dlg.showModal();
   }
 
