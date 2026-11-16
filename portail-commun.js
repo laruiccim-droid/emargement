@@ -235,7 +235,7 @@ const PS = (() => {
     const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
     const pl = (x, mot) => `${x} ${mot}${x > 1 ? 's' : ''}`;
     const badges = { cle: 'badges', titre: 'Remise des badges', fait: k.livres > 0 && k.remis >= k.livres ? 1 : k.livres ? k.remis / k.livres : 0,
-      enCours: `Remise des badges : ${k.remis || 0} / ${k.livres || 0} remis`, attente: 'En attente de la livraison des badges' };
+      enCours: `Remise des badges : ${k.remis || 0} / ${k.livres || 0} remis`, attente: 'Remettre des badges aux copropriétaires' };
     let E;
     if (c.type !== 'complet') {
       E = [
