@@ -202,3 +202,11 @@ footer.pied { margin-top: 36px; font-size: 12px; color: var(--grey-500); text-al
 .compte-badges { margin: 8px 0 0; font-size: 14px; color: var(--grey-300); }
 .compte-badges b { color: var(--he-gold-light); font-size: 18px; font-weight: 500; }
 .message.erreur { color: var(--erreur); }
+
+/* Sections repliables : une phase terminée se replie sur son titre ; clic sur le titre pour la rouvrir. */
+.repliable > :first-child { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 10px; }
+.repliable > :first-child::after { content: '▾'; margin-left: auto; color: var(--he-gold); font-size: 14px; transition: transform .2s; }
+.repliable.replie > :first-child::after { transform: rotate(-90deg); }
+.repliable.replie > :first-child { margin-bottom: 0; }
+.repliable.replie > :not(:first-child) { display: none !important; }
+.repliable.fait > :first-child::before { content: '✓'; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--grad-gold); color: var(--he-black); font-size: 12px; flex: none; }

@@ -8,7 +8,7 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Portail syndic · Administration Harmonie</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=11">
+<link rel="stylesheet" href="portail.css?v=12">
 <style>
   .depot-devis { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     padding: 12px 14px; border: 1px dashed var(--border-strong, rgba(201,168,106,.4)); border-radius: 8px; transition: background .15s; }
@@ -171,7 +171,7 @@
 
     <div id="ongAppartements" hidden></div>
     <div id="ongLivrer">
-      <div class="bloc">
+      <div class="bloc" id="lvBlocListing">
         <h2>1 · Listing des badges livrés à l’agence</h2>
         <p class="aide">Collez une colonne copiée depuis Excel, des n° séparés par des espaces, ou une plage « 10001-10080 ». Vous pouvez aussi importer un fichier ou reprendre les badges d’un chantier de l’app d’émargement.</p>
         <textarea id="lvTexte" rows="6" placeholder="10001&#10;10002&#10;…" class="mono"></textarea>
@@ -184,7 +184,7 @@
         <div id="lvColonneBloc" hidden><label for="lvColonne">Colonne contenant les n° de badge</label><select id="lvColonne"></select></div>
         <div id="lvApercu" style="margin-top:12px"></div>
       </div>
-      <div class="bloc">
+      <div class="bloc" id="lvBlocReception">
         <h2>2 · Réception par le gestionnaire (facultatif)</h2>
         <p class="aide">Si le gestionnaire est présent, il signe ici la réception des badges : le bon de livraison sera signé.</p>
         <label for="lvSignataire">Nom du gestionnaire</label><input type="text" id="lvSignataire">
@@ -364,7 +364,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=44"></script>
+<script src="portail-commun.js?v=45"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1851,7 +1851,8 @@ async function ouvrirChantier(id, onglet) {
   $('ongletAppartsAdmin').hidden = true;
   $('dAppartsBloc').hidden = c.type !== 'complet';
   if (c.type === 'complet') { $('dApparts').innerHTML = ''; chargerAppartementsAdmin(); }
-  if (!onglet) choisirOnglet('livrer');
+  // Badges déjà livrés : on ouvre sur les remises (la livraison reste accessible dans l'onglet « Livrer »).
+  if (!onglet) choisirOnglet(k.livres ? 'remises' : 'livrer');
   rendreFournitureAdmin(c); rendreBadgesVigikAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);
   $('lvResultat').innerHTML = '';
   montrer('vChantier');
@@ -1859,6 +1860,20 @@ async function ouvrirChantier(id, onglet) {
   if (onglet) choisirOnglet(onglet);
   setTimeout(() => lvPad.taille(), 50);
   remplirChantiersApp($('lvChantierApp'), 'Reprendre les badges d’un chantier de l’app…');
+  replierPhasesAdmin(c, k);
+}
+// Phases terminées repliées sur leur titre (un clic sur le titre les rouvre).
+function replierPhasesAdmin(c, k) {
+  const e = A.etat.copros.find(x => x.id === c.id) || {}, camp = c.campagne || e.campagne || {}, so = c.sondage || e.sondage || {};
+  const n = e.nb_logements_saisis || 0, signee = (A.detail.livraisons || [])[0]?.signataire;
+  const cle = x => c.id + '.' + x;
+  PS.repliable($('lvBlocListing'), k.livres > 0, cle('listing'));
+  PS.repliable($('lvBlocReception'), k.livres > 0 && !!signee, cle('reception'));
+  PS.repliable($('dRecensement'), !!so.clos_le || (n > 0 && (e.nb_commandes || 0) >= n), cle('recensement'));
+  PS.repliable($('dFourniture'), !!(c.fourniture || e.fourniture || {}).recu_le, cle('fourniture'));
+  PS.repliable($('dCampagne'), !!camp.affichee_le && n > 0 && (e.nb_rdv || 0) >= n && !e.nb_rdv_a_rattacher, cle('campagne'));
+  PS.repliable($('dBadges'), (e.nb_badges_attendus || 0) > 0 && (e.nb_badges_ok || 0) >= e.nb_badges_attendus, cle('badges'));
+  PS.repliable($('dEmargement'), !!(c.facture || e.facture || {}).url, cle('emargement'));
 }
 function choisirOnglet(o) {
   document.querySelectorAll('[data-ong]').forEach(x => x.setAttribute('aria-selected', x.dataset.ong === o));

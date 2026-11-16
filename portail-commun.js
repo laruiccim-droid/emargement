@@ -67,6 +67,20 @@ const PS = (() => {
   }
 
   const $ = id => document.getElementById(id);
+  // Section repliable : repliée d'office quand la phase est terminée ; un clic sur le titre (premier élément)
+  // la rouvre ou la replie. Le choix est gardé pendant la session, tant que l'état de la phase ne change pas.
+  function repliable(el, fait, cle) {
+    if (!el || !el.firstElementChild) return;
+    el.classList.add('repliable'); el.classList.toggle('fait', !!fait);
+    const k = 'he.repli.' + cle + (fait ? '.fait' : '.encours');
+    let choix = null; try { choix = sessionStorage.getItem(k); } catch {}
+    el.classList.toggle('replie', choix ? choix === '1' : !!fait);
+    el.firstElementChild.onclick = e => {
+      if (e.target.closest('button, a, input, select, textarea')) return;
+      const r = !el.classList.contains('replie'); el.classList.toggle('replie', r);
+      try { sessionStorage.setItem(k, r ? '1' : '0'); } catch {}
+    };
+  }
   // Affichage dans un cadre : seulement depuis le site d'Harmonie Électricité ; ailleurs (piège au clic), on en sort.
   const SITES_AUTORISES = ['https://www.harmonie-electricite.com', 'https://harmonie-electricite.com'];
   const dansCadre = window.top !== window.self;
@@ -939,6 +953,6 @@ const PS = (() => {
     } catch { return null; }
   }
 
-  return { rpc, $, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
+  return { rpc, $, repliable, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
     urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, datesIntervention, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

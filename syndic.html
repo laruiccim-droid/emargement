@@ -8,12 +8,18 @@
 <link rel="icon" href="assets/icone-192.png">
 <title>Espace syndic · Harmonie Électricité</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&display=swap">
-<link rel="stylesheet" href="portail.css?v=11">
+<link rel="stylesheet" href="portail.css?v=12">
 <style>
   .parcours { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
   .parcours li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border-hairline); border-radius: 8px; }
   .parcours li.courante { border-color: var(--border-strong); box-shadow: var(--glow-gold-sm); }
   .parcours li.faite { opacity: .75; }
+  /* Étape terminée : repliée sur son titre ; clic sur le titre pour la rouvrir. */
+  .parcours li.faite h3 { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .parcours li.faite h3::after { content: '▾'; color: var(--he-gold); font-size: 13px; transform: rotate(-90deg); transition: transform .2s; }
+  .parcours li.faite.ouverte h3::after { transform: none; }
+  .parcours li.faite:not(.ouverte) p, .parcours li.faite:not(.ouverte) .actions { display: none; }
+  .parcours li.faite:not(.ouverte) { padding-top: 8px; padding-bottom: 8px; }
   .parcours .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border-strong); color: var(--he-gold); font-weight: 500; }
   .parcours li.faite .num { background: var(--grad-gold); color: var(--he-black); border-color: transparent; }
   .parcours h3 { margin: 4px 0 2px; font-size: 15px; font-weight: 500; color: var(--he-white); letter-spacing: .02em; text-transform: none; }
@@ -481,7 +487,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=44"></script>
+<script src="portail-commun.js?v=45"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -809,6 +815,7 @@ function rendreParcours() {
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
     <span class="num">${e.fait ? '✓' : i + 1}</span><div><h3>${esc(e.titre)}</h3><p>${esc(e.texte)}</p>${e.bouton ? `<div class="actions">${e.bouton}</div>` : ''}</div></li>`).join('');
+  $('coParcours').querySelectorAll('li.faite h3').forEach(h => h.onclick = () => h.closest('li').classList.toggle('ouverte'));
   $('coParcours').querySelectorAll('[data-parcours]').forEach(b => b.onclick = async () => {
     if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
     if (b.dataset.parcours === 'commander') return commanderBadges();
