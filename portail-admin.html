@@ -172,7 +172,7 @@
     <div id="ongAppartements" hidden></div>
     <div id="ongLivrer">
       <div class="bloc" id="lvBlocListing">
-        <h2>1 · Listing des badges livrés à l’agence</h2>
+        <h2>1 · Listing des badges</h2>
         <p class="aide">Collez une colonne copiée depuis Excel, des n° séparés par des espaces, ou une plage « 10001-10080 ». Vous pouvez aussi importer un fichier ou reprendre les badges d’un chantier de l’app d’émargement.</p>
         <textarea id="lvTexte" rows="6" placeholder="10001&#10;10002&#10;…" class="mono"></textarea>
         <p class="compte-badges" id="lvCompte" hidden></p>
@@ -183,18 +183,15 @@
         </div>
         <div id="lvColonneBloc" hidden><label for="lvColonne">Colonne contenant les n° de badge</label><select id="lvColonne"></select></div>
         <div id="lvApercu" style="margin-top:12px"></div>
+        <label for="lvCommentaire">Commentaire</label><input type="text" id="lvCommentaire" placeholder="Ex. : badges programmés pour la résidence">
+        <div class="actions"><button type="button" class="btn btn-or" id="lvLivrer" disabled>Valider l’import des badges</button></div>
+        <div id="lvResultat"></div>
       </div>
       <div class="bloc" id="lvBlocReception">
-        <h2>2 · Réception par le gestionnaire (facultatif)</h2>
-        <p class="aide">Si le gestionnaire est présent, il signe ici la réception des badges : le bon de livraison sera signé.</p>
-        <label for="lvSignataire">Nom du gestionnaire</label><input type="text" id="lvSignataire">
-        <label>Signature</label>
-        <div class="papier"><canvas id="lvPad"></canvas><div class="ligne"></div><span class="mention">Reçu par le syndic</span></div>
-        <div class="actions"><button type="button" class="btn btn-discret" id="lvEffacer">Effacer</button></div>
-        <label for="lvCommentaire">Commentaire</label><input type="text" id="lvCommentaire" placeholder="Ex. : badges programmés, livrés à l’agence de Chambéry">
+        <h2>2 · Livraison à l’agence et bon de livraison</h2>
+        <div id="lvLivraisonEtat"></div>
+        <canvas id="lvPad" hidden></canvas>
       </div>
-      <div class="actions"><button type="button" class="btn btn-or btn-large" id="lvLivrer" disabled>Livrer les badges</button></div>
-      <div id="lvResultat"></div>
     </div>
 
     <div id="ongRemises" hidden>
@@ -373,7 +370,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=47"></script>
+<script src="portail-commun.js?v=48"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1237,7 +1234,10 @@ function etapeSuivante(c) {
   if (c.type !== 'complet') {
     const kb = c.compteurs || {};
     if (['termine'].includes(c.etat)) return { cloture: 'Chantier terminé' };
-    if (!kb.livres) return { code: 'livrer', libelle: 'Livrer les badges au syndic' };
+    const sub = c.badges_suivi || {};
+    if (!kb.livres) return { code: 'livrer', libelle: 'Importer le listing des badges' };
+    if (!sub.livre_le && !sub.livraison_signee_le) return { code: 'livre', libelle: 'Badges livrés au syndic', note: `${kb.livres} badges importés, en attente de livraison à l’agence` };
+    if (!sub.livraison_signee_le && !sub.acces_le) return { code: 'signer_liv', libelle: 'Faire signer le bon de livraison', note: 'Accès du syndic bloqué jusqu’à la signature' };
     if (kb.a_creer) return { code: 'controle', libelle: `Créer ${kb.a_creer} remise${kb.a_creer > 1 ? 's' : ''} dans le contrôle d’accès` };
     if (kb.stock > 0) return { attente: `Remise des badges aux copropriétaires par le syndic : ${kb.remis} / ${kb.livres} remis` };
     return { attente: 'Tous les badges livrés sont remis.' };
@@ -1908,7 +1908,30 @@ async function ouvrirChantier(id, onglet) {
   if (onglet) choisirOnglet(onglet);
   setTimeout(() => lvPad.taille(), 50);
   remplirChantiersApp($('lvChantierApp'), 'Reprendre les badges d’un chantier de l’app…');
+  rendreLivraisonEtat(c, k);
   replierPhasesAdmin(c, k);
+}
+// Chantier dont l'accès du syndic s'ouvre à la signature du bon de livraison : badges seuls et Vigik seul.
+const accesParLivraison = c => c.type === 'badges' || c.travaux === 'vigik';
+function rendreLivraisonEtat(c, k) {
+  const su = c.badges_suivi || {}, aSigner = (A.detail.livraisons || []).find(x => !x.signature), signee = !!su.livraison_signee_le;
+  const gere = accesParLivraison(c), parts = [];
+  if (!k.livres) parts.push('<p class="aide" style="margin:0">Validez d’abord l’import des badges (bloc 1).</p>');
+  else if (aSigner && !su.livre_le) parts.push(`<p style="margin:0">Listing importé : <b style="color:var(--he-white)">${aSigner.badges.length}</b> badge${aSigner.badges.length > 1 ? 's' : ''} (${esc(aSigner.badges[0])} … ${esc(aSigner.badges[aSigner.badges.length - 1])}), en attente de livraison à l’agence.</p>
+      <div class="actions"><button type="button" class="btn btn-or" data-lv="livre">Badges livrés au syndic</button></div>`);
+  else if (aSigner) parts.push(`<p style="margin:0">Badges livrés à l’agence : <b style="color:var(--he-white)">bon de livraison à signer</b>${gere ? ' (l’accès du syndic s’ouvre à la signature)' : ''}.</p>
+      <div class="actions"><button type="button" class="btn btn-or" data-lv="signer">Faire signer maintenant</button><button type="button" class="btn" data-lv="distance">Envoyer pour signature à distance</button></div>`);
+  else parts.push(`<p style="margin:0"><span class="pastille ok">Bon de livraison signé${su.livraison_signee_le ? ' le ' + esc(dateCourte(su.livraison_signee_le)) : ''}${su.livraison_signataire ? ' par ' + esc(su.livraison_signataire) : ''}</span></p>`);
+  if (gere && !signee && k.livres) parts.push(su.acces_le ? '<p style="margin:8px 0 0"><span class="pastille ok">Accès du syndic débloqué</span></p>'
+    : '<div class="actions"><button type="button" class="btn btn-discret" data-lv="acces">Débloquer l’accès du syndic sans attendre</button></div>');
+  $('lvLivraisonEtat').innerHTML = parts.join('');
+  $('lvLivraisonEtat').querySelectorAll('[data-lv]').forEach(b => b.onclick = () => {
+    const a = b.dataset.lv;
+    if (a === 'livre') return badgesLivresAdmin(c);
+    if (a === 'signer') return ouvrirSignatureLivraison(c);
+    if (a === 'distance') return envoyerSignatureDistance(c);
+    if (a === 'acces') return debloquerAccesSyndic(c);
+  });
 }
 // Phases terminées repliées sur leur titre (un clic sur le titre les rouvre).
 function replierPhasesAdmin(c, k) {
@@ -1916,7 +1939,7 @@ function replierPhasesAdmin(c, k) {
   const n = e.nb_logements_saisis || 0, signee = (A.detail.livraisons || [])[0]?.signataire;
   const cle = x => c.id + '.' + x;
   PS.repliable($('lvBlocListing'), k.livres > 0, cle('listing'));
-  PS.repliable($('lvBlocReception'), k.livres > 0 && !!signee, cle('reception'));
+  PS.repliable($('lvBlocReception'), k.livres > 0 && !(A.detail.livraisons || []).some(x => !x.signature), cle('reception'));
   PS.repliable($('dRecensement'), !!so.clos_le || (n > 0 && (e.nb_commandes || 0) >= n), cle('recensement'));
   PS.repliable($('dFourniture'), !!(c.fourniture || e.fourniture || {}).recu_le, cle('fourniture'));
   PS.repliable($('dCampagne'), !!camp.affichee_le && n > 0 && (e.nb_rdv || 0) >= n && !e.nb_rdv_a_rattacher, cle('campagne'));
@@ -2005,7 +2028,6 @@ function majApercu() {
   $('lvLivrer').textContent = nouveaux.length ? `Livrer ${nouveaux.length} badge${nouveaux.length > 1 ? 's' : ''} au syndic` : 'Livrer les badges';
 }
 $('lvTexte').oninput = majApercu;
-$('lvEffacer').onclick = () => lvPad.effacer();
 $('lvChantierApp').onchange = async e => {
   const id = e.target.value; if (!id) return;
   try {
@@ -2066,13 +2088,13 @@ $('lvColonne').onchange = () => { appliquerColonne(); const nb = new Set(PS.anal
 $('lvLivrer').onclick = async () => {
   if (!A.apercu.length) return;
   if (!A.detail.syndic && !confirm('Ce chantier n’est lié à aucun syndic : les badges ne seront visibles par personne côté syndic. Livrer quand même ?')) return;
-  const sig = lvPad.estVide() ? '' : lvPad.image();
-  if (sig && !$('lvSignataire').value.trim()) { $('lvSignataire').focus(); return toast('Indiquez le nom du gestionnaire qui signe.'); }
+  // L'import enregistre seulement le listing : la livraison à l'agence et la signature du bon viennent ensuite (bloc 2).
+  const sig = '';
   $('lvLivrer').disabled = true;
   try {
-    const r = await appel('ps_admin_livrer', { p_copro: A.copro, p_badges: A.apercu, p_commentaire: $('lvCommentaire').value.trim(), p_signataire: $('lvSignataire').value.trim(), p_signature: sig });
-    const livraison = { badges: r.ajoutes, signataire: $('lvSignataire').value.trim(), signature: sig, commentaire: $('lvCommentaire').value.trim(), cree_le: new Date().toISOString(), signe_le: sig ? new Date().toISOString() : null };
-    $('lvTexte').value = ''; $('lvCommentaire').value = ''; $('lvSignataire').value = ''; lvPad.effacer(); $('lvColonneBloc').hidden = true;
+    const r = await appel('ps_admin_livrer', { p_copro: A.copro, p_badges: A.apercu, p_commentaire: $('lvCommentaire').value.trim(), p_signataire: '', p_signature: '' });
+    const livraison = { badges: r.ajoutes, signataire: '', signature: sig, commentaire: $('lvCommentaire').value.trim(), cree_le: new Date().toISOString(), signe_le: sig ? new Date().toISOString() : null };
+    $('lvTexte').value = ''; $('lvCommentaire').value = ''; $('lvColonneBloc').hidden = true;
     await ouvrirChantier(A.copro, 'livrer');
     $('lvResultat').innerHTML = `<div class="bloc"><h2>Livraison enregistrée</h2><p style="margin:0"><b style="color:var(--he-white)">${r.ajoutes.length}</b> badge${r.ajoutes.length > 1 ? 's' : ''} ajouté${r.ajoutes.length > 1 ? 's' : ''} au stock du syndic.</p>
       ${r.ailleurs.length ? `<p class="aide">Attention, ${r.ailleurs.length} n° existe${r.ailleurs.length > 1 ? 'nt' : ''} aussi dans un autre chantier : ${esc(r.ailleurs.map(a => a.numero + ' (' + a.copro + ')').join(', '))}</p>` : ''}
@@ -2084,7 +2106,7 @@ $('lvLivrer').onclick = async () => {
 };
 
 // ---------- Vigik seul : livraison à l'agence, signature du bon, accès du syndic ----------
-async function rafraichirChantier(c) { await charger(); if (!$('vChantier').hidden && A.copro === c.id) await ouvrirChantier(c.id, 'livraisons'); else rendreChantiers(); }
+async function rafraichirChantier(c) { await charger(); if (!$('vChantier').hidden && A.copro === c.id) await ouvrirChantier(c.id, 'livrer'); else rendreChantiers(); }
 async function badgesLivresAdmin(c) {
   if (!confirm('Les badges sont livrés à l’agence du syndic ?')) return;
   try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: 'livre', p_fait: true }); } catch { return; }
@@ -2098,7 +2120,7 @@ async function choisirSignatureLivraison(c) {
 }
 let slPad = null;
 async function ouvrirSignatureLivraison(c) {
-  if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id, 'livraisons');
+  if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id, 'livrer');
   const l = (A.detail.livraisons || []).find(x => !x.signature);
   if (!l) return toast('Aucun bon de livraison à signer.');
   $('slTitre').textContent = c.nom || A.detail.copro.nom;

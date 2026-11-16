@@ -254,7 +254,9 @@ const PS = (() => {
     let E;
     if (c.type !== 'complet') {
       E = [
-        { cle: 'livres', titre: 'Badges livrés au syndic', fait: k.livres > 0 || apres('livres', 'distribution', 'termine') ? 1 : 0, attente: 'En attente de la livraison des badges au syndic' },
+        // Badges livrés = bon de livraison signé (ou accès débloqué par Harmonie) ; l'import du listing seul ne suffit pas.
+        { cle: 'livres', titre: 'Badges livrés au syndic (bon de livraison signé)', fait: (c.badges_suivi || {}).livraison_signee_le || ((c.badges_suivi || {}).acces_le && k.livres > 0) || apres('distribution', 'termine') ? 1 : (c.badges_suivi || {}).livre_le ? 0.5 : 0,
+          enCours: 'Badges livrés à l’agence : bon de livraison à signer', attente: k.livres > 0 ? 'Listing des badges déposé : en attente de livraison à l’agence' : 'En attente du listing des badges' },
         badges,
         { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
       ];

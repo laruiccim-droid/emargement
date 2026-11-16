@@ -178,6 +178,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="btnTransfertG">Transférer à un collègue</button><button type="button" class="btn btn-or" id="btnNouvelleRemise">+ Remettre des badges</button></div>
     </div>
     <div class="bloc" id="coTransfert" hidden></div>
+    <div class="bloc" id="coAcces" hidden></div>
     <div class="bloc" id="coAlerteRatt" hidden style="border-color:#D9A35B;background:rgba(217,163,91,.10)"></div>
     <div class="bloc" id="coRecensement" hidden>
       <h2>Préparation du chantier</h2>
@@ -500,7 +501,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=47"></script>
+<script src="portail-commun.js?v=48"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -699,7 +700,16 @@ async function ouvrirCopro(id) {
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
   $('coRaccourci').innerHTML = zoneRaccourci({ ...c, compteurs: k }); brancherRaccourcis($('coRaccourci'));
-  $('btnNouvelleRemise').disabled = !k.stock;
+  // Badges seuls / Vigik seul : accès ouvert à la signature du bon de livraison (ou débloqué par Harmonie).
+  const ouvert = accesOuvert(c), su = c.badges_suivi || {};
+  $('btnNouvelleRemise').disabled = !k.stock || !ouvert;
+  $('coAcces').hidden = ouvert || c.type === 'complet';
+  if (!$('coAcces').hidden) {
+    $('coAcces').innerHTML = `<h2>Livraison des badges</h2><p style="margin:0">${su.livre_le ? `${k.livres} badges livrés à votre agence : signez le bon de livraison pour accéder au chantier (remises des badges).`
+      : k.livres ? `Listing de ${k.livres} badges déposé sur la plateforme : en attente de livraison à votre agence par Harmonie Électricité.` : 'En attente du listing des badges par Harmonie Électricité.'}</p>`
+      + (su.livre_le ? '<div class="actions"><button type="button" class="btn btn-or" id="coSignerLiv">Signer le bon de livraison</button></div>' : '');
+    if ($('coSignerLiv')) $('coSignerLiv').onclick = signerLivraisonSyndic;
+  }
   rendreRemises(); rendreBadges(); rendreParcours(); rendreTransfertG();
   // Chantier complet : l'onglet « Appartements » s'ouvre en premier.
   $('ongletApparts').hidden = c.type !== 'complet';
@@ -875,6 +885,8 @@ function etapeSyndic(c) {
     if (!su.service_le) return H('Badges distribués', 'En attente de l’installation des centrales par Harmonie Électricité');
     return H('Nouveau système Vigik en service', 'Facturation par Harmonie Électricité en cours');
   }
+  if (c.type !== 'complet' && !accesOuvert(c)) return su.livre_le ? { code: 'signerLivraison', libelle: 'Signer le bon de livraison des badges' }
+    : k.livres ? H('Listing des badges déposé', 'En attente de livraison à votre agence par Harmonie Électricité') : H('En attente du listing des badges', 'par Harmonie Électricité');
   if (c.type !== 'complet') return k.stock ? { code: 'remise', libelle: '+ Remettre des badges' } : k.livres ? H('Tous les badges livrés sont remis.', '') : H('En attente de la livraison des badges', 'par Harmonie Électricité');
   if (c.etat === 'attente_facturation') return H('Installation terminée', 'Facturation par Harmonie Électricité en cours');
   if (!rec.etiquettes_le) return H('En attente de la mise en place des étiquettes', 'de numérotation des appartements par Harmonie Électricité');
@@ -916,7 +928,8 @@ function brancherRaccourcis(racine) {
   racine.querySelectorAll('[data-raccourci]').forEach(b => b.onclick = e => { e.stopPropagation(); executerRaccourci(b.dataset.coproId, b.dataset.raccourci); });
 }
 
-// ---------- Vigik seul : signature à distance du bon de livraison (ouvre l'accès au chantier) ----------
+// ---------- Signature à distance du bon de livraison (ouvre l'accès au chantier : badges seuls, Vigik seul) ----------
+const accesOuvert = c => { const su = c.badges_suivi || {}; return !(c.type === 'badges' || c.travaux === 'vigik') || !!su.livraison_signee_le || !!su.acces_le; };
 let slPad = null;
 async function signerLivraisonSyndic() {
   let l; try { l = await appel('ps_syndic_livraison', { p_session: S.session, p_copro: S.copro }); } catch { return; }
