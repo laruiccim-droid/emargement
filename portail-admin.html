@@ -364,7 +364,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=45"></script>
+<script src="portail-commun.js?v=46"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1232,15 +1232,10 @@ function etapeSuivante(c) {
   if (c.etat === 'attente_facturation') return { code: 'facture', libelle: 'Déposer la facture' };
   if (c.travaux === 'vigik') {
     const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
-    if (!su.commande_le) return { attente: 'En attente de la commande des badges par le syndic.' };
-    if (!k.livres) return { code: 'listing', libelle: `Déposer le listing des badges (${su.commande_nb} commandés)` };
-    if (rec.etape !== 'pret') return { attente: 'En attente du fichier des copropriétaires (gestionnaire).' };
-    if (!so.ouvert_le) return { attente: 'En attente de l’envoi du recensement aux copropriétaires (gestionnaire).' };
-    if (!(so.clos_le || (n && nc >= n))) return { attente: `Recensement en cours : ${nc} / ${n} signés.` };
-    if (!su.attribues_le) return { code: 'attribuer', libelle: 'Attribuer les badges (listing des réponses)' };
-    if (!su.installation_le) return nba && nbo / nba >= 0.8 ? { code: 'installer', libelle: `Feu vert : lancer l’installation (${nbo} / ${nba})` }
-      : { code: 'installer', libelle: 'Lancer l’installation', note: `Badges récupérés : ${nbo} / ${nba} (feu vert à 80 %)` };
-    if (!su.service_le) return { code: 'service', libelle: 'Mise en service terminée' };
+    if (!k.livres) return { code: 'listing', libelle: 'Déposer la liste des badges livrés au syndic' };
+    if (!su.prevenus_le && !so.ouvert_le) return { attente: 'Badges livrés : le gestionnaire doit prévenir les copropriétaires.' };
+    if (nba && nbo < nba) return { attente: `Remise des badges à l’agence : ${nbo} / ${nba} appartements.` };
+    if (!su.service_le) return { code: 'service', libelle: 'Installation des centrales terminée' };
     return { code: 'facture', libelle: 'Déposer la facture' };
   }
   if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
@@ -1278,6 +1273,19 @@ async function executerEtape(c, code) {
     return;
   }
   if (code === 'programmes') { if (!confirm('Les badges sont programmés sur le site de gestion ?')) return; return jalonBadges('programmes', 'Badges programmés : vous pouvez les livrer au syndic.'); }
+  if (code === 'service' && c.travaux === 'vigik') {
+    if (!confirm('Les centrales Vigik sont installées ? Le gestionnaire sera prévenu par e-mail.')) return;
+    await jalonBadges('service', 'Installation terminée : le syndic est prévenu.');
+    const s = A.etat.syndics.find(x => x.id === c.syndic_id) || {}, us = (s.users || []).filter(u => u.email);
+    const dest = (us.find(u => u.id === c.gestionnaire_id) ? [us.find(u => u.id === c.gestionnaire_id)] : us).map(u => u.email);
+    if (dest.length) {
+      const err = await PS.envoiGmail(dest.join(', '), `Contrôle d’accès installé — résidence ${c.nom}`,
+        `Bonjour,\n\nLes centrales du nouveau contrôle d’accès Vigik de la résidence **${c.nom}** sont installées : le nouveau système est en service.\n`
+        + `Les anciens badges ne fonctionnent plus ; les copropriétaires qui n’ont pas encore récupéré leurs badges peuvent toujours les retirer à l’agence.\n\nCordialement,`);
+      toast(err ? 'Installation notée, mais e-mail au syndic non envoyé : ' + err : 'Installation notée : le syndic a été prévenu par e-mail.', 6000);
+    }
+    return;
+  }
   if (code === 'service') { if (!confirm('Le nouveau système Vigik est en service ?\n\nPensez à afficher la fiche d’information « nouveau système » (bloc Émargement).')) return; return jalonBadges('service', 'Mise en service enregistrée : déposez la facture.'); }
   if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id);
   const aller = id => setTimeout(() => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
@@ -1334,13 +1342,12 @@ async function deposerListing(coproId, f) {
   if (!f) return;
   let nums; try { nums = await lireNumerosBadges(f); } catch (e) { return toast('Fichier illisible : ' + e.message, 5000); }
   if (!nums.length) return toast('Aucun n° de badge reconnu dans ce fichier.', 5000);
-  const c = A.etat.copros.find(x => x.id === coproId), cde = c?.badges_suivi?.commande_nb;
-  if (!confirm(`${nums.length} badges trouvés (${nums[0]} … ${nums[nums.length - 1]})${cde ? ` pour ${cde} commandés` : ''}.\n\nLes livrer au syndic ? Cela débloque son espace pour ce chantier.`)) return;
-  try {
-    const r = await appel('ps_admin_livrer', { p_copro: coproId, p_badges: nums, p_commentaire: 'Badges programmés (listing déposé)', p_signataire: '', p_signature: '' });
-    toast(`${(r.ajoutes || nums).length} badges déposés : le gestionnaire peut commencer.`, 5000);
-    await charger(); if (!$('vChantier').hidden && A.copro === coproId) ouvrirChantier(coproId); else rendreChantiers();
-  } catch {}
+  // La liste prépare le bon de livraison : onglet « Livrer » prérempli, à faire signer au gestionnaire.
+  if ($('vChantier').hidden || A.copro !== coproId) await ouvrirChantier(coproId);
+  choisirOnglet('livrer');
+  $('lvTexte').value = nums.join('\n'); majApercu();
+  setTimeout(() => $('ongLivrer').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+  toast(`${nums.length} badges repris (${nums[0]} … ${nums[nums.length - 1]}) : faites signer le bon de livraison au gestionnaire.`, 6000);
 }
 function brancherDepotListing(el, coproId) {
   const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx,.xls,.xlsm,.ods,.csv,.txt'; input.hidden = true; el.append(input);
@@ -1406,18 +1413,18 @@ async function rendreBadgesVigikAdmin(c) {
   const lg = d.logements.filter(l => l.attendus > 0), att = lg.reduce((t, l) => t + l.attendus, 0);
   const ok = lg.filter(l => l.remis + l.locataire >= l.attendus).length, hors = d.hors.reduce((t, h) => t + (h.badges || 0), 0);
   const supp = d.logements.reduce((t, l) => t + (l.supp || 0), 0);
-  if (c.travaux === 'vigik') { const cde = su.commande_nb; $('bgInfo').textContent = `${cde ? `Commande du syndic : ${cde} badges le ${dateCourte(su.commande_le)}${su.commande_par ? ' (' + su.commande_par + ')' : ''}. ` : 'Le syndic n’a pas encore commandé de badges. '}${k.livres ? `${k.livres} badges déposés • ${ok} / ${lg.length} appartements ont récupéré leurs badges.` : 'Déposez le listing des badges programmés (zone au-dessus de la barre).'}`; }
+  if (c.travaux === 'vigik') $('bgInfo').textContent = k.livres
+    ? `${k.livres} badges livrés au syndic • ${k.stock || 0} en stock • ${ok} / ${lg.length} appartements ont récupéré leurs badges${su.prevenus_le ? ` • copropriétaires prévenus le ${dateCourte(su.prevenus_le)}` : ''}.`
+    : 'Déposez la liste des badges livrés au syndic : elle prépare le bon de livraison à faire signer au gestionnaire.';
   else $('bgInfo').textContent = (supp ? `${supp} badge${supp > 1 ? 's' : ''} supplémentaire${supp > 1 ? 's' : ''} attribué${supp > 1 ? 's' : ''} sur le stock syndic (à facturer). ` : '') + (!fo.recu_le ? 'La fiche de programmation des badges est disponible dès réception du matériel.'
     : `${att} badges pour ${lg.length} appartements + ${hors} pour le stock syndic et les entreprises • ${k.livres || 0} livrés au syndic • ${ok} / ${lg.length} appartements ont récupéré leurs badges.`);
   const etapes = [];
   if (c.travaux === 'vigik') {
-    const so = c.sondage || {}, finis = so.clos_le || (lg.length && d.logements.every(l => l.qualite));
-    etapes.push(`<button type="button" class="btn" id="bgFiche">Listing des réponses (attribution)</button>`);
-    if (k.livres) etapes.push(su.attribues_le ? `<span class="pastille ok">Badges attribués le ${esc(dateCourte(su.attribues_le))}</span>` : `<button type="button" class="btn ${finis ? 'btn-or' : ''}" data-bgj="attribues">Attributions faites : prévenir le syndic</button>`);
-    if (su.attribues_le && !su.installation_le) etapes.push(`<button type="button" class="btn ${ok >= 0.8 * lg.length ? 'btn-or' : ''}" data-bgj="installation">Lancer l’installation</button>`);
-    if (su.installation_le && !su.service_le) etapes.push(`<span class="pastille attente">Installation lancée le ${esc(dateCourte(su.installation_le))}</span> <button type="button" class="btn btn-or" data-bgj="service">Mise en service terminée</button>`);
-    if (su.service_le) etapes.push(`<span class="pastille ok">En service depuis le ${esc(dateCourte(su.service_le))}</span>`);
-    if (k.livres) etapes.push('<button type="button" class="btn" id="bgCorresp">Correspondance badges / appartements</button>');
+    if (!k.livres) etapes.push('<button type="button" class="btn btn-or" id="bgLivrer">Livrer les badges au syndic (bon de livraison)</button>');
+    if (k.livres) etapes.push(`<span class="pastille ok">${k.livres} badges livrés au syndic</span>${su.prevenus_le || (c.sondage || {}).ouvert_le ? ' <span class="pastille ok">Copropriétaires prévenus</span>' : ' <span class="pastille attente">Le syndic doit prévenir les copropriétaires</span>'}`);
+    if (k.livres) etapes.push('<button type="button" class="btn" id="bgCorresp">Compte rendu des remises (badges, appartements, droits)</button>');
+    etapes.push(su.service_le ? `<span class="pastille ok">Centrales installées le ${esc(dateCourte(su.service_le))}</span>`
+      : `<button type="button" class="btn ${lg.length && ok >= lg.length ? 'btn-or' : ''}" data-bgj="service">Installation des centrales terminée</button>`);
   } else if (fo.recu_le) {
     etapes.push(`<button type="button" class="btn ${su.programmes_le ? '' : 'btn-or'}" id="bgFiche">Fiche de programmation Vigik</button>`);
     etapes.push(su.programmes_le ? `<span class="pastille ok">Badges programmés le ${esc(dateCourte(su.programmes_le))}</span>` : '<button type="button" class="btn btn-petit" data-bgj="programmes">Badges programmés dans le logiciel</button>');

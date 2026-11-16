@@ -258,21 +258,16 @@ const PS = (() => {
         { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
       ];
     } else if (c.travaux === 'vigik') {
-      // Vigik seul : commande du syndic → listing déposé → fichier → recensement → attributions → remises → installation → facture.
+      // Vigik seul : fichier → badges livrés (bon signé) → copropriétaires prévenus / recensement → remises → installation → facture.
       const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
       E = [
-        { cle: 'commande', titre: 'Commande des badges par le syndic', fait: su.commande_le ? 1 : 0, attente: 'En attente de la commande des badges (syndic)' },
-        { cle: 'listing', titre: 'Badges programmés, listing déposé', fait: k.livres > 0 ? 1 : 0, attente: 'Programmation des badges par Harmonie Électricité' },
         { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
           enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
-        { cle: 'sondage', titre: 'Recensement envoyé', fait: so.clos_le || (n && ni >= n) ? 1 : so.ouvert_le && n ? ni / n : 0,
-          enCours: `Envoi du recensement : ${ni} / ${n} copropriétaires`, attente: 'Recensement à envoyer aux copropriétaires' },
-        { cle: 'reponses', titre: 'Recensements signés', fait: so.clos_le || (n && nc >= n) ? 1 : n ? nc / n : 0,
-          enCours: `Recensement en cours : ${nc} / ${n} signés`, attente: 'En attente des réponses des copropriétaires' },
-        { cle: 'attribues', titre: 'Badges attribués aux appartements', fait: su.attribues_le ? 1 : 0, attente: 'Attribution des badges par Harmonie Électricité' },
-        { cle: 'badges', titre: 'Badges récupérés', fait: nba ? Math.min(1, nbo / nba) : 0, enCours: `Badges récupérés : ${nbo} / ${nba} appartements`, attente: 'Distribution des badges à l’agence' },
-        { cle: 'installation', titre: 'Installation et mise en service', fait: su.service_le || apres('attente_facturation', 'facture', 'termine') ? 1 : su.installation_le ? 0.5 : 0,
-          enCours: 'Installation des centrales en cours', attente: 'En attente de l’installation des centrales' },
+        { cle: 'livres', titre: 'Badges livrés au syndic (bon de livraison signé)', fait: k.livres > 0 ? 1 : 0, attente: 'Livraison des badges par Harmonie Électricité' },
+        { cle: 'prevenus', titre: 'Copropriétaires prévenus', fait: su.prevenus_le || so.ouvert_le ? 1 : 0, attente: 'Le syndic prévient les copropriétaires (badges à retirer à l’agence)' },
+        { cle: 'badges', titre: 'Badges remis aux copropriétaires', fait: nba ? Math.min(1, nbo / nba) : 0, enCours: `Remise des badges : ${nbo} / ${nba} appartements`, attente: 'Remise des badges à l’agence' },
+        { cle: 'installation', titre: 'Installation des centrales', fait: su.service_le || apres('attente_facturation', 'facture', 'termine') ? 1 : 0,
+          attente: 'En attente de l’installation des centrales par Harmonie Électricité' },
         { cle: 'facture', titre: 'Facturé, chantier terminé', fait: facture ? 1 : 0, attente: fini || su.service_le ? 'Système en service, en attente de facturation' : 'Facturation' },
       ];
     } else {
@@ -436,6 +431,7 @@ const PS = (() => {
     let t = `Suite à la validation du devis pour ${travaux}${residence}, `
       + (choix.length > 1 ? `nous vous invitons à faire deux choix :\n${choix.map((x, i) => `${i + 1}. ${x.charAt(0).toUpperCase() + x.slice(1)} ;`).join('\n').replace(/ ;$/, '.')}` : `veuillez ${interphone ? 'choisir' : 'indiquer'} ${choix[0]}.`);
     if (interphone && a('plaque').length) t += `\nUne plaque de propreté vous est aussi proposée pour masquer les traces laissées par l’ancien poste.`;
+    if (!interphone) t += `\nVos badges sont disponibles à l’agence de votre syndic : après avoir répondu, passez les retirer (une signature vous sera demandée).`;
     return t + `\nVotre choix, signé en ligne, vaut bon de commande.`;
   }
 

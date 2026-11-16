@@ -28,6 +28,7 @@
   .lg-tete, .lg { display: grid; grid-template-columns: 90px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.6fr) 40px; gap: 6px; align-items: center; }
   .lg-tete { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey-400); padding: 0 2px 4px; }
   .lg { padding: 6px 0; border-top: 1px solid var(--border-hairline); }
+  .avec-badges .lg-tete, .avec-badges .lg { grid-template-columns: 90px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.6fr) 74px 40px; }
   .lg input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
   .lg .suppr { min-height: 40px; padding: 0; width: 40px; }
   .lg.incomplet input[data-k="nom"]:placeholder-shown { border-color: rgba(217,163,91,.7); }
@@ -43,6 +44,8 @@
     .lg input[data-k="lot"] { grid-column: 1 / 3; }
     .lg input[data-k="nom"], .lg input[data-k="telephone"], .lg input[data-k="emails"] { grid-column: 1 / 3; }
     .lg .suppr { grid-row: 1; grid-column: 3; }
+    .avec-badges .lg { grid-template-columns: 1fr 1fr 40px; }
+    .avec-badges .lg input[data-k="badges"] { grid-column: 1 / 3; }
   }
 </style>
 </head>
@@ -226,9 +229,9 @@
       </div>
       <p class="aide">Colonnes reconnues : lot, nom, prénom, téléphone, e-mail. Plusieurs e-mails par appartement : séparez-les par une virgule. Le numéro d’appartement n’est pas demandé : chaque copropriétaire l’indiquera dans sa réponse au sondage (étiquette blanche sur sa porte).</p>
       <p class="message" id="rcImport"></p>
-      <div class="lg-tete" style="margin-top:12px"><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span></span></div>
+      <div class="lg-tete" style="margin-top:12px"><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span id="rcColBadges" hidden>Badges</span><span></span></div>
       <div id="rcLogements"></div>
-      <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouter">+ Ajouter un appartement</button></div>
+      <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouter">+ Ajouter un appartement</button><button type="button" class="btn btn-petit btn-discret" id="rcBadgesTous" hidden>Même nombre de badges pour tous</button></div>
     </div>
 
     <div class="bloc" id="rcHorsBloc" hidden>
@@ -487,7 +490,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=45"></script>
+<script src="portail-commun.js?v=46"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -767,15 +770,9 @@ function rendreParcours() {
   $('coRecensement').hidden = c.type !== 'complet';
   if (c.type !== 'complet') return;
   const vigikSeul = c.travaux === 'vigik', su0 = c.badges_suivi || {}, livres = (S.detail.compteurs || {}).livres > 0;
-  // Vigik seul : pas d'étiquettes ; le fichier s'ouvre quand Harmonie a déposé le listing des badges.
-  const etiq = vigikSeul ? livres : !!rec.etiquettes_le, pret = rec.etape === 'pret';
-  const etapes = vigikSeul ? [
-    { fait: !!su0.commande_le, titre: 'Commande des badges',
-      texte: su0.commande_le ? `${su0.commande_nb} badges commandés le ${dateCourte(su0.commande_le)}${su0.commande_par ? ' par ' + su0.commande_par : ''}.${livres ? ' Badges programmés et livrés par Harmonie Électricité.' : ' Harmonie Électricité programme les badges.'}`
-        : 'Indiquez le nombre total de badges à commander pour la résidence. Harmonie Électricité les programme, puis votre espace s’ouvre pour le recensement des copropriétaires.',
-      bouton: su0.commande_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="commander">Commander les badges</button>' },
-  ] : [
-    
+  // Vigik seul : ni étiquettes ni badges à attendre, le fichier des copropriétaires est ouvert dès la création du chantier.
+  const etiq = vigikSeul ? true : !!rec.etiquettes_le, pret = rec.etape === 'pret';
+  const etapes = vigikSeul ? [] : [
     { fait: etiq, titre: 'Étiquettes de numérotation',
       texte: etiq ? `Pose des étiquettes validée par Harmonie Électricité le ${dateCourte(rec.etiquettes_le)}.`
         : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité : une étiquette blanche numérotée sur l’huisserie de chaque porte palière. Le recensement des appartements s’ouvre ensuite.',
@@ -785,10 +782,21 @@ function rendreParcours() {
     { fait: pret, titre: 'Fichier des copropriétaires',
       texte: pret ? `${n} appartement${n > 1 ? 's' : ''} recensé${n > 1 ? 's' : ''}. Vous pouvez encore corriger la liste.`
         : n ? `${n} appartement${n > 1 ? 's' : ''} saisi${n > 1 ? 's' : ''} : terminez puis validez le recensement.`
-        : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).' + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
+        : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).'
+          + (vigikSeul ? ' Vous pouvez aussi fixer le nombre de badges de chaque appartement (sinon, le recensement le demandera aux copropriétaires).' : '')
+          + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
       bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : `disabled title="${vigikSeul ? 'En attente du dépôt des badges programmés par Harmonie Électricité' : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité'}"`}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
     (() => {
       const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0, tous = n > 0 && nc >= n;
+      // Vigik seul : le gestionnaire choisit comment prévenir les copropriétaires (badges à l'agence ou recensement).
+      if (vigikSeul) return { fait: !!su0.prevenus_le || ouvert, titre: 'Information des copropriétaires',
+        texte: !livres ? 'Disponible dès que Harmonie Électricité a livré les badges à l’agence (bon de livraison signé).'
+          : !pret ? 'Validez d’abord le fichier des copropriétaires.'
+          : su0.prevenus_le ? `Copropriétaires prévenus le ${dateCourte(su0.prevenus_le)} : ils viennent retirer leurs badges à l’agence.`
+          : ouvert ? `Recensement envoyé : ${nc} / ${n} réponses signées. Les copropriétaires viennent ensuite retirer leurs badges à l’agence.`
+          : 'Au choix : prévenez les copropriétaires que leurs badges sont à retirer à l’agence (e-mail), ou envoyez-leur le recensement pour connaître le nombre de badges souhaités (réponse obligatoire) avant de venir les retirer.',
+        bouton: livres && pret ? (su0.prevenus_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="prevenir">Badges à retirer à l’agence (e-mail)</button>')
+          + `<button type="button" class="btn btn-petit ${su0.prevenus_le || ouvert ? '' : 'btn-or'}" data-parcours="sondage">${ouvert ? 'Suivre le recensement' : 'Envoyer le recensement (nombre de badges)'}</button>` : '' };
       return { fait: clos || tous, titre: 'Recensement des copropriétaires',
         texte: tous ? `Tous les recensements sont signés (${nc} / ${n}). Harmonie Électricité commande le matériel.`
           : clos ? `Recensement clos le ${dateCourte(so.clos_le)} : ${nc} / ${n} signés.`
@@ -810,7 +818,7 @@ function rendreParcours() {
     etapes.push({ fait: lg.length > 0 && ok >= lg.length, titre: 'Remise des badges aux propriétaires',
       texte: !k.livres ? 'Harmonie Électricité programme les badges et vous les livre à l’agence (bon de livraison signé).'
         : `${k.livres} badges livrés à l’agence. ${ok} / ${lg.length} appartements ont récupéré leurs badges.${su.prevenus_le ? ` Propriétaires prévenus le ${dateCourte(su.prevenus_le)}.` : ' Prévenez les propriétaires qu’ils peuvent passer les chercher.'}`,
-      bouton: k.livres && (!vigikSeul || su.attribues_le) ? `${su.prevenus_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="prevenir">Prévenir les propriétaires</button>'}<button type="button" class="btn btn-petit" data-parcours="emargementBadges">Émargement des badges</button>` : '' });
+      bouton: k.livres ? `${su.prevenus_le ? '' : '<button type="button" class="btn btn-petit btn-or" data-parcours="prevenir">Prévenir les propriétaires</button>'}<button type="button" class="btn btn-petit" data-parcours="emargementBadges">Émargement des badges</button>` : '' });
   }
   const courante = etapes.findIndex(e => !e.fait);
   $('coParcours').innerHTML = etapes.map((e, i) => `<li class="${e.fait ? 'faite' : i === courante ? 'courante' : ''}">
@@ -834,16 +842,13 @@ function etapeSyndic(c) {
   const H = (titre, texte) => ({ attente: titre, detail: texte });
   if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
   if (c.type === 'complet' && vigik && c.travaux === 'vigik') {
-    if (!su.commande_le) return { code: 'commander', libelle: 'Commander les badges' };
-    if (!k.livres) return H('Programmation des badges en cours', `par Harmonie Électricité (${su.commande_nb} commandés)`);
+    const nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
     if (rec.etape !== 'pret') return { code: 'recensement', libelle: n ? 'Terminer le fichier des copropriétaires' : 'Créer le fichier des copropriétaires' };
-    if (!so.ouvert_le) return { code: 'sondage', libelle: 'Envoyer le recensement aux copropriétaires' };
-    if (!(so.clos_le || (n && nc >= n))) return { code: 'sondage', libelle: `Suivre le recensement (${nc} / ${n} signés)` };
-    if (!su.attribues_le) return H('Attribution des badges aux appartements', 'par Harmonie Électricité');
-    if (!su.prevenus_le) return { code: 'prevenir', libelle: 'Prévenir les propriétaires (badges à l’agence)' };
-    if (!su.installation_le && (c.nb_badges_ok || 0) < (c.nb_badges_attendus || 0)) return { code: 'badges', libelle: `Remettre les badges (${c.nb_badges_ok || 0} / ${c.nb_badges_attendus} appartements)` };
-    if (!su.installation_le) return H('Badges distribués', 'En attente de l’installation des centrales par Harmonie Électricité');
-    if (!su.service_le) return H('Installation des centrales en cours', 'par Harmonie Électricité');
+    if (!k.livres) return H('Livraison des badges à l’agence', 'par Harmonie Électricité (bon de livraison à signer)');
+    if (!su.prevenus_le && !so.ouvert_le) return { code: 'informer', libelle: 'Prévenir les copropriétaires (badges à l’agence ou recensement)' };
+    if (nba && nbo < nba) return { code: 'badges', libelle: `Remettre les badges (${nbo} / ${nba} appartements)` };
+    if (so.ouvert_le && !(so.clos_le || (n && nc >= n))) return { code: 'sondage', libelle: `Suivre le recensement (${nc} / ${n} signés)` };
+    if (!su.service_le) return H('Badges distribués', 'En attente de l’installation des centrales par Harmonie Électricité');
     return H('Nouveau système Vigik en service', 'Facturation par Harmonie Électricité en cours');
   }
   if (c.type !== 'complet') return k.stock ? { code: 'remise', libelle: '+ Remettre des badges' } : k.livres ? H('Tous les badges livrés sont remis.', '') : H('En attente de la livraison des badges', 'par Harmonie Électricité');
@@ -873,6 +878,8 @@ function zoneRaccourci(c) {
 async function executerRaccourci(id, code) {
   if (S.copro !== id || $('vCopro').hidden) await ouvrirCopro(id);
   if (code === 'recensement') return ouvrirRecensement();
+  // Choix entre « badges à l'agence » et « recensement » : on montre l'étape du parcours qui propose les deux.
+  if (code === 'informer') return setTimeout(() => $('coParcours').scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
   if (code === 'sondage') return ouvrirSondage();
   if (code === 'campagne') return ouvrirCampagne();
   if (code === 'prevenir') return prevenirProprietaires();
@@ -899,7 +906,7 @@ async function commanderBadges() {
 async function prevenirProprietaires() {
   const bs = S.badgesSuivi, c = S.detail.copro;
   // Seuls les appartements qui n'ont pas encore tous leurs badges.
-  const lg = bs.logements.filter(l => l.attendus > 0 && l.remis + (l.locataire || 0) < l.attendus);
+  const lg = bs.logements.filter(l => !(l.attendus > 0 && l.remis + (l.locataire || 0) >= l.attendus));
   if (!lg.length) return toast('Tous les appartements ont déjà récupéré leurs badges.');
   // Adresse et nom donnés au recensement (sinon ceux du fichier) ; une fiche modifiée à la main prime.
   let parId = new Map();
@@ -914,10 +921,10 @@ async function prevenirProprietaires() {
   if (!confirm(`Prévenir les propriétaires que leurs badges sont disponibles à l’agence ?\n\n• ${avecMail.length} par e-mail (envoi automatique)` + (sansMail.length ? `\n• ${sansMail.length} sans adresse e-mail : à prévenir par téléphone ou courrier` : ''))) return;
   const signature = [nomGest(), nomCabinet()].filter(Boolean).join(' — '), agence = S.etat?.syndic?.nom || nomCabinet() || 'votre syndic';
   const texte = x => {
-    const reste = x.l.attendus - x.l.remis - (x.l.locataire || 0);
+    const reste = Math.max(0, x.l.attendus - x.l.remis - (x.l.locataire || 0)), un = reste === 1;
     return `Bonjour${x.nom ? ' ' + x.nom : ''},\n\n`
-      + `${reste > 1 ? `Les ${reste} badges d’accès` : 'Le badge d’accès'} de votre appartement (${PS.appt(x.l).toLowerCase()}, résidence ${c.nom}) ${reste > 1 ? 'sont disponibles' : 'est disponible'} à l’agence ${agence}.\n`
-      + `Merci de passer ${reste > 1 ? 'les' : 'le'} récupérer : une signature vous sera demandée.\n\n`
+      + `${reste > 1 ? `Les ${reste} badges d’accès` : un ? 'Le badge d’accès' : 'Les badges d’accès'} de votre appartement (${PS.appt(x.l).toLowerCase()}, résidence ${c.nom}) ${un ? 'est disponible' : 'sont disponibles'} à l’agence ${agence}.\n`
+      + `Merci de passer ${un ? 'le' : 'les'} récupérer : une signature vous sera demandée.\n\n`
       + `Si vous louez votre appartement, vous pouvez en laisser une partie à l’agence : ils seront remis à votre locataire le jour de l’installation.\n\n`
       + `Cordialement,\n${signature}`;
   };
@@ -1166,6 +1173,9 @@ async function ouvrirRecensement() {
   const nb = R.rec.nb_logements || R.logements.length || R.copro.appartements_devis || '';
   $('rcCopro').textContent = R.copro.nom;
   $('rcNb').value = nb;
+  // Vigik seul : le syndic peut fixer le nombre de badges de chaque appartement.
+  const vs = R.copro.travaux === 'vigik';
+  $('rcLogements').parentElement.classList.toggle('avec-badges', vs); $('rcColBadges').hidden = !vs; $('rcBadgesTous').hidden = !vs;
   $('rcNbAide').textContent = R.copro.appartements_devis ? `Le devis prévoit ${R.copro.appartements_devis} appartements : les lignes sont créées, retirez-en (✕) ou ajoutez-en si besoin.` : '';
   if (nb && R.logements.length < nb) ajusterLignes(+nb);
   $('rcHorsBloc').hidden = !avecVigik(R.copro);
@@ -1187,6 +1197,7 @@ function rendreLignes() {
     <input type="text" data-k="nom" value="${esc(l.nom)}" placeholder="Nom du propriétaire" aria-label="Propriétaire">
     <input type="tel" data-k="telephone" value="${esc(l.telephone)}" placeholder="Téléphone" aria-label="Téléphone">
     <input type="text" data-k="emails" value="${esc(l.emails.join(', '))}" placeholder="E-mail(s)" aria-label="E-mails" inputmode="email" autocapitalize="off">
+    ${R.copro?.travaux === 'vigik' ? `<input type="number" data-k="badges" min="0" max="50" inputmode="numeric" value="${esc(l.badges || '')}" placeholder="Badges" aria-label="Nombre de badges">` : ''}
     <button type="button" class="btn btn-discret suppr" data-suppr="${i}" title="Retirer cet appartement" aria-label="Retirer">✕</button></div>`).join('')
     || '<div class="vide">Indiquez le nombre d’appartements ou importez un fichier.</div>';
   $('rcLogements').querySelectorAll('.lg input').forEach(inp => inp.oninput = () => {
@@ -1211,6 +1222,11 @@ function rendreIntervenants() {
 $('rcNb').oninput = () => { const n = parseInt($('rcNb').value, 10); if (n > 0 && n <= 2000) { ajusterLignes(n); rendreLignes(); } };
 $('rcAjouter').onclick = () => { const l = ligneVide(); R.logements.push(l); $('rcNb').value = R.logements.length; rendreLignes();
   $('rcLogements').lastElementChild?.querySelector('[data-k="nom"]')?.focus(); };
+$('rcBadgesTous').onclick = () => {
+  const v = prompt('Nombre de badges pour chaque appartement :', '2'); if (v === null) return;
+  const nb = parseInt(v, 10); if (!(nb >= 0 && nb <= 50)) return toast('Indiquez un nombre entre 0 et 50.');
+  R.logements.forEach(l => { l.badges = nb; }); rendreLignes();
+};
 $('rcAjouterIntervenant').onclick = () => { R.intervenants.push({ id: '', type: 'intervenant', nom: '', badges: '' }); rendreIntervenants(); };
 
 // Import Excel / CSV : colonnes repérées par leur titre, sinon par leur contenu.
