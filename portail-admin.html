@@ -1233,7 +1233,15 @@ $('emFichierFacture').onchange = async e => {
 // ---------- Étape à réaliser maintenant (raccourci de la liste et bouton doré de la fiche) ----------
 // Retourne { code, libelle } pour une action d'Harmonie, ou { attente } quand on attend quelqu'un d'autre.
 function etapeSuivante(c) {
-  if (c.type !== 'complet') return {};
+  // Chantier « badges seuls » : livraison au syndic, remises créées dans le contrôle d'accès, distribution.
+  if (c.type !== 'complet') {
+    const kb = c.compteurs || {};
+    if (['termine'].includes(c.etat)) return { cloture: 'Chantier terminé' };
+    if (!kb.livres) return { code: 'livrer', libelle: 'Livrer les badges au syndic' };
+    if (kb.a_creer) return { code: 'controle', libelle: `Créer ${kb.a_creer} remise${kb.a_creer > 1 ? 's' : ''} dans le contrôle d’accès` };
+    if (kb.stock > 0) return { attente: `Remise des badges aux copropriétaires par le syndic : ${kb.remis} / ${kb.livres} remis` };
+    return { attente: 'Tous les badges livrés sont remis.' };
+  }
   const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {}, k = c.compteurs || {};
   const n = c.nb_logements_saisis || 0, nc = c.nb_commandes || 0, nr = c.nb_rdv || 0, vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
   // Fin de chantier : la facture passe avant tout le reste.
@@ -1274,6 +1282,7 @@ function etapeSuivante(c) {
 async function executerEtape(c, code) {
   const jalon = async (j) => { try { await appel('ps_admin_jalon', { p_copro: c.id, p_jalon: j, p_fait: true, p_info: '' }); toast('Étape validée.'); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
   if (code === 'etiquettes') return jalon('etiquettes');
+  if (code === 'controle') return ouvrirChantier(c.id, 'remises');
   if (code === 'recu') return jalon('fourniture_recue');
   if (code === 'affichage') { if (!confirm('La feuille d’information est affichée dans la résidence ?')) return; return jalon('affichage'); }
   const jalonBadges = async (j, texte) => { try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: j, p_fait: true }); toast(texte); await charger(); if (!$('vChantier').hidden) ouvrirChantier(c.id); else rendreChantiers(); } catch {} };
@@ -1782,7 +1791,14 @@ $('caIcs').onclick = () => {
 function rendreAvancementAdmin(c, k) {
   const e = A.etat.copros.find(x => x.id === c.id) || {};
   $('dFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k, nb_logements_saisis: e.nb_logements_saisis, nb_invites: e.nb_invites, nb_commandes: e.nb_commandes, nb_rdv: e.nb_rdv, nb_emarges: e.nb_emarges, nb_badges_attendus: e.nb_badges_attendus, nb_badges_ok: e.nb_badges_ok, badges_suivi: e.badges_suivi });
-  if (c.type !== 'complet') { $('dJalons').innerHTML = ''; return; }
+  if (c.type !== 'complet') {
+    // Badges seuls : la prochaine action d'Harmonie en doré au-dessus de la barre (ou ce qu'on attend).
+    const et = etapeSuivante({ ...e, ...c, compteurs: k });
+    $('dJalons').innerHTML = et.code ? `<button type="button" class="btn btn-or" id="dEtapeBs">${esc(et.libelle)}</button>`
+      : et.attente || et.cloture ? `<span class="attente">${esc(et.attente || et.cloture)}</span>` : '';
+    if (et.code) $('dEtapeBs').onclick = () => executerEtape(c, et.code);
+    return;
+  }
   const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {};
   const n = e.nb_logements_saisis || 0, nc = e.nb_commandes || 0, nr = e.nb_rdv || 0;
   const aller = id => () => $(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
