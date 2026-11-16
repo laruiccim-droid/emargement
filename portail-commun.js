@@ -40,6 +40,7 @@ const PS = (() => {
     ETIQUETTES_A_VALIDER: 'Le recensement commence quand Harmonie Électricité a validé la pose des étiquettes de numérotation.',
     AUCUN_GESTIONNAIRE: 'Aucun gestionnaire actif pour ce syndic : ajoutez-en un avant d’ouvrir son espace.',
     RDV_DEJA_PRIS: 'Un rendez-vous a déjà été réservé pour cet appartement.',
+    ACCES_BLOQUE: 'L’accès à ce chantier s’ouvre à la signature du bon de livraison des badges.',
     BADGES_A_DEPOSER: 'Le fichier des copropriétaires s’ouvre quand Harmonie Électricité a déposé le listing des badges programmés.',
     CRENEAU_INDISPONIBLE: 'Ce créneau n’est plus proposé : choisissez-en un autre.',
     CRENEAU_COMPLET: 'Ce créneau vient d’être pris : choisissez-en un autre.',
@@ -261,9 +262,10 @@ const PS = (() => {
       // Vigik seul : fichier → badges livrés (bon signé) → copropriétaires prévenus / recensement → remises → installation → facture.
       const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
       E = [
+        { cle: 'livres', titre: 'Badges livrés au syndic (bon de livraison signé)', fait: su.livraison_signee_le ? 1 : su.livre_le ? 0.5 : 0,
+          enCours: 'Badges livrés à l’agence : bon de livraison à signer par le syndic', attente: k.livres ? 'Listing des badges déposé : en attente de livraison à l’agence' : 'Dépôt du listing des badges par Harmonie Électricité' },
         { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
           enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
-        { cle: 'livres', titre: 'Badges livrés au syndic (bon de livraison signé)', fait: k.livres > 0 ? 1 : 0, attente: 'Livraison des badges par Harmonie Électricité' },
         { cle: 'prevenus', titre: 'Copropriétaires prévenus', fait: su.prevenus_le || so.ouvert_le ? 1 : 0, attente: 'Le syndic prévient les copropriétaires (badges à retirer à l’agence)' },
         { cle: 'badges', titre: 'Badges remis aux copropriétaires', fait: nba ? Math.min(1, nbo / nba) : 0, enCours: `Remise des badges : ${nbo} / ${nba} appartements`, attente: 'Remise des badges à l’agence' },
         { cle: 'installation', titre: 'Installation des centrales', fait: su.service_le || apres('attente_facturation', 'facture', 'termine') ? 1 : 0,
@@ -628,7 +630,7 @@ const PS = (() => {
     + ENTREPRISE.tel + ' · ' + ENTREPRISE.email + '\n' + ENTREPRISE.web;
   // Liens vers les pages du portail : un bouton et un QR code à la place du lien brut.
   const BOUTONS_MAIL = [[/rdv\.html/, 'Choisir mon rendez-vous'], [/sondage\.html/, 'Répondre au recensement'], [/signer-badges\.html/, 'Relire et signer'],
-    [/syndic\.html\?invitation=/, 'Activer mon accès'], [/\/emargement\//, 'Ouvrir la page']];
+    [/syndic\.html\?invitation=/, 'Activer mon accès'], [/syndic\.html/, 'Ouvrir mon espace syndic'], [/\/emargement\//, 'Ouvrir la page']];
   const qrCache = new Map();
   // QR code en image PNG déposée en ligne (Gmail n'affiche pas les images intégrées au message).
   async function qrPngUrl(lien) {

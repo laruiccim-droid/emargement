@@ -475,6 +475,16 @@
   <p class="message" id="tgMessage"></p>
 </form></dialog>
 
+<dialog id="dlgSigLiv"><div class="dlg">
+  <div class="sourcil">Bon de livraison des badges</div><h3 id="slTitre"></h3>
+  <p class="aide" id="slTexte"></p>
+  <label for="slNom">Votre nom</label><input type="text" id="slNom">
+  <label>Signature</label>
+  <div class="papier"><canvas id="slPad"></canvas><div class="ligne"></div><span class="mention">Reçu par le syndic</span></div>
+  <div class="actions"><button type="button" class="btn btn-discret" id="slEffacer">Effacer</button><button type="button" class="btn btn-discret" data-fermer-sl>Annuler</button><button type="button" class="btn btn-or" id="slValider">Signer le bon</button></div>
+  <p class="message" id="slMessage"></p>
+</div></dialog>
+
 <dialog id="dlgRattAlerte"><div class="dlg">
   <div class="sourcil">Action requise</div><h3>Locataires à rattacher à un propriétaire</h3>
   <p>Des locataires ont pris rendez-vous sans que leur appartement soit reconnu. Rattachez-les à leur propriétaire pour que le chantier puisse continuer :</p>
@@ -490,7 +500,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=46"></script>
+<script src="portail-commun.js?v=47"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -769,10 +779,18 @@ function rendreParcours() {
   const c = S.detail.copro, rec = c.recensement || {}, n = c.nb_logements_saisis || 0;
   $('coRecensement').hidden = c.type !== 'complet';
   if (c.type !== 'complet') return;
-  const vigikSeul = c.travaux === 'vigik', su0 = c.badges_suivi || {}, livres = (S.detail.compteurs || {}).livres > 0;
-  // Vigik seul : ni étiquettes ni badges à attendre, le fichier des copropriétaires est ouvert dès la création du chantier.
-  const etiq = vigikSeul ? true : !!rec.etiquettes_le, pret = rec.etape === 'pret';
-  const etapes = vigikSeul ? [] : [
+  const vigikSeul = c.travaux === 'vigik', su0 = c.badges_suivi || {}, nbLivres = (S.detail.compteurs || {}).livres || 0;
+  // Vigik seul : l'accès au chantier s'ouvre à la signature du bon de livraison des badges (ou débloqué par Harmonie).
+  const signee = !!su0.livraison_signee_le, accesVigik = signee || !!su0.acces_le, livres = nbLivres > 0 && (!vigikSeul || !!su0.livre_le || signee);
+  const etiq = vigikSeul ? accesVigik : !!rec.etiquettes_le, pret = rec.etape === 'pret';
+  const etapes = vigikSeul ? [
+    { fait: signee, titre: 'Livraison des badges à l’agence',
+      texte: !nbLivres ? 'Harmonie Électricité dépose le listing des badges sur la plateforme, puis les livre à votre agence. L’accès au chantier s’ouvre à la signature du bon de livraison.'
+        : !su0.livre_le && !signee ? `Listing de ${nbLivres} badges déposé sur la plateforme : en attente de livraison à votre agence par Harmonie Électricité.`
+        : !signee ? `${nbLivres} badges livrés à votre agence : signez le bon de livraison pour ouvrir l’accès au chantier.`
+        : `Bon de livraison signé le ${dateCourte(su0.livraison_signee_le)}${su0.livraison_signataire ? ' par ' + su0.livraison_signataire : ''} : ${nbLivres} badges reçus.`,
+      bouton: su0.livre_le && !signee ? '<button type="button" class="btn btn-petit btn-or" data-parcours="signerLivraison">Signer le bon de livraison</button>' : '' },
+  ] : [
     { fait: etiq, titre: 'Étiquettes de numérotation',
       texte: etiq ? `Pose des étiquettes validée par Harmonie Électricité le ${dateCourte(rec.etiquettes_le)}.`
         : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité : une étiquette blanche numérotée sur l’huisserie de chaque porte palière. Le recensement des appartements s’ouvre ensuite.',
@@ -785,7 +803,7 @@ function rendreParcours() {
         : 'Indiquez le nombre d’appartements, puis pour chacun : n° de lot, propriétaire, téléphone et e-mails (saisie ou import Excel / CSV).'
           + (vigikSeul ? ' Vous pouvez aussi fixer le nombre de badges de chaque appartement (sinon, le recensement le demandera aux copropriétaires).' : '')
           + (avecVigik(c) ? ' Ajoutez les badges du stock syndic et des entreprises intervenantes.' : ''),
-      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : `disabled title="${vigikSeul ? 'En attente du dépôt des badges programmés par Harmonie Électricité' : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité'}"`}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
+      bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : `disabled title="${vigikSeul ? 'Accès ouvert à la signature du bon de livraison des badges' : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité'}"`}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
     (() => {
       const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0, tous = n > 0 && nc >= n;
       // Vigik seul : le gestionnaire choisit comment prévenir les copropriétaires (badges à l'agence ou recensement).
@@ -826,6 +844,7 @@ function rendreParcours() {
   $('coParcours').querySelectorAll('li.faite h3').forEach(h => h.onclick = () => h.closest('li').classList.toggle('ouverte'));
   $('coParcours').querySelectorAll('[data-parcours]').forEach(b => b.onclick = async () => {
     if (b.dataset.parcours === 'recensement') return ouvrirRecensement();
+    if (b.dataset.parcours === 'signerLivraison') return signerLivraisonSyndic();
     if (b.dataset.parcours === 'commander') return commanderBadges();
     if (b.dataset.parcours === 'sondage') return ouvrirSondage();
     if (b.dataset.parcours === 'campagne') return ouvrirCampagne();
@@ -843,6 +862,11 @@ function etapeSyndic(c) {
   if ((c.facture || {}).url || ['facture', 'termine'].includes(c.etat)) return { cloture: 'Chantier terminé — dossier clôturé' };
   if (c.type === 'complet' && vigik && c.travaux === 'vigik') {
     const nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
+    // Accès bloqué jusqu'à la signature du bon de livraison (sauf déblocage par Harmonie).
+    if (!su.livraison_signee_le && !su.acces_le) {
+      if (su.livre_le) return { code: 'signerLivraison', libelle: 'Signer le bon de livraison des badges' };
+      return k.livres ? H('Listing des badges déposé', 'En attente de livraison à votre agence par Harmonie Électricité') : H('En attente du listing des badges', 'par Harmonie Électricité');
+    }
     if (rec.etape !== 'pret') return { code: 'recensement', libelle: n ? 'Terminer le fichier des copropriétaires' : 'Créer le fichier des copropriétaires' };
     if (!k.livres) return H('Livraison des badges à l’agence', 'par Harmonie Électricité (bon de livraison à signer)');
     if (!su.prevenus_le && !so.ouvert_le) return { code: 'informer', libelle: 'Prévenir les copropriétaires (badges à l’agence ou recensement)' };
@@ -878,6 +902,7 @@ function zoneRaccourci(c) {
 async function executerRaccourci(id, code) {
   if (S.copro !== id || $('vCopro').hidden) await ouvrirCopro(id);
   if (code === 'recensement') return ouvrirRecensement();
+  if (code === 'signerLivraison') return signerLivraisonSyndic();
   // Choix entre « badges à l'agence » et « recensement » : on montre l'étape du parcours qui propose les deux.
   if (code === 'informer') return setTimeout(() => $('coParcours').scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
   if (code === 'sondage') return ouvrirSondage();
@@ -890,6 +915,29 @@ async function executerRaccourci(id, code) {
 function brancherRaccourcis(racine) {
   racine.querySelectorAll('[data-raccourci]').forEach(b => b.onclick = e => { e.stopPropagation(); executerRaccourci(b.dataset.coproId, b.dataset.raccourci); });
 }
+
+// ---------- Vigik seul : signature à distance du bon de livraison (ouvre l'accès au chantier) ----------
+let slPad = null;
+async function signerLivraisonSyndic() {
+  let l; try { l = await appel('ps_syndic_livraison', { p_session: S.session, p_copro: S.copro }); } catch { return; }
+  if (!l.id || l.signe_le) return toast('Aucun bon de livraison à signer.');
+  $('slTitre').textContent = S.detail.copro.nom;
+  $('slTexte').textContent = `Harmonie Électricité a livré ${l.nb} badge${l.nb > 1 ? 's' : ''} d’accès à votre agence${l.premier ? ` (n° ${l.premier} à ${l.dernier})` : ''}. En signant, vous confirmez leur réception : l’accès au chantier s’ouvre aussitôt.`;
+  $('slNom').value = nomGest(); message('slMessage', '');
+  $('dlgSigLiv').showModal();
+  if (!slPad) slPad = PS.pad($('slPad')); setTimeout(() => { slPad.taille(); slPad.effacer(); }, 50);
+  $('slEffacer').onclick = () => slPad.effacer();
+  $('slValider').onclick = async () => {
+    if (!$('slNom').value.trim()) { $('slNom').focus(); return message('slMessage', 'Indiquez votre nom.'); }
+    if (slPad.estVide()) return message('slMessage', 'Signez dans le cadre.');
+    $('slValider').disabled = true;
+    try { await appel('ps_syndic_livraison_signer', { p_session: S.session, p_copro: S.copro, p_signataire: $('slNom').value.trim(), p_signature: slPad.image() }, 'slMessage'); }
+    catch { return; } finally { $('slValider').disabled = false; }
+    $('dlgSigLiv').close(); toast('Bon de livraison signé : vous pouvez commencer le fichier des copropriétaires.', 5000);
+    ouvrirCopro(S.copro);
+  };
+}
+document.querySelector('[data-fermer-sl]').onclick = () => $('dlgSigLiv').close();
 
 // ---------- Vigik seul : commande du nombre total de badges ----------
 async function commanderBadges() {

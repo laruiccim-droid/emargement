@@ -313,6 +313,15 @@
   <p class="message" id="chMessage"></p>
 </form></dialog>
 
+<dialog id="dlgSigLiv"><div class="dlg">
+  <div class="sourcil">Bon de livraison des badges</div><h3 id="slTitre"></h3>
+  <p class="aide" id="slTexte"></p>
+  <label for="slNom">Nom du gestionnaire</label><input type="text" id="slNom">
+  <label>Signature</label>
+  <div class="papier"><canvas id="slPad"></canvas><div class="ligne"></div><span class="mention">Reçu par le syndic</span></div>
+  <div class="actions"><button type="button" class="btn btn-discret" id="slEffacer">Effacer</button><button type="button" class="btn btn-discret" data-fermer-sl>Annuler</button><button type="button" class="btn btn-or" id="slValider">Signer le bon</button></div>
+</div></dialog>
+
 <dialog id="dlgQrRdv"><div class="dlg" style="text-align:center">
   <div class="sourcil">Lien de rendez-vous</div><h3 id="qrRdvTitre"></h3>
   <p class="aide">Faites scanner ce code au propriétaire : la page de prise de rendez-vous s’ouvre sur son téléphone.</p>
@@ -364,7 +373,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=46"></script>
+<script src="portail-commun.js?v=47"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -1232,7 +1241,9 @@ function etapeSuivante(c) {
   if (c.etat === 'attente_facturation') return { code: 'facture', libelle: 'Déposer la facture' };
   if (c.travaux === 'vigik') {
     const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
-    if (!k.livres) return { code: 'listing', libelle: 'Déposer la liste des badges livrés au syndic' };
+    if (!k.livres) return { code: 'listing', libelle: 'Déposer le listing des badges' };
+    if (!su.livre_le && !su.livraison_signee_le) return { code: 'livre', libelle: 'Badges livrés au syndic', note: `${k.livres} badges sur la plateforme, en attente de livraison à l’agence` };
+    if (!su.livraison_signee_le && !su.acces_le) return { code: 'signer_liv', libelle: 'Faire signer le bon de livraison', note: 'Accès du syndic bloqué jusqu’à la signature' };
     if (!su.prevenus_le && !so.ouvert_le) return { attente: 'Badges livrés : le gestionnaire doit prévenir les copropriétaires.' };
     if (nba && nbo < nba) return { attente: `Remise des badges à l’agence : ${nbo} / ${nba} appartements.` };
     if (!su.service_le) return { code: 'service', libelle: 'Installation des centrales terminée' };
@@ -1273,6 +1284,8 @@ async function executerEtape(c, code) {
     return;
   }
   if (code === 'programmes') { if (!confirm('Les badges sont programmés sur le site de gestion ?')) return; return jalonBadges('programmes', 'Badges programmés : vous pouvez les livrer au syndic.'); }
+  if (code === 'livre') return badgesLivresAdmin(c);
+  if (code === 'signer_liv') return choisirSignatureLivraison(c);
   if (code === 'service' && c.travaux === 'vigik') {
     if (!confirm('Les centrales Vigik sont installées ? Le gestionnaire sera prévenu par e-mail.')) return;
     await jalonBadges('service', 'Installation terminée : le syndic est prévenu.');
@@ -1420,7 +1433,12 @@ async function rendreBadgesVigikAdmin(c) {
     : `${att} badges pour ${lg.length} appartements + ${hors} pour le stock syndic et les entreprises • ${k.livres || 0} livrés au syndic • ${ok} / ${lg.length} appartements ont récupéré leurs badges.`);
   const etapes = [];
   if (c.travaux === 'vigik') {
-    if (!k.livres) etapes.push('<button type="button" class="btn btn-or" id="bgLivrer">Livrer les badges au syndic (bon de livraison)</button>');
+    const signee = !!su.livraison_signee_le;
+    if (!k.livres) etapes.push('<button type="button" class="btn btn-or" id="bgLivrer">Déposer le listing des badges</button>');
+    else if (!su.livre_le && !signee) etapes.push(`<span class="pastille attente">Listing déposé : ${k.livres} badges</span> <button type="button" class="btn btn-or" data-liv="livre">Badges livrés au syndic</button>`);
+    else if (!signee) etapes.push('<span class="pastille attente">Bon de livraison à signer</span> <button type="button" class="btn btn-or" data-liv="signer">Faire signer maintenant</button> <button type="button" class="btn" data-liv="distance">Envoyer pour signature à distance</button>');
+    else etapes.push(`<span class="pastille ok">Bon de livraison signé le ${esc(dateCourte(su.livraison_signee_le))}${su.livraison_signataire ? ' par ' + esc(su.livraison_signataire) : ''}</span>`);
+    if (!signee) etapes.push(su.acces_le ? '<span class="pastille ok">Accès du syndic débloqué</span>' : '<button type="button" class="btn btn-discret" data-liv="acces">Débloquer l’accès du syndic</button>');
     if (k.livres) etapes.push(`<span class="pastille ok">${k.livres} badges livrés au syndic</span>${su.prevenus_le || (c.sondage || {}).ouvert_le ? ' <span class="pastille ok">Copropriétaires prévenus</span>' : ' <span class="pastille attente">Le syndic doit prévenir les copropriétaires</span>'}`);
     if (k.livres) etapes.push('<button type="button" class="btn" id="bgCorresp">Compte rendu des remises (badges, appartements, droits)</button>');
     etapes.push(su.service_le ? `<span class="pastille ok">Centrales installées le ${esc(dateCourte(su.service_le))}</span>`
@@ -1455,6 +1473,13 @@ async function rendreBadgesVigikAdmin(c) {
   if ($('bgFiche')) $('bgFiche').onclick = async () => { await ficheVigik(); if (c.travaux !== 'vigik' && !su.programmes_le) ouvrirChantier(c.id); };
   if ($('bgCorresp')) $('bgCorresp').onclick = correspondanceBadges;
   if ($('bgLivrer')) $('bgLivrer').onclick = () => { choisirOnglet('livrer'); document.querySelector('.onglets').scrollIntoView({ behavior: 'smooth' }); };
+  $('bgEtapes').querySelectorAll('[data-liv]').forEach(b => b.onclick = () => {
+    const a = b.dataset.liv;
+    if (a === 'livre') return badgesLivresAdmin(c);
+    if (a === 'signer') return ouvrirSignatureLivraison(c);
+    if (a === 'distance') return envoyerSignatureDistance(c);
+    if (a === 'acces') return debloquerAccesSyndic(c);
+  });
   $('bgEtapes').querySelectorAll('[data-bgj]').forEach(b => b.onclick = async () => {
     if (b.dataset.bgj === 'installation' || b.dataset.bgj === 'service') return executerEtape(A.etat.copros.find(x => x.id === c.id) || c, b.dataset.bgj === 'installation' ? 'installer' : 'service');
     try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: b.dataset.bgj, p_fait: true }, 'bgMsg'); toast('Étape validée.'); await charger(); ouvrirChantier(c.id); } catch {}
@@ -1978,6 +2003,17 @@ $('lvChantierApp').onchange = async e => {
   e.target.value = '';
 };
 // Import Excel / CSV : on choisit la colonne qui contient les n° (devinée automatiquement).
+// Glisser-déposer du listing (Excel, CSV) directement sur le bloc « Listing des badges ».
+{
+  const z = $('lvBlocListing');
+  ['dragenter', 'dragover'].forEach(t => z.addEventListener(t, e => { e.preventDefault(); z.classList.add('survol'); }));
+  ['dragleave', 'drop'].forEach(t => z.addEventListener(t, () => z.classList.remove('survol')));
+  z.addEventListener('drop', e => {
+    e.preventDefault(); const f = e.dataTransfer.files[0]; if (!f) return;
+    z.classList.remove('replie');
+    $('lvFichier').onchange({ target: { files: [f], set value(v) {} } });
+  });
+}
 $('lvFichier').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
@@ -2030,6 +2066,60 @@ $('lvLivrer').onclick = async () => {
     $('lvBon').onclick = async () => { const b = await pdfLivraison(livraison); window.open(URL.createObjectURL(b), '_blank') || PS.telecharger(b, 'Bon de livraison badges.pdf'); };
   } catch { $('lvLivrer').disabled = false; }
 };
+
+// ---------- Vigik seul : livraison à l'agence, signature du bon, accès du syndic ----------
+async function rafraichirChantier(c) { await charger(); if (!$('vChantier').hidden && A.copro === c.id) await ouvrirChantier(c.id, 'livraisons'); else rendreChantiers(); }
+async function badgesLivresAdmin(c) {
+  if (!confirm('Les badges sont livrés à l’agence du syndic ?')) return;
+  try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: 'livre', p_fait: true }); } catch { return; }
+  await rafraichirChantier(c);
+  return choisirSignatureLivraison(c);
+}
+async function choisirSignatureLivraison(c) {
+  if (confirm('Faire signer le bon de livraison maintenant, sur cet appareil ?')) return ouvrirSignatureLivraison(c);
+  if (confirm('Envoyer le bon par e-mail au gestionnaire pour une signature à distance ?\n\n(Annuler : vous le ferez signer plus tard.)')) return envoyerSignatureDistance(c);
+  toast('Bon de livraison à faire signer plus tard : l’accès du syndic reste bloqué d’ici là.', 6000);
+}
+let slPad = null;
+async function ouvrirSignatureLivraison(c) {
+  if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id, 'livraisons');
+  const l = (A.detail.livraisons || []).find(x => !x.signature);
+  if (!l) return toast('Aucun bon de livraison à signer.');
+  $('slTitre').textContent = c.nom || A.detail.copro.nom;
+  $('slTexte').textContent = `${l.badges.length} badge${l.badges.length > 1 ? 's' : ''} livré${l.badges.length > 1 ? 's' : ''} à l’agence (${l.badges[0]} … ${l.badges[l.badges.length - 1]}). La signature du gestionnaire ouvre son accès au chantier.`;
+  const g = A.detail.gestionnaire; $('slNom').value = g?.nom || '';
+  $('dlgSigLiv').showModal();
+  if (!slPad) slPad = PS.pad($('slPad')); setTimeout(() => { slPad.taille(); slPad.effacer(); }, 50);
+  $('slEffacer').onclick = () => slPad.effacer();
+  $('slValider').onclick = async () => {
+    if (!$('slNom').value.trim()) { $('slNom').focus(); return toast('Indiquez le nom du gestionnaire.'); }
+    if (slPad.estVide()) return toast('Le gestionnaire doit signer dans le cadre.');
+    try { await appel('ps_admin_livraison_signer', { p_livraison: l.id, p_signataire: $('slNom').value.trim(), p_signature: slPad.image() }); } catch { return; }
+    $('dlgSigLiv').close(); toast('Bon de livraison signé : l’accès du syndic est ouvert.', 5000);
+    await rafraichirChantier(c);
+  };
+}
+document.querySelector('[data-fermer-sl]').onclick = () => $('dlgSigLiv').close();
+function destinatairesSyndic(c) {
+  const s = A.etat.syndics.find(x => x.id === c.syndic_id) || {}, us = (s.users || []).filter(u => u.email);
+  const g = us.find(u => u.id === c.gestionnaire_id);
+  return (g ? [g] : us).map(u => u.email);
+}
+async function envoyerSignatureDistance(c) {
+  const dest = destinatairesSyndic(c);
+  if (!dest.length) return toast('Aucun gestionnaire avec une adresse e-mail pour ce syndic.');
+  const k = (A.etat.copros.find(x => x.id === c.id) || {}).compteurs || {};
+  const err = await PS.envoiGmail(dest.join(', '), `Bon de livraison des badges à signer — résidence ${c.nom}`,
+    `Bonjour,\n\nHarmonie Électricité a livré ${k.livres ? '**' + k.livres + ' badges** d’accès' : 'les badges d’accès'} à votre agence pour la résidence **${c.nom}**.\n\n`
+    + `Merci de signer le bon de livraison dans votre espace syndic : cette signature ouvre votre accès au chantier (fichier des copropriétaires, information des copropriétaires, remises des badges).\n`
+    + `${PS.urlPage('syndic.html')}\n\nCordialement,`);
+  toast(err ? 'E-mail non envoyé : ' + err : 'Bon envoyé pour signature à ' + dest.join(', '), 6000);
+}
+async function debloquerAccesSyndic(c) {
+  if (!confirm('Débloquer l’accès du syndic à ce chantier sans attendre la signature du bon de livraison ?\n\nLe gestionnaire pourra commencer le fichier des copropriétaires.')) return;
+  try { await appel('ps_admin_badges_jalon', { p_copro: c.id, p_jalon: 'acces', p_fait: true }); } catch { return; }
+  toast('Accès du syndic débloqué.'); await rafraichirChantier(c);
+}
 
 // Bon de livraison Harmonie → syndic
 async function pdfLivraison(l) {
