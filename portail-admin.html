@@ -285,10 +285,10 @@
     <div><label for="chAppartements">Appartements à équiper</label><input type="number" id="chAppartements" min="0" max="2000" inputmode="numeric" placeholder="lu sur le devis">
       <p class="aide" style="margin:4px 0 0">Crée autant de lignes dans le fichier des copropriétaires ; le gestionnaire en retire ou en ajoute ensuite.</p></div>
     <div><label for="chSyndic">Syndic</label><select id="chSyndic"></select></div>
-    <div><label for="chType">Type de chantier</label><select id="chType"><option value="badges">Badges seuls</option><option value="complet">Complet (recensement, pose, badges)</option></select></div>
+    <div><label for="chType">Type de chantier</label><select id="chType"><option value="complet">Avec sondage préalable (recensement des copropriétaires par l’app)</option><option value="badges">Sans sondage préalable (fichier ou nombre de badges fourni par le syndic)</option></select></div>
     <div><label for="chEtat">État du dossier</label><select id="chEtat"></select></div>
     <div style="grid-column:1/-1"><label for="chTravaux">Travaux</label><select id="chTravaux">
-      <option value="interphone">Interphone</option><option value="interphone_vigik">Interphone + Vigik</option><option value="vigik">Vigik seul</option></select></div>
+      <option value="interphone">Interphone</option><option value="interphone_vigik">Interphone + Vigik</option><option value="vigik">Vigik seulement</option></select></div>
     <div id="chMarqueInterphoneBloc"><label for="chMarqueInterphone">Marque de l’interphone</label><select id="chMarqueInterphone"></select></div>
     <div id="chMarqueVigikBloc" hidden><label for="chMarqueVigik">Marque de la centrale Vigik</label><select id="chMarqueVigik"></select></div>
     <div id="chVigik" style="grid-column:1/-1" hidden>
@@ -370,7 +370,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=48"></script>
+<script src="portail-commun.js?v=49"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -677,7 +677,7 @@ async function remplirChantiersApp(select, premier) {
 $('btnNouveauChantier').onclick = () => ouvrirFormChantier(null);
 $('btnModifierChantier').onclick = () => ouvrirFormChantier(A.detail.copro);
 // ---------- Travaux et accès Vigik (portes, droits d'accès) ----------
-const TRAVAUX = { interphone: 'Interphone', interphone_vigik: 'Interphone + Vigik', vigik: 'Vigik seul' };
+const TRAVAUX = { interphone: 'Interphone', interphone_vigik: 'Interphone + Vigik', vigik: 'Vigik seulement' };
 const MARQUES_INTERPHONE = ['Fermax', 'Golmar', 'Bticino', 'Intratone', 'Noralsy', 'Urmet', 'Comelit'];
 const MARQUES_VIGIK = ['Intratone', 'Noralsy', 'Urmet', 'Comelit', 'Hexact'];
 const nomPorteP = i => (A.vigik.portes[i] || '').trim() || 'Porte ' + (i + 1);
@@ -1162,8 +1162,8 @@ function verifierCoordApp() {
   if (changes.length) $('emInfo').insertAdjacentHTML('afterend', `<div id="emAlerteCoord" class="bloc" style="border-color:#D9A35B;background:rgba(217,163,91,.10);margin-top:10px">⚠ ${changes.length} fiche${changes.length > 1 ? 's' : ''} modifiée${changes.length > 1 ? 's' : ''} (propriétaire, locataire ou nom affiché) depuis la dernière mise à jour du chantier de l’app : cliquez « Mettre à jour le chantier de l’app » pour régénérer la fiche interphone et la codification.</div>`);
 }
 async function rendreEmargementAdmin(c) {
-  $('dEmargement').hidden = c.type !== 'complet';
-  if (c.type !== 'complet') return;
+  $('dEmargement').hidden = c.type !== 'complet' && c.travaux !== 'vigik';
+  if ($('dEmargement').hidden) return;
   EM.c = c; EM.app = null; msg('emMsg', '');
   const lie = !!c.chantier_id;
   const e = A.etat.copros.find(x => x.id === c.id) || {}, nTot = e.nb_logements_saisis || 0, nRdv = e.nb_rdv || 0;
@@ -1231,7 +1231,7 @@ $('emFichierFacture').onchange = async e => {
 // Retourne { code, libelle } pour une action d'Harmonie, ou { attente } quand on attend quelqu'un d'autre.
 function etapeSuivante(c) {
   // Chantier « badges seuls » : livraison au syndic, remises créées dans le contrôle d'accès, distribution.
-  if (c.type !== 'complet') {
+  if (c.type !== 'complet' && c.travaux !== 'vigik') {
     const kb = c.compteurs || {};
     if (['termine'].includes(c.etat)) return { cloture: 'Chantier terminé' };
     const sub = c.badges_suivi || {};
@@ -1252,9 +1252,11 @@ function etapeSuivante(c) {
     if (!k.livres) return { code: 'listing', libelle: 'Déposer le listing des badges' };
     if (!su.livre_le && !su.livraison_signee_le) return { code: 'livre', libelle: 'Badges livrés au syndic', note: `${k.livres} badges sur la plateforme, en attente de livraison à l’agence` };
     if (!su.livraison_signee_le && !su.acces_le) return { code: 'signer_liv', libelle: 'Faire signer le bon de livraison', note: 'Accès du syndic bloqué jusqu’à la signature' };
-    if (!su.prevenus_le && !so.ouvert_le) return { attente: 'Badges livrés : le gestionnaire doit prévenir les copropriétaires.' };
+    const sansSondage = c.type !== 'complet';
+    if (k.a_creer) return { code: 'controle', libelle: `Créer ${k.a_creer} remise${k.a_creer > 1 ? 's' : ''} dans le contrôle d’accès` };
+    if (!su.prevenus_le && !so.ouvert_le && !(sansSondage && k.remis)) return { attente: 'Badges livrés : le gestionnaire doit prévenir les copropriétaires.' };
     if (nba && nbo < nba) return { attente: `Remise des badges à l’agence : ${nbo} / ${nba} appartements.` };
-    if (!su.service_le) return { code: 'service', libelle: 'Installation des centrales terminée' };
+    if (!su.service_le) return { code: 'service', libelle: 'Installation des centrales terminée', ...(!nba && k.livres ? { note: `Badges remis : ${k.remis} / ${k.livres}` } : {}) };
     return { code: 'facture', libelle: 'Déposer la facture' };
   }
   if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
@@ -1425,7 +1427,7 @@ const nomAppart = l => l.numero ? 'Appt ' + l.numero : l.lot ? 'Lot ' + l.lot : 
 function droitParDefaut(c) { return (c.vigik?.autorisations || [])[0]?.nom || ''; }
 async function rendreBadgesVigikAdmin(c) {
   const vigik = c.travaux === 'vigik' || c.travaux === 'interphone_vigik';
-  $('dBadges').hidden = c.type !== 'complet' || !vigik;
+  $('dBadges').hidden = !vigik || (c.type !== 'complet' && c.travaux !== 'vigik');
   if ($('dBadges').hidden) return;
   BG.c = c;
   try { BG.d = await PS.rpc('ps_admin_badges', { p_admin: A.mdp, p_copro: c.id }); }
@@ -1885,7 +1887,7 @@ async function ouvrirChantier(id, onglet) {
   A.copro = id;
   try { A.detail = await appel('ps_admin_copro_detail', { p_copro: id }); } catch { return; }
   const c = A.detail.copro, k = A.detail.compteurs, s = A.detail.syndic;
-  $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' ? ' • chantier complet' : ' • badges seuls');
+  $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' ? ' • avec sondage préalable' : ' • sans sondage préalable');
   const g = A.detail.gestionnaire;
   $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference,
     s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet'),
@@ -1897,8 +1899,8 @@ async function ouvrirChantier(id, onglet) {
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   rendreRemisesAdmin(); rendreBadgesAdmin(); rendreLivraisons(); majApercu(); rendreRecensementAdmin(c); rendreAvancementAdmin(c, k); rendreDemandeTransfert(c); // Chantier complet : les vignettes des appartements juste sous la barre d'avancement.
   $('ongletAppartsAdmin').hidden = true;
-  $('dAppartsBloc').hidden = c.type !== 'complet';
-  if (c.type === 'complet') { $('dApparts').innerHTML = ''; chargerAppartementsAdmin(); }
+  $('dAppartsBloc').hidden = c.type !== 'complet' && c.travaux !== 'vigik';
+  if (!$('dAppartsBloc').hidden) { $('dApparts').innerHTML = ''; chargerAppartementsAdmin(); }
   // Badges déjà livrés : on ouvre sur les remises (la livraison reste accessible dans l'onglet « Livrer »).
   if (!onglet) choisirOnglet(k.livres ? 'remises' : 'livrer');
   rendreFournitureAdmin(c); rendreBadgesVigikAdmin(c); rendreCampagneAdmin(c); rendreEmargementAdmin(c);

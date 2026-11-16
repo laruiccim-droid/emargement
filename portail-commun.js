@@ -252,7 +252,8 @@ const PS = (() => {
     const badges = { cle: 'badges', titre: 'Remise des badges', fait: k.livres > 0 && k.remis >= k.livres ? 1 : k.livres ? k.remis / k.livres : 0,
       enCours: `Remise des badges : ${k.remis || 0} / ${k.livres || 0} remis`, attente: 'Remettre des badges aux copropriétaires' };
     let E;
-    if (c.type !== 'complet') {
+    // Sans sondage préalable (type « badges ») hors Vigik seulement : livraison puis remises sur le stock.
+    if (c.type !== 'complet' && c.travaux !== 'vigik') {
       E = [
         // Badges livrés = bon de livraison signé (ou accès débloqué par Harmonie) ; l'import du listing seul ne suffit pas.
         { cle: 'livres', titre: 'Badges livrés au syndic (bon de livraison signé)', fait: (c.badges_suivi || {}).livraison_signee_le || ((c.badges_suivi || {}).acces_le && k.livres > 0) || apres('distribution', 'termine') ? 1 : (c.badges_suivi || {}).livre_le ? 0.5 : 0,
@@ -261,15 +262,19 @@ const PS = (() => {
         { cle: 'termine', titre: 'Chantier terminé', fait: etat === 'termine' ? 1 : 0, attente: 'Clôture du chantier' },
       ];
     } else if (c.travaux === 'vigik') {
+      // Vigik seulement, avec ou sans sondage préalable. Sans sondage : fichier facultatif (remises sur le stock possibles).
+      const sansSondage = c.type !== 'complet';
       // Vigik seul : fichier → badges livrés (bon signé) → copropriétaires prévenus / recensement → remises → installation → facture.
       const su = c.badges_suivi || {}, nba = c.nb_badges_attendus || 0, nbo = c.nb_badges_ok || 0;
       E = [
         { cle: 'livres', titre: 'Badges livrés au syndic (bon de livraison signé)', fait: su.livraison_signee_le ? 1 : su.livre_le ? 0.5 : 0,
           enCours: 'Badges livrés à l’agence : bon de livraison à signer par le syndic', attente: k.livres ? 'Listing des badges déposé : en attente de livraison à l’agence' : 'Dépôt du listing des badges par Harmonie Électricité' },
-        { cle: 'fichier', titre: 'Fichier des copropriétaires', fait: rec.etape === 'pret' ? 1 : n ? 0.5 : 0,
+        { cle: 'fichier', titre: sansSondage ? 'Fichier des copropriétaires (facultatif)' : 'Fichier des copropriétaires',
+          fait: rec.etape === 'pret' ? 1 : n ? 0.5 : sansSondage && ((c.badges_suivi || {}).prevenus_le || k.remis > 0) ? 1 : 0,
           enCours: `Création du fichier des copropriétaires par le syndic (${pl(n, 'appartement')})`, attente: 'En attente du fichier des copropriétaires (syndic)' },
-        { cle: 'prevenus', titre: 'Copropriétaires prévenus', fait: su.prevenus_le || so.ouvert_le ? 1 : 0, attente: 'Le syndic prévient les copropriétaires (badges à retirer à l’agence)' },
-        { cle: 'badges', titre: 'Badges remis aux copropriétaires', fait: nba ? Math.min(1, nbo / nba) : 0, enCours: `Remise des badges : ${nbo} / ${nba} appartements`, attente: 'Remise des badges à l’agence' },
+        { cle: 'prevenus', titre: 'Copropriétaires prévenus', fait: su.prevenus_le || so.ouvert_le || (sansSondage && k.remis > 0) ? 1 : 0, attente: 'Le syndic prévient les copropriétaires (badges à retirer à l’agence)' },
+        { cle: 'badges', titre: 'Badges remis aux copropriétaires', fait: nba ? Math.min(1, nbo / nba) : k.livres ? Math.min(1, (k.remis || 0) / k.livres) : 0,
+          enCours: nba ? `Remise des badges : ${nbo} / ${nba} appartements` : `Remise des badges : ${k.remis || 0} / ${k.livres || 0} remis`, attente: 'Remise des badges à l’agence' },
         { cle: 'installation', titre: 'Installation des centrales', fait: su.service_le || apres('attente_facturation', 'facture', 'termine') ? 1 : 0,
           attente: 'En attente de l’installation des centrales par Harmonie Électricité' },
         { cle: 'facture', titre: 'Facturé, chantier terminé', fait: facture ? 1 : 0, attente: fini || su.service_le ? 'Système en service, en attente de facturation' : 'Facturation' },
