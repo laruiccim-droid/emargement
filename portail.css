@@ -210,3 +210,6 @@ footer.pied { margin-top: 36px; font-size: 12px; color: var(--grey-500); text-al
 .repliable.replie > :first-child { margin-bottom: 0; }
 .repliable.replie > :not(:first-child) { display: none !important; }
 .repliable.fait > :first-child::before { content: '✓'; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--grad-gold); color: var(--he-black); font-size: 12px; flex: none; }
+
+/* Listes de chantiers : une carte par ligne, à l’horizontale (lisible quel que soit le nombre de chantiers). */
+#listeChantiers, #listeCopros { grid-template-columns: 1fr; }
