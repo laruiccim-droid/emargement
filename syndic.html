@@ -1028,11 +1028,11 @@ async function prevenirProprietaires() {
   ouvrirCopro(S.copro);
 }
 function ouvrirEmargementBadges() {
-  const bs = S.badgesSuivi, lg = bs.logements.filter(l => l.attendus > 0);
+  const bs = S.badgesSuivi, lg = lgBadges();
   $('ebCopro').textContent = S.detail.copro.nom;
   $('ebListe').innerHTML = lg.map(l => {
-    const fait = l.remis + l.locataire >= l.attendus;
-    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b>${PS.pastilleQualite(l.qualite)}<div class="sous">${l.attendus} commandé${l.attendus > 1 ? 's' : ''} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} pour le locataire (jour de l’installation)` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
+    const fait = l.attendus > 0 && l.remis + l.locataire >= l.attendus;
+    return `<li><div class="principal"><b>${esc(PS.appt(l))} — ${esc(l.nom || '')}</b>${PS.pastilleQualite(l.qualite)}<div class="sous">${l.attendus ? `${l.attendus} commandé${l.attendus > 1 ? 's' : ''}` : 'nombre de badges libre'} • ${l.remis} remis${l.locataire ? ` • ${l.locataire} pour le locataire (jour de l’installation)` : ''}${l.en_attente ? ` • ${l.en_attente} en attente de signature` : ''}</div></div>
       <div class="droite">${fait ? '<span class="pastille ok">Récupérés</span>' : `<button type="button" class="btn btn-petit btn-or" data-eb="${esc(l.id)}">Remettre</button>`}</div></li>`;
   }).join('') + '<li><div class="principal"><span class="sourcil">Entreprises intervenantes et stock — sans effet sur l’avancement du chantier</span></div></li>'
     + bs.hors.filter(h => h.badges > 0).map(h => {
@@ -1469,7 +1469,8 @@ $('reDroitTous').onchange = e => { if (!e.target.value) return; S.droitTous = e.
 const badgesAvecDroit = (badges, acces) => badges.map(b => b + (acces && acces[b] ? ` (${acces[b]})` : ''));
 
 // Badges par appartement (chantier complet avec Vigik) : choix de l'appartement, reste pour le locataire.
-const lgBadges = () => (S.badgesSuivi?.logements || []).filter(l => l.attendus > 0);
+// Vigik seulement : tous les appartements du fichier (nombre de badges libre s'il n'a pas été fixé) ; sinon ceux qui ont des badges prévus.
+const lgBadges = () => (S.badgesSuivi?.logements || []).filter(l => l.attendus > 0 || S.detail?.copro?.travaux === 'vigik');
 // Entreprises intervenantes (ménage, ascensoriste…) : remise émargée, sans effet sur l'avancement du chantier.
 const intervenantsBadges = () => (S.badgesSuivi?.hors || []).filter(h => h.type === 'intervenant' && h.badges > 0);
 const intervenantChoisi = () => { const v = $('reAppart').value; return v.startsWith('H:') ? intervenantsBadges().find(h => h.id === v.slice(2)) : null; };
@@ -1479,6 +1480,7 @@ function maxBadgesRemise() {
   const l = lgBadges().find(x => x.id === $('reAppart').value);
   const h = intervenantChoisi();
   if (h) return Math.max(0, h.badges - h.remis - h.en_attente);
+  if (l && !l.attendus) return null; // nombre non fixé : remise libre
   return l ? Math.max(0, l.attendus - l.remis - l.en_attente) : ($('reAppart').value === 'hors' ? null : 0);
 }
 function majAppartRemise() {
@@ -1494,6 +1496,11 @@ function majAppartRemise() {
   }
   if (!l) { $('reAppartInfo').innerHTML = v === 'hors' ? '<p class="aide">Remise hors appartement (stock du syndic, entreprise…).</p>' : '<p class="aide">Choisissez l’appartement : le nombre de badges commandés s’affichera ici.</p>'; return; }
   const deja = l.remis + l.en_attente, dispo = Math.max(0, l.attendus - deja), reste = Math.max(0, dispo - S.choisis.size);
+  if (!l.attendus) {
+    $('reAppartInfo').innerHTML = `<div style="padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px"><b style="font-size:17px;color:var(--he-white)">Nombre de badges non fixé</b><br>
+      Propriétaire : <b style="color:var(--he-white)">${esc(l.nom || '—')}</b> • ${deja ? `${deja} déjà remis • ` : ''}<b>${S.choisis.size}</b> sélectionné${S.choisis.size > 1 ? 's' : ''} : remettez le nombre demandé.</div>`;
+    $('reResteBloc').hidden = true; return;
+  }
   $('reAppartInfo').innerHTML = `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px">
     <div style="font-size:44px;font-weight:600;line-height:1;color:var(--he-gold-light,#DFC28C)">${l.attendus}</div>
     <div><b style="font-size:17px;color:var(--he-white)">badge${l.attendus > 1 ? 's' : ''} commandé${l.attendus > 1 ? 's' : ''}</b><br>Propriétaire : <b style="color:var(--he-white)">${esc(l.nom || '—')}</b>${l.qualite === 'bailleur' ? ' (bailleur)' : ''}<br>
