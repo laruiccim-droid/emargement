@@ -29,6 +29,9 @@
   .lg-tete { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--grey-400); padding: 0 2px 4px; }
   .lg { padding: 6px 0; border-top: 1px solid var(--border-hairline); }
   .avec-badges .lg-tete, .avec-badges .lg { grid-template-columns: 90px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.6fr) 74px 40px; }
+  /* Sans sondage préalable (interphone) : poste choisi, plaque de propreté et badges saisis par le syndic. */
+  .avec-postes .lg-tete, .avec-postes .lg { grid-template-columns: 80px minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.3fr) minmax(0, 1.4fr) 64px 64px 40px; }
+  .avec-postes .lg .plaque { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; color: var(--grey-300); }
   .lg input { min-height: 40px; padding: 8px 9px; font-size: 15px; }
   .lg .suppr { min-height: 40px; padding: 0; width: 40px; }
   .lg.incomplet input[data-k="nom"]:placeholder-shown { border-color: rgba(217,163,91,.7); }
@@ -46,6 +49,8 @@
     .lg .suppr { grid-row: 1; grid-column: 3; }
     .avec-badges .lg { grid-template-columns: 1fr 1fr 40px; }
     .avec-badges .lg input[data-k="badges"] { grid-column: 1 / 3; }
+    .avec-postes .lg { grid-template-columns: 1fr 1fr 40px; }
+    .avec-postes .lg select[data-k="poste_ref"] { grid-column: 1 / 3; }
   }
 </style>
 </head>
@@ -230,7 +235,7 @@
       </div>
       <p class="aide">Colonnes reconnues : lot, nom, prénom, téléphone, e-mail. Plusieurs e-mails par appartement : séparez-les par une virgule. Le numéro d’appartement n’est pas demandé : chaque copropriétaire l’indiquera dans sa réponse au sondage (étiquette blanche sur sa porte).</p>
       <p class="message" id="rcImport"></p>
-      <div class="lg-tete" style="margin-top:12px"><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span id="rcColBadges" hidden>Badges</span><span></span></div>
+      <div class="lg-tete" style="margin-top:12px"><span>N° lot</span><span>Propriétaire</span><span>Téléphone</span><span>E-mails</span><span id="rcColPoste" hidden>Poste choisi</span><span id="rcColPlaque" hidden>Plaque</span><span id="rcColBadges" hidden>Badges</span><span></span></div>
       <div id="rcLogements"></div>
       <div class="actions"><button type="button" class="btn btn-petit" id="rcAjouter">+ Ajouter un appartement</button><button type="button" class="btn btn-petit btn-discret" id="rcBadgesTous" hidden>Même nombre de badges pour tous</button></div>
     </div>
@@ -501,7 +506,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=49"></script>
+<script src="portail-commun.js?v=50"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -817,6 +822,11 @@ function rendreParcours() {
       bouton: `<button type="button" class="btn btn-petit ${pret || !etiq ? '' : 'btn-or'}" data-parcours="recensement" ${etiq ? '' : `disabled title="${vigikSeul ? 'Accès ouvert à la signature du bon de livraison des badges' : 'En attente de la mise en place des étiquettes de numérotation des appartements par Harmonie Électricité'}"`}>${pret ? 'Modifier le fichier' : n ? 'Reprendre le fichier' : 'Créer le fichier des copropriétaires'}</button>` },
     (() => {
       const so = c.sondage || {}, ouvert = !!so.ouvert_le, clos = !!so.clos_le, nc = c.nb_commandes || 0, tous = n > 0 && nc >= n;
+      // Interphone sans sondage préalable : les choix viennent du fichier, les bons de commande sont établis à sa validation.
+      if (rec.sans_sondage && !vigikSeul) return { fait: tous, titre: 'Choix des postes (d’après votre sondage)',
+        texte: tous ? `Bons de commande établis d’après votre fichier (${nc} / ${n}). Harmonie Électricité commande le matériel.`
+          : 'Indiquez dans le fichier le poste choisi par chaque copropriétaire, la plaque de propreté et, le cas échéant, le nombre de badges, puis validez : les bons de commande sont établis automatiquement.',
+        bouton: '' };
       // Vigik seul : le gestionnaire choisit comment prévenir les copropriétaires (badges à l'agence ou recensement).
       if (vigikSeul) return { fait: !!su0.prevenus_le || ouvert, titre: 'Information des copropriétaires',
         texte: !livres ? 'Disponible dès que Harmonie Électricité a livré les badges à l’agence (bon de livraison signé).'
@@ -1240,8 +1250,13 @@ async function ouvrirRecensement() {
   $('rcCopro').textContent = R.copro.nom;
   $('rcNb').value = nb;
   // Vigik seul : le syndic peut fixer le nombre de badges de chaque appartement.
+  // Interphone sans sondage préalable : il indique aussi le poste choisi et la plaque de propreté (son propre sondage).
   const vs = R.copro.travaux === 'vigik';
-  $('rcLogements').parentElement.classList.toggle('avec-badges', vs); $('rcColBadges').hidden = !vs; $('rcBadgesTous').hidden = !vs;
+  R.sansSondage = !!R.rec.sans_sondage && !vs; R.postes = [];
+  if (R.sansSondage) { try { R.postes = ((await appel('ps_syndic_sondage', { p_session: S.session, p_copro: S.copro })).articles || []).filter(a => a.type === 'combine' || a.type === 'moniteur'); } catch {} }
+  const badgesCol = vs || (R.sansSondage && R.copro.travaux === 'interphone_vigik');
+  $('rcLogements').parentElement.classList.toggle('avec-badges', vs); $('rcLogements').parentElement.classList.toggle('avec-postes', R.sansSondage);
+  $('rcColBadges').hidden = !badgesCol; $('rcBadgesTous').hidden = !badgesCol; $('rcColPoste').hidden = $('rcColPlaque').hidden = !R.sansSondage;
   $('rcNbAide').textContent = R.copro.appartements_devis ? `Le devis prévoit ${R.copro.appartements_devis} appartements : les lignes sont créées, retirez-en (✕) ou ajoutez-en si besoin.` : '';
   if (nb && R.logements.length < nb) ajusterLignes(+nb);
   $('rcHorsBloc').hidden = !avecVigik(R.copro);
@@ -1263,12 +1278,14 @@ function rendreLignes() {
     <input type="text" data-k="nom" value="${esc(l.nom)}" placeholder="Nom du propriétaire" aria-label="Propriétaire">
     <input type="tel" data-k="telephone" value="${esc(l.telephone)}" placeholder="Téléphone" aria-label="Téléphone">
     <input type="text" data-k="emails" value="${esc(l.emails.join(', '))}" placeholder="E-mail(s)" aria-label="E-mails" inputmode="email" autocapitalize="off">
-    ${R.copro?.travaux === 'vigik' ? `<input type="number" data-k="badges" min="0" max="50" inputmode="numeric" value="${esc(l.badges || '')}" placeholder="Badges" aria-label="Nombre de badges">` : ''}
+    ${R.sansSondage ? `<select data-k="poste_ref" aria-label="Poste choisi"><option value="">— Poste —</option>${R.postes.map(a => `<option value="${esc(a.ref)}" ${a.ref === l.poste_ref ? 'selected' : ''}>${esc(a.nom)}</option>`).join('')}</select>
+      <label class="plaque"><input type="checkbox" data-k="plaque" ${l.plaque ? 'checked' : ''}> oui</label>` : ''}
+    ${R.copro?.travaux === 'vigik' || (R.sansSondage && R.copro?.travaux === 'interphone_vigik') ? `<input type="number" data-k="badges" min="0" max="50" inputmode="numeric" value="${esc(l.badges || '')}" placeholder="Badges" aria-label="Nombre de badges">` : ''}
     <button type="button" class="btn btn-discret suppr" data-suppr="${i}" title="Retirer cet appartement" aria-label="Retirer">✕</button></div>`).join('')
     || '<div class="vide">Indiquez le nombre d’appartements ou importez un fichier.</div>';
-  $('rcLogements').querySelectorAll('.lg input').forEach(inp => inp.oninput = () => {
+  $('rcLogements').querySelectorAll('.lg input, .lg select').forEach(inp => inp.oninput = inp.onchange = () => {
     const l = R.logements[+inp.closest('.lg').dataset.i], k = inp.dataset.k;
-    l[k] = k === 'emails' ? inp.value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean) : inp.value;
+    l[k] = k === 'emails' ? inp.value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean) : k === 'plaque' ? inp.checked : inp.value;
     inp.closest('.lg').classList.toggle('incomplet', !l.nom.trim());
   });
   $('rcLogements').querySelectorAll('[data-suppr]').forEach(b => b.onclick = () => {
@@ -1350,6 +1367,8 @@ async function enregistrerRecensement(valider) {
     const manquants = lg.filter(l => !l.nom).length;
     if (!lg.length) return message('rcMessage', 'Ajoutez au moins un appartement.');
     if (manquants) return message('rcMessage', `${manquants} appartement${manquants > 1 ? 's' : ''} sans propriétaire (cases orangées).`);
+    const sansPoste = R.sansSondage ? lg.filter(l => !l.poste_ref).length : 0;
+    if (sansPoste) return message('rcMessage', `${sansPoste} appartement${sansPoste > 1 ? 's' : ''} sans poste choisi : indiquez le poste de chacun (d’après votre sondage).`);
     const lots = lg.map(l => l.lot.toLowerCase()).filter(Boolean), double = lots.find((n, i) => lots.indexOf(n) !== i);
     if (double) return message('rcMessage', `Le n° de lot « ${double} » est utilisé deux fois.`);
   }

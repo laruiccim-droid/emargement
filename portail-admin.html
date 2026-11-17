@@ -370,7 +370,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=49"></script>
+<script src="portail-commun.js?v=50"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -984,7 +984,7 @@ async function ouvrirFormChantier(c) {
   $('chSyndic').innerHTML = '<option value="">— À choisir —</option>' + A.etat.syndics.map(s => `<option value="${s.id}">${esc(s.nom)}</option>`).join('');
   $('chEtat').innerHTML = Object.entries(PS.ETATS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
   [['chNom', 'nom'], ['chAdresse', 'adresse'], ['chCp', 'cp'], ['chVille', 'ville'], ['chReference', 'reference'], ['chNotes', 'notes']].forEach(([id, k]) => { $(id).value = c ? c[k] || '' : ''; });
-  $('chSyndic').value = c?.syndic_id || ''; $('chType').value = c?.type || 'badges'; $('chEtat').value = c?.etat || 'commence';
+  $('chSyndic').value = c?.syndic_id || ''; $('chType').value = c?.recensement?.sans_sondage ? 'badges' : c?.type || 'complet'; $('chEtat').value = c?.etat || 'commence';
   $('chTravaux').value = c?.travaux || 'interphone';
   $('chMarqueInterphone').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_INTERPHONE.map(m => `<option>${m}</option>`).join('');
   $('chMarqueVigik').innerHTML = '<option value="">— À choisir —</option>' + MARQUES_VIGIK.map(m => `<option>${m}</option>`).join('');
@@ -1001,7 +1001,8 @@ async function ouvrirFormChantier(c) {
 $('formChantier').onsubmit = async e => {
   e.preventDefault();
   const p = { id: A.edition?.id || '', nom: $('chNom').value.trim(), adresse: $('chAdresse').value.trim(), cp: $('chCp').value.trim(), ville: $('chVille').value.trim(),
-    reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
+    // Interphone sans sondage préalable : chantier complet (commande, campagne, émargement) dont le syndic fournit les choix.
+    reference: $('chReference').value.trim(), syndic_id: $('chSyndic').value, type: $('chType').value === 'badges' && $('chTravaux').value !== 'vigik' ? 'complet' : $('chType').value, etat: $('chEtat').value, chantier_id: $('chLien').value, notes: $('chNotes').value.trim(),
     devis: devisAEnregistrer(),
     marque_interphone: $('chTravaux').value === 'vigik' ? '' : $('chMarqueInterphone').value,
     marque_vigik: $('chTravaux').value === 'interphone' ? '' : $('chMarqueVigik').value,
@@ -1009,6 +1010,8 @@ $('formChantier').onsubmit = async e => {
       : { portes: A.vigik.portes.map((n, i) => n.trim() || 'Porte ' + (i + 1)), autorisations: A.vigik.autorisations.map(a => ({ nom: nomDroit(a), portes: a.portes })) } };
   try {
     const r = await appel('ps_admin_copro_enregistrer', { p }, 'chMessage');
+    const sans = $('chType').value === 'badges' && $('chTravaux').value !== 'vigik';
+    if (sans || A.edition?.recensement?.sans_sondage) await appel('ps_admin_sans_sondage', { p_copro: r.id, p_sans: sans }, 'chMessage').catch(() => {});
     $('dlgChantier').close(); await charger(); ouvrirChantier(r.id);
   } catch {}
 };
@@ -1887,7 +1890,7 @@ async function ouvrirChantier(id, onglet) {
   A.copro = id;
   try { A.detail = await appel('ps_admin_copro_detail', { p_copro: id }); } catch { return; }
   const c = A.detail.copro, k = A.detail.compteurs, s = A.detail.syndic;
-  $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' ? ' • avec sondage préalable' : ' • sans sondage préalable');
+  $('dNom').textContent = c.nom; $('dEtat').textContent = (PS.ETATS[c.etat] || c.etat) + (c.type === 'complet' && !c.recensement?.sans_sondage ? ' • avec sondage préalable' : ' • sans sondage préalable');
   const g = A.detail.gestionnaire;
   $('dInfos').textContent = [[c.adresse, [c.cp, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '), c.reference && 'Réf. ' + c.reference,
     s ? 'Syndic : ' + s.nom : 'Aucun syndic lié', s && (g ? 'Gestionnaire : ' + (g.nom || g.email) : 'Tous les gestionnaires du cabinet'),
