@@ -892,17 +892,17 @@ const PS = (() => {
     const intro = doc.splitTextToSize(o.texte, W - 2 * M - 10); doc.text(intro, W / 2, y, { align: 'center' }); y += intro.length * 5.6 + 5;
     T('Pour entrer dans la résidence,', W / 2, y, { s: 15, b: true, al: 'center' }); y += 7;
     T('merci de bien utiliser votre nouveau badge.', W / 2, y, { s: 15, b: true, al: 'center' }); y += 10;
-    // Nouveau badge → ancien badge
-    const zone = 62, xN = M + 12, xA = W - M - 12 - zone;
+    // Nouveau badge → ancien badge (ou le nouveau badge seul, centré)
+    const seul = !o.ancien, zone = 62, xN = seul ? (W - zone) / 2 : M + 12, xA = W - M - 12 - zone;
     const image = async (img, x) => { if (!img) { doc.setDrawColor(210, 205, 195); doc.roundedRect(x, y, zone, zone, 3, 3); return; }
       try { const t = await tailleImage(img); const k = Math.min(zone / t.w, zone / t.h), w = t.w * k, h = t.h * k; doc.addImage(img, 'JPEG', x + (zone - w) / 2, y + (zone - h) / 2, w, h); } catch {} };
-    await image(o.nouveau.img, xN); await image(o.ancien.img, xA);
+    await image(o.nouveau.img, xN); if (!seul) await image(o.ancien.img, xA);
     doc.setDrawColor(...OR); doc.setFillColor(...OR); doc.setLineWidth(2.2);
-    const yF = y + zone / 2; doc.line(W / 2 - 12, yF, W / 2 + 8, yF); doc.triangle(W / 2 + 8, yF - 4, W / 2 + 8, yF + 4, W / 2 + 14, yF, 'F');
+    const yF = y + zone / 2; if (!seul) { doc.line(W / 2 - 12, yF, W / 2 + 8, yF); doc.triangle(W / 2 + 8, yF - 4, W / 2 + 8, yF + 4, W / 2 + 14, yF, 'F'); }
     y += zone + 6;
     const pastille = (x, txt, couleur, coul) => { doc.setFillColor(...couleur); doc.roundedRect(x + 4, y, zone - 8, 9, 4.5, 4.5, 'F');
       T(txt.toUpperCase(), x + zone / 2, y + 6.2, { s: 11, b: true, c: [255, 255, 255], al: 'center' }); if (coul) T('(' + coul + ')', x + zone / 2, y + 14, { s: 10, c: GRIS, al: 'center' }); };
-    pastille(xN, o.nouveau.libelle || 'Nouveau badge', OR, o.nouveau.couleur); pastille(xA, o.ancien.libelle || 'Ancien badge', ROUGE, o.ancien.couleur);
+    pastille(xN, o.nouveau.libelle || 'Nouveau badge', OR, o.nouveau.couleur); if (!seul) pastille(xA, o.ancien.libelle || 'Ancien badge', ROUGE, o.ancien.couleur);
     y += 24;
     // Encadré « vous pouvez jeter vos anciens badges »
     doc.setFillColor(242, 239, 233); doc.roundedRect(M, y, W - 2 * M, 30, 3, 3, 'F');
@@ -911,13 +911,39 @@ const PS = (() => {
     doc.line(cx - 6, y + 9, cx + 6, y + 9); doc.line(cx - 2, y + 7, cx + 2, y + 7); doc.rect(cx - 5, y + 10, 10, 13);
     [cx - 2, cx, cx + 2].forEach(x => doc.line(x, y + 13, x, y + 20));
     doc.setDrawColor(...OR); doc.setLineWidth(0.6); doc.line(M + 26, y + 6, M + 26, y + 24);
-    T(`Vous pouvez jeter vos anciens badges${o.ancien.couleur ? ' (' + o.ancien.couleur + 's)' : ''}.`, M + 31, y + 11, { s: 12.5, b: true });
+    T(`Vous pouvez jeter vos anciens badges${o.ancien?.couleur ? ' (' + o.ancien.couleur + 's)' : ''}.`, M + 31, y + 11, { s: 12.5, b: true });
     T('Ils ne sont plus compatibles avec le nouveau système et ne fonctionneront plus.', M + 31, y + 18, { s: 11, c: GRIS, mw: W - 2 * M - 36 });
     y += 42;
     T('Merci de votre compréhension et bonne journée à tous !', W / 2, y, { s: 12, al: 'center' });
     T('L’équipe Harmonie Électricité', W - M, y + 12, { s: 11, b: true, c: OR, al: 'right' });
     T(`Une question ? ${ENTREPRISE.tel}`, M, y + 12, { s: 11, b: true });
     return doc.output('blob');
+  }
+
+  // Fiche d'information après l'installation des centrales : le nouveau badge est désormais indispensable.
+  // photo = URL de la photo du badge (catalogue) ou rien.
+  async function pdfFicheNouveauBadge(copro, photo) {
+    let img = null;
+    if (photo) { try { const b = await (await fetch(photo)).blob(); img = await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }); } catch {} }
+    return pdfFicheNouveauSysteme({ copro, titre: 'Nouveau contrôle d’accès en service',
+      texte: 'Les nouvelles centrales de contrôle d’accès de votre résidence sont installées. Pour ouvrir les portes, il est désormais nécessaire d’utiliser le nouveau badge : les anciens badges ne fonctionnent plus. Vous n’avez pas encore récupéré vos badges ? Présentez-vous à l’agence de votre syndic.',
+      nouveau: { img, libelle: 'Nouveau badge' }, ancien: null });
+  }
+  const nomFicheNouveauBadge = c => `Information nouveau badge - ${c.nom || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ');
+  // Toutes les adresses e-mail d'un chantier (propriétaires, recensement, locataires), sans doublon.
+  const emailsChantier = d => [...new Set((d.logements || []).flatMap(l => [...(l.emails || []), l.commande?.email, l.locataire?.email])
+    .filter(e => e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)).map(e => e.trim().toLowerCase()))];
+  // Envoi de la fiche à chacun (un e-mail par adresse : personne ne voit les adresses des autres).
+  async function envoyerFicheNouveauBadge(c, d, blob, progres) {
+    const dest = emailsChantier(d), erreurs = [];
+    for (const [i, e] of dest.entries()) {
+      if (progres) progres(i + 1, dest.length);
+      const err = await envoiGmail(e, `Nouveau contrôle d’accès en service — résidence ${c.nom}`,
+        `Bonjour,\n\nLe nouveau contrôle d’accès de la résidence **${c.nom}** est en service : pour ouvrir les portes, il est désormais nécessaire d’utiliser le **nouveau badge**. Les anciens badges ne fonctionnent plus.\n\nVous n’avez pas encore récupéré vos badges ? Présentez-vous à l’agence de votre syndic.\n\nVous trouverez la fiche d’information en pièce jointe.\n\nCordialement,`,
+        blob, nomFicheNouveauBadge(c));
+      if (err) erreurs.push(`${e} : ${err}`);
+    }
+    return { total: dest.length, erreurs };
   }
 
   const nomFichierRemise = r => `Bon de remise ${r.numero} - ${(r.copro && r.copro.nom) || ''} - ${r.proprietaire || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ');
@@ -971,5 +997,5 @@ const PS = (() => {
   }
 
   return { rpc, $, repliable, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, datesIntervention, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, datesIntervention, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, pdfFicheNouveauBadge, nomFicheNouveauBadge, emailsChantier, envoyerFicheNouveauBadge, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
 })();

@@ -511,7 +511,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=51"></script>
+<script src="portail-commun.js?v=52"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -956,6 +956,7 @@ function rendreDocumentsChantier(c, k) {
   if (f.url) parts.push(`<a class="btn btn-or" href="${esc(f.url)}" target="_blank" rel="noopener">Consulter la facture</a>`,
     '<button type="button" class="btn" data-doc="facture-dl">Télécharger la facture</button>', '<button type="button" class="btn" data-doc="facture-print">Imprimer la facture</button>');
   if (k.livres) parts.push('<button type="button" class="btn" data-doc="badges">Fiche des badges (attributions et stock)</button>');
+  if ((c.badges_suivi || {}).service_le) parts.push('<button type="button" class="btn" data-doc="fnb">Fiche « nouveau badge »</button>', '<button type="button" class="btn" data-doc="fnb-mail">Envoyer la fiche à tous (e-mail)</button>');
   $('coDocs').hidden = !parts.length;
   $('coDocsActions').innerHTML = parts.join('');
   const pdfFacture = async () => { const r = await fetch(f.url); if (!r.ok) throw new Error(); return r.blob(); };
@@ -965,8 +966,23 @@ function rendreDocumentsChantier(c, k) {
       if (b.dataset.doc === 'facture-dl') PS.telecharger(await pdfFacture(), nomFacture);
       if (b.dataset.doc === 'facture-print') PS.imprimer(await pdfFacture());
       if (b.dataset.doc === 'badges') await ficheBadgesSyndic(c);
+      if (b.dataset.doc === 'fnb') { const blob = await ficheNouveauBadgeSyndic(c); window.open(URL.createObjectURL(blob), '_blank') || PS.telecharger(blob, PS.nomFicheNouveauBadge(c)); }
+      if (b.dataset.doc === 'fnb-mail') await envoyerFicheNouveauBadgeSyndic(c);
     } catch { toast('Document indisponible pour le moment.'); }
   });
+}
+// Fiche « nouveau badge » : générée après l'installation des centrales, envoyable à tous les copropriétaires et locataires.
+async function ficheNouveauBadgeSyndic(c) {
+  let photo = null; try { photo = ((await appel('ps_syndic_sondage', { p_session: S.session, p_copro: S.copro })).articles || []).find(a => a.type === 'badge' && a.photo)?.photo; } catch {}
+  return PS.pdfFicheNouveauBadge(c, photo);
+}
+async function envoyerFicheNouveauBadgeSyndic(c) {
+  const d = await appel('ps_syndic_appartements', { p_session: S.session, p_copro: S.copro });
+  const n = PS.emailsChantier(d).length;
+  if (!n) return toast('Aucune adresse e-mail enregistrée sur ce chantier.');
+  if (!confirm(`Envoyer la fiche « nouveau badge » par e-mail aux ${n} adresses du chantier (propriétaires et locataires) ?`)) return;
+  const r = await PS.envoyerFicheNouveauBadge(c, d, await ficheNouveauBadgeSyndic(c), (i, t) => toast(`Envoi des e-mails… ${i} / ${t}`));
+  alert(`${r.total - r.erreurs.length} e-mail(s) envoyé(s).` + (r.erreurs.length ? '\n\nÉchec pour :\n' + r.erreurs.join('\n') : ''));
 }
 // Fiche des badges : chaque badge avec son appartement, son bénéficiaire, son droit d'accès et son statut ; stock restant à la fin.
 async function ficheBadgesSyndic(c) {
