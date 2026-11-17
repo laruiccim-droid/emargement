@@ -641,6 +641,7 @@ function rendreChantiers() {
     const et = etapeSuivante(c);
     const zone = et.code === 'facture' ? `<div class="raccourci depot-facture" data-depot="${c.id}">${ZONE_FACTURE}</div>`
       : et.code === 'listing' ? `<div class="raccourci depot-facture" data-depot-listing="${c.id}"><b>${esc(et.libelle)}</b><span>Glissez le fichier exporté de votre logiciel (Excel, CSV) ou cliquez</span></div>`
+      : et.code === 'signer_liv' ? `<div class="raccourci" style="flex-direction:column;gap:6px"><button type="button" class="btn btn-or" data-etape="signer_maintenant" data-copro="${c.id}">Faire signer le bon de livraison</button><button type="button" class="btn" data-etape="envoi_liv" data-copro="${c.id}">Envoyer la demande de signature (e-mail)</button><span class="attente">${esc(et.note || '')}</span></div>`
       : et.code && et.note ? `<div class="raccourci" style="flex-direction:column;gap:6px"><button type="button" class="btn btn-or" data-etape="${et.code}" data-copro="${c.id}">${esc(et.libelle)}</button><span class="attente">${esc(et.note)}</span></div>`
       : et.code ? `<div class="raccourci"><button type="button" class="btn btn-or" data-etape="${et.code}" data-copro="${c.id}">${esc(et.libelle)}</button></div>`
       : et.cloture ? `<div class="raccourci cloture"><span class="attente">${esc(et.cloture)}</span></div>`
@@ -1308,6 +1309,8 @@ async function executerEtape(c, code) {
   if (code === 'programmes') { if (!confirm('Les badges sont programmés sur le site de gestion ?')) return; return jalonBadges('programmes', 'Badges programmés : vous pouvez les livrer au syndic.'); }
   if (code === 'livre') return badgesLivresAdmin(c);
   if (code === 'signer_liv') return choisirSignatureLivraison(c);
+  if (code === 'signer_maintenant') return ouvrirSignatureLivraison(c);
+  if (code === 'envoi_liv') return envoyerSignatureDistance(c);
   if (code === 'service' && c.travaux === 'vigik') {
     if (!confirm('Les centrales Vigik sont installées ? Le gestionnaire sera prévenu par e-mail.')) return;
     await jalonBadges('service', 'Installation terminée : le syndic est prévenu.');
@@ -1459,7 +1462,7 @@ async function rendreBadgesVigikAdmin(c) {
     const signee = !!su.livraison_signee_le;
     if (!k.livres) etapes.push('<button type="button" class="btn btn-or" id="bgLivrer">Déposer le listing des badges</button>');
     else if (!su.livre_le && !signee) etapes.push(`<span class="pastille attente">Listing déposé : ${k.livres} badges</span> <button type="button" class="btn btn-or" data-liv="livre">Badges livrés au syndic</button>`);
-    else if (!signee) etapes.push('<span class="pastille attente">Bon de livraison à signer</span> <button type="button" class="btn btn-or" data-liv="signer">Faire signer maintenant</button> <button type="button" class="btn" data-liv="distance">Envoyer pour signature à distance</button>');
+    else if (!signee) etapes.push('<span class="pastille attente">Bon de livraison à signer</span> <button type="button" class="btn btn-or" data-liv="signer">Faire signer maintenant</button> <button type="button" class="btn" data-liv="distance">Envoyer la demande de signature au gestionnaire (e-mail)</button>');
     else etapes.push(`<span class="pastille ok">Bon de livraison signé le ${esc(dateCourte(su.livraison_signee_le))}${su.livraison_signataire ? ' par ' + esc(su.livraison_signataire) : ''}</span>`);
     if (!signee) etapes.push(su.acces_le ? '<span class="pastille ok">Accès du syndic débloqué</span>' : '<button type="button" class="btn btn-discret" data-liv="acces">Débloquer l’accès du syndic</button>');
     if (k.livres) etapes.push(`<span class="pastille ok">${k.livres} badges livrés au syndic</span>${su.prevenus_le || (c.sondage || {}).ouvert_le ? ' <span class="pastille ok">Copropriétaires prévenus</span>' : ' <span class="pastille attente">Le syndic doit prévenir les copropriétaires</span>'}`);
@@ -1810,9 +1813,11 @@ function rendreAvancementAdmin(c, k) {
   if (c.type !== 'complet') {
     // Badges seuls : la prochaine action d'Harmonie en doré au-dessus de la barre (ou ce qu'on attend).
     const et = etapeSuivante({ ...e, ...c, compteurs: k });
-    $('dJalons').innerHTML = et.code ? `<button type="button" class="btn btn-or" id="dEtapeBs">${esc(et.libelle)}</button>`
+    $('dJalons').innerHTML = et.code === 'signer_liv' ? `<button type="button" class="btn btn-or" id="dEtapeBs">Faire signer maintenant</button><button type="button" class="btn" id="dEnvoiLiv">Envoyer la demande de signature au gestionnaire (e-mail)</button><span class="attente">${esc(et.note || '')}</span>`
+      : et.code ? `<button type="button" class="btn btn-or" id="dEtapeBs">${esc(et.libelle)}</button>`
       : et.attente || et.cloture ? `<span class="attente">${esc(et.attente || et.cloture)}</span>` : '';
-    if (et.code) $('dEtapeBs').onclick = () => executerEtape(c, et.code);
+    if (et.code) $('dEtapeBs').onclick = () => executerEtape(c, et.code === 'signer_liv' ? 'signer_maintenant' : et.code);
+    if ($('dEnvoiLiv')) $('dEnvoiLiv').onclick = () => envoyerSignatureDistance(c);
     return;
   }
   const rec = c.recensement || {}, camp = c.campagne || {}, fo = c.fourniture || {}, so = c.sondage || {};
@@ -1936,7 +1941,7 @@ function rendreLivraisonEtat(c, k) {
   else if (aSigner && !su.livre_le) parts.push(`<p style="margin:0">Listing importé : <b style="color:var(--he-white)">${aSigner.badges.length}</b> badge${aSigner.badges.length > 1 ? 's' : ''} (${esc(aSigner.badges[0])} … ${esc(aSigner.badges[aSigner.badges.length - 1])}), en attente de livraison à l’agence.</p>
       <div class="actions"><button type="button" class="btn btn-or" data-lv="livre">Badges livrés au syndic</button></div>`);
   else if (aSigner) parts.push(`<p style="margin:0">Badges livrés à l’agence : <b style="color:var(--he-white)">bon de livraison à signer</b>${gere ? ' (l’accès du syndic s’ouvre à la signature)' : ''}.</p>
-      <div class="actions"><button type="button" class="btn btn-or" data-lv="signer">Faire signer maintenant</button><button type="button" class="btn" data-lv="distance">Envoyer pour signature à distance</button></div>`);
+      <div class="actions"><button type="button" class="btn btn-or" data-lv="signer">Faire signer maintenant</button><button type="button" class="btn" data-lv="distance">Envoyer la demande de signature au gestionnaire (e-mail)</button></div>`);
   else parts.push(`<p style="margin:0"><span class="pastille ok">Bon de livraison signé${su.livraison_signee_le ? ' le ' + esc(dateCourte(su.livraison_signee_le)) : ''}${su.livraison_signataire ? ' par ' + esc(su.livraison_signataire) : ''}</span></p>`);
   if (gere && !signee && k.livres) parts.push(su.acces_le ? '<p style="margin:8px 0 0"><span class="pastille ok">Accès du syndic débloqué</span></p>'
     : '<div class="actions"><button type="button" class="btn btn-discret" data-lv="acces">Débloquer l’accès du syndic sans attendre</button></div>');
@@ -2167,6 +2172,7 @@ function destinatairesSyndic(c) {
 async function envoyerSignatureDistance(c) {
   const dest = destinatairesSyndic(c);
   if (!dest.length) return toast('Aucun gestionnaire avec une adresse e-mail pour ce syndic.');
+  if (!confirm('Envoyer la demande de signature du bon de livraison à :\n' + dest.join('\n') + ' ?\n\nLe gestionnaire reçoit un lien pour relire et signer le bon (téléphone ou ordinateur).')) return;
   const k = (A.etat.copros.find(x => x.id === c.id) || {}).compteurs || {};
   // Lien direct vers le bon à signer (sans connexion), sinon l'espace syndic.
   let lien = PS.urlPage('syndic.html');
