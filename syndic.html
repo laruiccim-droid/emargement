@@ -192,6 +192,7 @@
     <div class="tuiles" id="coTuiles"></div>
     <div id="coRaccourci" style="margin-top:14px"></div>
     <div id="coFrise"></div>
+    <div class="bloc" id="coDocs" hidden><h2>Documents du chantier</h2><div class="actions" id="coDocsActions" style="margin-top:0"></div></div>
     <div class="onglets" role="tablist">
       <button type="button" role="tab" data-onglet="appartements" aria-selected="false" id="ongletApparts" hidden>Appartements</button>
       <button type="button" role="tab" data-onglet="remises" aria-selected="true">Remises</button>
@@ -709,6 +710,7 @@ async function ouvrirCopro(id) {
     .map(([l, v, cl]) => `<div class="tuile ${cl || ''}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('coFrise').innerHTML = PS.friseHtml({ ...c, compteurs: k });
   $('coRaccourci').innerHTML = zoneRaccourci({ ...c, compteurs: k }); brancherRaccourcis($('coRaccourci'));
+  rendreDocumentsChantier(c, k);
   // Badges seuls / Vigik seul : accès ouvert à la signature du bon de livraison (ou débloqué par Harmonie).
   const ouvert = accesOuvert(c), su = c.badges_suivi || {};
   $('btnNouvelleRemise').disabled = !k.stock || !ouvert;
@@ -946,6 +948,37 @@ async function executerRaccourci(id, code) {
 }
 function brancherRaccourcis(racine) {
   racine.querySelectorAll('[data-raccourci]').forEach(b => b.onclick = e => { e.stopPropagation(); executerRaccourci(b.dataset.coproId, b.dataset.raccourci); });
+}
+
+// ---------- Documents du chantier : facture (consulter, télécharger, imprimer) et fiche des badges ----------
+function rendreDocumentsChantier(c, k) {
+  const f = c.facture || {}, parts = [];
+  if (f.url) parts.push(`<a class="btn btn-or" href="${esc(f.url)}" target="_blank" rel="noopener">Consulter la facture</a>`,
+    '<button type="button" class="btn" data-doc="facture-dl">Télécharger la facture</button>', '<button type="button" class="btn" data-doc="facture-print">Imprimer la facture</button>');
+  if (k.livres) parts.push('<button type="button" class="btn" data-doc="badges">Fiche des badges (attributions et stock)</button>');
+  $('coDocs').hidden = !parts.length;
+  $('coDocsActions').innerHTML = parts.join('');
+  const pdfFacture = async () => { const r = await fetch(f.url); if (!r.ok) throw new Error(); return r.blob(); };
+  const nomFacture = (f.nom || `Facture - ${c.nom}.pdf`).replace(/[\\/:*?"<>|]+/g, ' ');
+  $('coDocsActions').querySelectorAll('[data-doc]').forEach(b => b.onclick = async () => {
+    try {
+      if (b.dataset.doc === 'facture-dl') PS.telecharger(await pdfFacture(), nomFacture);
+      if (b.dataset.doc === 'facture-print') PS.imprimer(await pdfFacture());
+      if (b.dataset.doc === 'badges') await ficheBadgesSyndic(c);
+    } catch { toast('Document indisponible pour le moment.'); }
+  });
+}
+// Fiche des badges : chaque badge avec son appartement, son bénéficiaire, son droit d'accès et son statut ; stock restant à la fin.
+async function ficheBadgesSyndic(c) {
+  const d = await appel('ps_syndic_badges', { p_session: S.session, p_copro: S.copro });
+  const rang = { remis: 0, reserve: 1, stock: 2 };
+  const cs = (d.correspondance || []).slice().sort((a, b) => (rang[a.statut] ?? 9) - (rang[b.statut] ?? 9) || String(a.appartement || '').localeCompare(String(b.appartement || ''), 'fr', { numeric: true }) || String(a.numero).localeCompare(String(b.numero), 'fr', { numeric: true }));
+  const lignes = cs.map(b => [b.numero, b.appartement || (b.statut === 'stock' ? 'Stock du syndic' : ''), b.beneficiaire || '', b.droit || '', PS.STATUTS_BADGE[b.statut] || b.statut]);
+  const n = s => cs.filter(b => b.statut === s).length;
+  const titre = `${c.nom} — ${cs.length} badges : ${n('remis')} remis • ${n('reserve')} réservés • ${n('stock')} en stock`;
+  const blob = await PS.pdfTableau('Fiche des badges — attributions et stock', titre, ['N° de badge', 'Appartement', 'Bénéficiaire', 'Droit d’accès', 'Statut'], lignes, [22, 22, 40, 30, 16]);
+  const w = window.open(URL.createObjectURL(blob), '_blank');
+  if (!w) PS.telecharger(blob, `Fiche des badges - ${c.nom}.pdf`.replace(/[\\/:*?"<>|]+/g, ' '));
 }
 
 // ---------- Signature à distance du bon de livraison (ouvre l'accès au chantier : badges seuls, Vigik seul) ----------
