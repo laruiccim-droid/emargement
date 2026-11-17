@@ -714,9 +714,9 @@ async function ouvrirCopro(id) {
   // Badges seuls / Vigik seul : accès ouvert à la signature du bon de livraison (ou débloqué par Harmonie).
   const ouvert = accesOuvert(c), su = c.badges_suivi || {};
   $('btnNouvelleRemise').disabled = !k.stock || !ouvert;
-  $('coAcces').hidden = ouvert || c.type === 'complet' || c.travaux === 'vigik';
+  $('coAcces').hidden = ouvert;
   if (!$('coAcces').hidden) {
-    $('coAcces').innerHTML = `<h2>Livraison des badges</h2><p style="margin:0">${su.livre_le ? `${k.livres} badges livrés à votre agence : signez le bon de livraison pour accéder au chantier (remises des badges).`
+    $('coAcces').innerHTML = `<h2>🔒 Espace bloqué jusqu’à la signature du bon de livraison</h2><p style="margin:0">${su.livre_le ? `${k.livres} badges ont été livrés à votre agence. Votre espace (fichier des copropriétaires, information des copropriétaires, remises des badges) sera débloqué dès la signature du bon de livraison.`
       : k.livres ? `Listing de ${k.livres} badges déposé sur la plateforme : en attente de livraison à votre agence par Harmonie Électricité.` : 'En attente du listing des badges par Harmonie Électricité.'}</p>`
       + (su.livre_le ? '<div class="actions"><button type="button" class="btn btn-or" id="coSignerLiv">Signer le bon de livraison</button></div>' : '');
     if ($('coSignerLiv')) $('coSignerLiv').onclick = signerLivraisonSyndic;
@@ -809,7 +809,7 @@ function rendreParcours() {
     { fait: signee, titre: 'Livraison des badges à l’agence',
       texte: !nbLivres ? 'Harmonie Électricité dépose le listing des badges sur la plateforme, puis les livre à votre agence. L’accès au chantier s’ouvre à la signature du bon de livraison.'
         : !su0.livre_le && !signee ? `Listing de ${nbLivres} badges déposé sur la plateforme : en attente de livraison à votre agence par Harmonie Électricité.`
-        : !signee ? `${nbLivres} badges livrés à votre agence : signez le bon de livraison pour ouvrir l’accès au chantier.`
+        : !signee ? `${nbLivres} badges livrés à votre agence : votre espace sera débloqué dès la signature du bon de livraison.`
         : `Bon de livraison signé le ${dateCourte(su0.livraison_signee_le)}${su0.livraison_signataire ? ' par ' + su0.livraison_signataire : ''} : ${nbLivres} badges reçus.`,
       bouton: su0.livre_le && !signee ? '<button type="button" class="btn btn-petit btn-or" data-parcours="signerLivraison">Signer le bon de livraison</button>' : '' },
   ] : [
