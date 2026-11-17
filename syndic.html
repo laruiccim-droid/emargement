@@ -1510,6 +1510,9 @@ function majAppartRemise() {
 }
 function nouvelleRemise(lgId) {
   S.choisis = new Set(); S.photos = []; S.qualite = 'proprietaire'; S.attente = null; S.acces = {}; S.droitTous = '';
+  // Locataires déjà connus des appartements (pour préremplir une remise à un locataire).
+  S.locataires = new Map();
+  appel('ps_syndic_appartements', { p_session: S.session, p_copro: S.copro }).then(d => { S.locataires = new Map(d.logements.filter(x => x.locataire?.nom).map(x => [x.id, x.locataire])); }).catch(() => {});
   ['reNom', 'reBatiment', 'reLot', 'reTel', 'reEmail', 'reCommentaire', 'reRecherche'].forEach(id => { $(id).value = ''; });
   document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x.dataset.q === 'proprietaire'));
   $('reCopro').textContent = S.detail.copro.nom;
@@ -1528,7 +1531,7 @@ function nouvelleRemise(lgId) {
       $('reNom').value = h.nom; $('reLot').value = 'Entreprise intervenante'; $('reEmail').value = ''; $('reTel').value = '';
       S.qualite = 'autre'; document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x.dataset.q === 'autre'));
     }
-    if (l) { $('reNom').value = l.nom || ''; $('reLot').value = [l.numero && 'Appt ' + l.numero, l.lot && 'lot ' + l.lot].filter(Boolean).join(' — '); $('reEmail').value = (l.emails || [])[0] || ''; $('reTel').value = l.telephone || ''; }
+    if (l) { $('reLot').value = [l.numero && 'Appt ' + l.numero, l.lot && 'lot ' + l.lot].filter(Boolean).join(' — '); remplirBeneficiaire(l); }
     majAppartRemise();
   };
   if (lgId) $('reAppart').onchange();
@@ -1570,7 +1573,19 @@ $('reRecherche').onkeydown = e => {
   if (exact) { S.choisis.add(exact); $('reRecherche').value = ''; rendreChoixBadges(); toast(exact + ' sélectionné'); }
   else toast(S.detail.badges.some(b => b.numero === v) ? `Le badge ${v} n’est pas en stock (déjà remis ou réservé).` : `Badge ${v} introuvable dans cette copropriété.`, 4000);
 };
-document.querySelectorAll('#reQualite button').forEach(b => b.onclick = () => { S.qualite = b.dataset.q; document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+document.querySelectorAll('#reQualite button').forEach(b => b.onclick = () => {
+  S.qualite = b.dataset.q; document.querySelectorAll('#reQualite button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  const l = lgBadges().find(x => x.id === $('reAppart').value); if (l && S.qualite !== 'autre') remplirBeneficiaire(l);
+});
+// Coordonnées du bénéficiaire : celles du propriétaire, ou du locataire déjà connu ; locataire inconnu → champs vides
+// (jamais les coordonnées du propriétaire pour un locataire).
+function remplirBeneficiaire(l) {
+  if (S.qualite === 'locataire') {
+    const t = S.locataires?.get(l.id);
+    $('reNom').value = t ? [t.prenom, t.nom].filter(Boolean).join(' ') : ''; $('reTel').value = t?.telephone || ''; $('reEmail').value = t?.email || '';
+    if (!t) $('reNom').focus();
+  } else { $('reNom').value = l.nom || ''; $('reEmail').value = (l.emails || [])[0] || ''; $('reTel').value = l.telephone || ''; }
+}
 $('rePhoto').onchange = async e => {
   for (const f of [...e.target.files]) { try { S.photos.push(await PS.photoCompressee(f)); } catch (err) { toast(err.message); } }
   e.target.value = ''; rendrePhotos();
