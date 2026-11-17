@@ -741,8 +741,15 @@ const PS = (() => {
   // Avancement d'un appartement : fichier → recensement envoyé → signé → rendez-vous → badges → installé.
   function avancementAppart(l, d, badgesDe) {
     const k = l.commande, em = l.emarge || {}, vigik = d.copro.travaux === 'vigik' || d.copro.travaux === 'interphone_vigik';
-    const att = l.attendus ?? ((k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0));
+    const att = attendusAppart(l, d);
     const rec = badgesDe(l, false).length + badgesDe(l, true).length + (l.badges_locataire || 0);
+    // Vigik seulement : pas de poste ni de rendez-vous, l'appartement avance avec ses badges.
+    if (d.copro.travaux === 'vigik') {
+      const E = [['Dans le fichier', 1], ...(k || l.invite_le ? [['Recensement signé', k ? 1 : 0]] : []), ['Badges récupérés', att ? Math.min(1, rec / att) : rec ? 1 : 0]];
+      const pc = Math.round(E.reduce((t, e) => t + e[1], 0) / E.length * 100), suivante = E.find(e => e[1] < 1);
+      return { pc, etapes: E, libelle: !suivante ? 'Badges récupérés' : suivante[0] === 'Recensement signé' ? 'En attente de la signature du recensement'
+        : att ? `Badges : ${rec} / ${att} récupérés` : 'Badges à retirer à l’agence' };
+    }
     const E = [
       ['Dans le fichier', 1],
       ['Recensement envoyé', l.invite_le || k ? 1 : 0],
@@ -756,6 +763,9 @@ const PS = (() => {
       'Rendez-vous pris': 'En attente du rendez-vous', 'Badges récupérés': `Badges : ${rec} / ${att} récupérés`, 'Installé': 'En attente de l’installation' }[suivante[0]] || suivante[0];
     return { pc, libelle, etapes: E };
   }
+  // Badges attendus d'un appartement : recensement signé, sinon nombre fixé dans le fichier (Vigik seulement), + supplémentaires.
+  const attendusAppart = (l, d) => l.attendus ?? (l.commande ? (l.commande.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0)
+    : d.copro.travaux === 'vigik' ? (+l.badges || 0) : 0) + (l.badges_supp || 0);
   async function vueAppartements(conteneur, d, actions) {
     const marque = d.copro.marque_interphone;
     if (marque && !catalogues[marque]) { try { catalogues[marque] = await rpc('ps_catalogue_lire', { p_marque: marque }); } catch { catalogues[marque] = []; } }
@@ -763,13 +773,15 @@ const PS = (() => {
     const nomAffiche = l => (l.nom_affiche || l.commande?.nom || l.nom || '').toUpperCase();
     const badgesDe = (l, loc) => l.remises.filter(r => r.statut === 'signe' && ((r.qualite === 'locataire' || r.mode === 'installation') === loc)).flatMap(r => r.badges);
     conteneur.innerHTML = d.logements.length ? `<div class="apparts">${d.logements.map(l => {
-      const k = l.commande, em = l.emarge || {}, att = l.attendus ?? ((k?.lignes || []).filter(x => x.type === 'badge').reduce((t, x) => t + x.qte, 0) + (l.badges_supp || 0));
+      const k = l.commande, em = l.emarge || {}, att = attendusAppart(l, d), vigikSeul = d.copro.travaux === 'vigik';
       const remis = badgesDe(l, false).length + badgesDe(l, true).length;
       return `<button type="button" class="appart" data-appart="${esc(l.id)}">
         <div class="num"><small>${l.numero ? 'Appartement' : l.lot ? 'Lot' : 'Appartement'}</small>${esc(l.numero || l.lot || '?')}</div>
         <div class="qui">${esc(nomAffiche(l) || '—')}${k?.qualite === 'bailleur' ? ' · bailleur' : ''}</div>
-        <div class="etats"><span class="${k ? 'ok' : ''}">${k ? '✓ commande' : 'commande'}</span><span class="${l.rdv ? 'ok' : ''}">${l.rdv ? '✓ rdv' : 'rdv'}</span>
-          ${att ? `<span class="${remis >= att ? 'ok' : ''}">badges ${remis}/${att}</span>` : ''}<span class="${em.statut === 'signe' ? 'ok' : ''}">${em.statut === 'signe' ? '✓ installé' : 'installation'}</span></div>
+        <div class="etats">${vigikSeul
+          ? `${k ? '<span class="ok">✓ recensement</span>' : ''}<span class="${att && remis >= att ? 'ok' : ''}">badges ${remis}/${att || '?'}</span>`
+          : `<span class="${k ? 'ok' : ''}">${k ? '✓ commande' : 'commande'}</span><span class="${l.rdv ? 'ok' : ''}">${l.rdv ? '✓ rdv' : 'rdv'}</span>
+          ${att ? `<span class="${remis >= att ? 'ok' : ''}">badges ${remis}/${att}</span>` : ''}<span class="${em.statut === 'signe' ? 'ok' : ''}">${em.statut === 'signe' ? '✓ installé' : 'installation'}</span>`}</div>
         ${(() => { const a = avancementAppart(l, d, badgesDe); return `<div class="frise" role="progressbar" aria-valuenow="${a.pc}" title="${esc(a.etapes.map(e => (e[1] >= 1 ? '✓ ' : '· ') + e[0]).join('\n'))}"><i style="width:${a.pc}%"></i><span>${a.pc} %</span></div><div class="etape-appart">${esc(a.libelle)}</div>`; })()}
       </button>`;
     }).join('')}</div>` : '<div class="vide">Aucun appartement : le fichier des copropriétaires n’est pas encore fait.</div>';

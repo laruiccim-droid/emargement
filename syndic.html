@@ -510,7 +510,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=50"></script>
+<script src="portail-commun.js?v=51"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -722,7 +722,8 @@ async function ouvrirCopro(id) {
   rendreRemises(); rendreBadges(); rendreParcours(); rendreTransfertG();
   // Chantier complet : l'onglet « Appartements » s'ouvre en premier.
   $('ongletApparts').hidden = c.type !== 'complet' && c.travaux !== 'vigik';
-  if (c.type === 'complet') document.querySelector('[data-onglet="appartements"]').click();
+  // Chantier complet, ou Vigik seulement avec un fichier : les appartements s'affichent en premier (comme dans l'espace admin).
+  if (c.type === 'complet' || (c.travaux === 'vigik' && (c.recensement?.etape === 'pret' || (c.nb_logements_saisis || 0) > 0))) document.querySelector('[data-onglet="appartements"]').click();
   const ar = c.nb_rdv_a_rattacher || 0;
   $('coAlerteRatt').hidden = !ar;
   if (ar) {
