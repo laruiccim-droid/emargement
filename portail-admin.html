@@ -1260,10 +1260,14 @@ function etapeSuivante(c) {
     if (!su.livre_le && !su.livraison_signee_le) return { code: 'livre', libelle: 'Badges livrés au syndic', note: `${k.livres} badges sur la plateforme, en attente de livraison à l’agence` };
     if (!su.livraison_signee_le && !su.acces_le) return { code: 'signer_liv', libelle: 'Faire signer le bon de livraison', note: 'Accès du syndic bloqué jusqu’à la signature' };
     const sansSondage = c.type !== 'complet';
-    if (k.a_creer) return { code: 'controle', libelle: `Créer ${k.a_creer} remise${k.a_creer > 1 ? 's' : ''} dans le contrôle d’accès` };
     if (!su.prevenus_le && !so.ouvert_le && !(sansSondage && k.remis)) return { attente: 'Badges livrés : le gestionnaire doit prévenir les copropriétaires.' };
     if (nba && nbo < nba) return { attente: `Remise des badges à l’agence : ${nbo} / ${nba} appartements.` };
-    if (!su.service_le) return { code: 'service', libelle: 'Installation des centrales terminée', ...(!nba && k.livres ? { note: `Badges remis : ${k.remis} / ${k.livres}` } : {}) };
+    // « Centrales installées » reste proposé tant qu'il n'est pas validé ; les remises à créer dans le contrôle d'accès sont rappelées en note.
+    if (!su.service_le) {
+      const note = [!nba && k.livres ? `Badges remis : ${k.remis} / ${k.livres}` : '', k.a_creer ? `${k.a_creer} remise${k.a_creer > 1 ? 's' : ''} à créer dans le contrôle d’accès` : ''].filter(Boolean).join(' • ');
+      return { code: 'service', libelle: 'Installation des centrales terminée', ...(note ? { note } : {}) };
+    }
+    if (k.a_creer) return { code: 'controle', libelle: `Créer ${k.a_creer} remise${k.a_creer > 1 ? 's' : ''} dans le contrôle d’accès` };
     return { code: 'facture', libelle: 'Déposer la facture' };
   }
   if (!rec.etiquettes_le) return { code: 'etiquettes', libelle: 'Valider la pose des étiquettes' };
