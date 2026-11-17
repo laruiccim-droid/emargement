@@ -619,14 +619,14 @@ async function inviter(userId) {
   if (!jeton) { try { jeton = (await appel('ps_admin_user_inviter', { p_user: userId })).invitation; } catch { return; } }
   const lien = PS.urlPage('syndic.html') + '?invitation=' + jeton;
   $('ivTitre').textContent = `${u.nom || u.email} • ${s.nom}`; $('ivLien').textContent = lien;
-  const texte = `Bonjour${u.nom ? ' ' + u.nom : ''},\n\nHarmonie Électricité vous ouvre l’espace syndic pour gérer la remise des badges de vos copropriétés (${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => c.nom).join(', ') || s.nom}).\n\nCliquez sur ce lien pour choisir votre mot de passe (valable 14 jours) :\n${lien}\n\nVous vous connecterez ensuite avec votre adresse e-mail (${u.email}) sur ${PS.urlPage('syndic.html')}\nÀ la première connexion, l’espace vous demandera les coordonnées du cabinet, votre tampon et votre signature : ils seront apposés automatiquement sur les bons de remise.\n\nCordialement,\nMathieu Laruicci\nHarmonie Électricité • 06 31 13 47 01`;
+  const texte = `Bonjour${u.nom ? ' ' + u.nom : ''},\n\nHarmonie Électricité vous ouvre l’espace syndic pour gérer la remise des badges de vos copropriétés (${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => c.nom).join(', ') || s.nom}).\n\n**1. Activez votre compte** : cliquez sur le bouton ci-dessous et choisissez votre mot de passe (lien valable 14 jours).\n${lien}\n\n**2. Pour accéder ensuite à votre espace** :\n• allez sur www.harmonie-electricite.com ;\n• cliquez sur **« Espace syndics »** en haut de la page ;\n• connectez-vous avec votre adresse e-mail (**${u.email}**) et le mot de passe choisi.\nAccès direct : https://www.harmonie-electricite.com/espace-syndics\n\nÀ la première connexion, l’espace vous demandera les coordonnées du cabinet, votre tampon et votre signature : ils seront apposés automatiquement sur les bons de remise.\n\nCordialement,`;
   $('ivMail').onclick = async () => {
     $('ivMail').disabled = true;
     const err = await PS.envoiGmail(u.email, 'Votre accès à l’espace syndic Harmonie Électricité', texte);
     $('ivMail').disabled = false;
     toast(err ? 'E-mail non envoyé : ' + err : 'Invitation envoyée à ' + u.email, 6000);
   };
-  $('ivSms').hidden = !(u.tel && PS.estTel()); $('ivSms').href = PS.lienSms(u.tel, `Harmonie Électricité : votre accès à l’espace syndic (badges). Choisissez votre mot de passe ici : ${lien}`);
+  $('ivSms').hidden = !(u.tel && PS.estTel()); $('ivSms').href = PS.lienSms(u.tel, `Harmonie Électricité : votre accès à l’espace syndic. 1) Choisissez votre mot de passe ici : ${lien} 2) Ensuite, allez sur www.harmonie-electricite.com, cliquez sur « Espace syndics » et connectez-vous avec votre e-mail (${u.email}).`);
   $('ivCopier').onclick = () => PS.copier(lien);
   $('dlgInvitation').showModal();
   charger().then(() => { if (!$('vSyndics').hidden) rendreSyndics(); }).catch(() => {});
