@@ -803,6 +803,8 @@ dialog.scan:not([open]) { display: none; }
     <p>Le client ouvre ce lien sur son téléphone, relit le bon et signe. Sa signature revient ici toute seule et le bon signé est prêt à lui être envoyé.</p>
     <p class="aide">Le lien reprend le matériel et les badges tels qu’ils sont saisis maintenant.</p>
     <div class="code lien-signature" id="distLien"></div>
+    <div id="distQr" style="text-align:center;margin:10px 0"></div>
+    <p class="aide" style="text-align:center;margin-top:0">Ou faites scanner ce QR code au client : le bon s’ouvre sur son téléphone.</p>
     <div class="dlg-actions" style="justify-content:flex-start">
       <a class="btn btn-or" id="distSms" href="#"><svg class="ic"><use href="#i-sms"/></svg>Par SMS</a>
       <button type="button" class="btn" id="distMail"><svg class="ic"><use href="#i-mail"/></svg>Par e-mail</button>
@@ -2535,6 +2537,12 @@ function ouvrirDistance(l) {
   const lien = lienSignature(l.distance.jeton);
   $('distTitre').textContent = l.nomAffiche || l.occupant || lieu(l);
   $('distLien').textContent = lien;
+  // QR code du lien : le client le scanne et signe sur son propre téléphone.
+  $('distQr').innerHTML = '';
+  chargerScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js').then(() => {
+    const q = window.qrcode(0, 'M'); q.addData(lien); q.make();
+    $('distQr').innerHTML = `<div style="display:inline-block;background:#fff;padding:10px;border-radius:12px">${q.createSvgTag({ cellSize: 5, margin: 2 })}</div>`;
+  }).catch(() => {});
   const ancien = $('distSms'), sms = ancien.cloneNode(true); ancien.replaceWith(sms);
   brancherSms(sms, l, () => `Bonjour, voici votre bon d’intervention Harmonie Électricité (${lieu(l)}, résidence ${etat.residence}) à relire et signer en ligne : ${lien}`,
     () => { l.distance.envoyeLe = Date.now(); });

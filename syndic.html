@@ -489,6 +489,10 @@
   <div class="papier"><canvas id="slPad"></canvas><div class="ligne"></div><span class="mention">Reçu par le syndic</span></div>
   <div class="actions"><button type="button" class="btn btn-discret" id="slEffacer">Effacer</button><button type="button" class="btn btn-discret" data-fermer-sl>Annuler</button><button type="button" class="btn btn-or" id="slValider">Signer le bon</button></div>
   <p class="message" id="slMessage"></p>
+  <div class="actions"><button type="button" class="btn" id="slQrBouton">Signer sur mon téléphone (QR code)</button></div>
+  <div id="slQr" hidden style="text-align:center"><div id="slQrCode" style="display:inline-block;background:#fff;padding:10px;border-radius:12px"></div>
+    <p class="aide">Scannez ce code avec l’appareil photo de votre téléphone, signez, puis touchez « Actualiser ».</p>
+    <div class="actions" style="justify-content:center"><button type="button" class="btn btn-or" id="slActualiser">Actualiser</button></div></div>
 </div></dialog>
 
 <dialog id="dlgRattAlerte"><div class="dlg">
@@ -955,6 +959,11 @@ async function signerLivraisonSyndic() {
   $('dlgSigLiv').showModal();
   if (!slPad) slPad = PS.pad($('slPad')); setTimeout(() => { slPad.taille(); slPad.effacer(); }, 50);
   $('slEffacer').onclick = () => slPad.effacer();
+  $('slQr').hidden = true;
+  $('slQrBouton').onclick = async () => {
+    try { const j = (await appel('ps_syndic_livraison_jeton', { p_session: S.session, p_copro: S.copro }, 'slMessage')).jeton; $('slQrCode').innerHTML = await PS.qrSvg(PS.urlPage('signer-badges.html') + '?l=' + j, 220); $('slQr').hidden = false; } catch {}
+  };
+  $('slActualiser').onclick = () => { $('dlgSigLiv').close(); ouvrirCopro(S.copro); };
   $('slValider').onclick = async () => {
     if (!$('slNom').value.trim()) { $('slNom').focus(); return message('slMessage', 'Indiquez votre nom.'); }
     if (slPad.estVide()) return message('slMessage', 'Signez dans le cadre.');

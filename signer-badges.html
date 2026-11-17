@@ -60,7 +60,8 @@
 <script>
 'use strict';
 const { rpc, $, horodatage } = PS;
-const jeton = new URLSearchParams(location.search).get('t') || '';
+const params = new URLSearchParams(location.search), livraison = params.get('l') || '';
+const jeton = params.get('t') || livraison;
 let pad = null;
 
 function montrer(id) { ['chargement', 'erreur', 'formulaire', 'merci'].forEach(x => { $(x).hidden = x !== id; }); window.scrollTo({ top: 0 }); }
@@ -69,6 +70,7 @@ function message(txt, err = true) { $('message').textContent = txt; $('message')
 
 async function charger() {
   if (!/^[0-9a-f]{32}$/.test(jeton)) return erreur('Ce lien est incomplet. Ouvrez-le à nouveau depuis le message reçu ou rescannez le QR code.');
+  if (livraison) return chargerLivraison();
   let r;
   try { r = await rpc('ps_remise_lire', { p_jeton: jeton }); }
   catch (e) { return erreur(e.message); }
@@ -99,6 +101,35 @@ async function charger() {
   pad = PS.pad($('pad')); setTimeout(() => pad.taille(), 30);
 }
 
+// Bon de livraison des badges (Harmonie → syndic) : signé par le gestionnaire sur son téléphone.
+async function chargerLivraison() {
+  let r;
+  try { r = await rpc('ps_livraison_lire', { p_jeton: jeton }); } catch (e) { return erreur(e.message); }
+  document.title = 'Bon de livraison des badges · signature';
+  const contact = r.syndic ? [r.syndic.nom, r.syndic.tel].filter(Boolean).join(' • ') : '';
+  if (r.signe_le) { $('merciTexte').textContent = `Ce bon de livraison a déjà été signé le ${horodatage(r.signe_le)}${r.signataire ? ' par ' + r.signataire : ''}.`; return montrer('merci'); }
+  $('fSyndic').textContent = r.syndic ? r.syndic.nom : '';
+  $('titre').textContent = r.copro.nom;
+  document.querySelector('#formulaire .intro').textContent = 'Harmonie Électricité a livré les badges d’accès ci-dessous à votre agence. Vérifiez-les puis signez pour confirmer leur réception : l’accès au chantier s’ouvre aussitôt dans votre espace syndic.';
+  document.querySelector('#formulaire .bloc h2').textContent = 'Bon de livraison des badges';
+  const n = r.badges.length;
+  $('accordTexte').textContent = `Je reconnais avoir reçu ${n > 1 ? 'les ' + n + ' badges' : 'le badge'} livré${n > 1 ? 's' : ''} par Harmonie Électricité.`;
+  const lignes = [['Résidence', [r.copro.nom, r.copro.adresse, [r.copro.cp, r.copro.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')],
+    ['Syndic', contact], ['Badges', String(n)], ['N° des badges', r.badges.join(' • ')], ['Commentaire', r.commentaire], ['Référence', r.copro.reference]];
+  for (const [k, v] of lignes) {
+    if (!v) continue;
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = k; dt.className = 'aide'; dt.style.margin = '0';
+    dd.textContent = v; dd.style.margin = '0'; dd.style.color = 'var(--he-white)'; dd.style.overflowWrap = 'anywhere'; if (k === 'N° des badges') dd.className = 'mono';
+    $('details').append(dt, dd);
+  }
+  $('nom').value = r.gestionnaire || '';
+  document.querySelector('.papier .mention').textContent = 'Reçu par le syndic';
+  $('merciTexte').textContent = 'Votre signature a bien été transmise : l’accès au chantier est ouvert dans votre espace syndic.';
+  montrer('formulaire');
+  pad = PS.pad($('pad')); setTimeout(() => pad.taille(), 30);
+}
+
 $('effacer').onclick = () => pad && pad.effacer();
 $('signer').onclick = async () => {
   if (!$('accord').checked) return message('Cochez la case pour confirmer la réception des badges.');
@@ -106,7 +137,8 @@ $('signer').onclick = async () => {
   if (pad.estVide()) return message('Signez dans le cadre blanc.');
   $('signer').disabled = true; message('Envoi de la signature…', false);
   try {
-    await rpc('ps_remise_signer', { p_jeton: jeton, p_nom: $('nom').value.trim(), p_signature: pad.image(), p_navigateur: navigator.userAgent });
+    if (livraison) await rpc('ps_livraison_signer', { p_jeton: jeton, p_nom: $('nom').value.trim(), p_signature: pad.image() });
+    else await rpc('ps_remise_signer', { p_jeton: jeton, p_nom: $('nom').value.trim(), p_signature: pad.image(), p_navigateur: navigator.userAgent });
     montrer('merci');
   } catch (e) {
     $('signer').disabled = false;

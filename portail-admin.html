@@ -317,6 +317,10 @@
   <label>Signature</label>
   <div class="papier"><canvas id="slPad"></canvas><div class="ligne"></div><span class="mention">Reçu par le syndic</span></div>
   <div class="actions"><button type="button" class="btn btn-discret" id="slEffacer">Effacer</button><button type="button" class="btn btn-discret" data-fermer-sl>Annuler</button><button type="button" class="btn btn-or" id="slValider">Signer le bon</button></div>
+  <div class="actions"><button type="button" class="btn" id="slQrBouton">Signer sur un autre téléphone (QR code)</button></div>
+  <div id="slQr" hidden style="text-align:center"><div id="slQrCode" style="display:inline-block;background:#fff;padding:10px;border-radius:12px"></div>
+    <p class="aide">Faites scanner ce code : le gestionnaire relit le bon et signe sur son téléphone. Touchez ensuite « Actualiser ».</p>
+    <div class="actions" style="justify-content:center"><button type="button" class="btn btn-or" id="slActualiser">Actualiser</button></div></div>
 </div></dialog>
 
 <dialog id="dlgQrRdv"><div class="dlg" style="text-align:center">
@@ -2134,6 +2138,11 @@ async function ouvrirSignatureLivraison(c) {
   $('dlgSigLiv').showModal();
   if (!slPad) slPad = PS.pad($('slPad')); setTimeout(() => { slPad.taille(); slPad.effacer(); }, 50);
   $('slEffacer').onclick = () => slPad.effacer();
+  $('slQr').hidden = true;
+  $('slQrBouton').onclick = async () => {
+    try { const j = (await appel('ps_admin_livraison_jeton', { p_livraison: l.id })).jeton; $('slQrCode').innerHTML = await PS.qrSvg(PS.urlPage('signer-badges.html') + '?l=' + j, 220); $('slQr').hidden = false; } catch {}
+  };
+  $('slActualiser').onclick = async () => { $('dlgSigLiv').close(); await rafraichirChantier(c); };
   $('slValider').onclick = async () => {
     if (!$('slNom').value.trim()) { $('slNom').focus(); return toast('Indiquez le nom du gestionnaire.'); }
     if (slPad.estVide()) return toast('Le gestionnaire doit signer dans le cadre.');
@@ -2152,10 +2161,14 @@ async function envoyerSignatureDistance(c) {
   const dest = destinatairesSyndic(c);
   if (!dest.length) return toast('Aucun gestionnaire avec une adresse e-mail pour ce syndic.');
   const k = (A.etat.copros.find(x => x.id === c.id) || {}).compteurs || {};
+  // Lien direct vers le bon à signer (sans connexion), sinon l'espace syndic.
+  let lien = PS.urlPage('syndic.html');
+  try { if ($('vChantier').hidden || A.copro !== c.id) await ouvrirChantier(c.id, 'livrer'); const l = (A.detail.livraisons || []).find(x => !x.signature);
+    if (l) lien = PS.urlPage('signer-badges.html') + '?l=' + (await appel('ps_admin_livraison_jeton', { p_livraison: l.id })).jeton; } catch {}
   const err = await PS.envoiGmail(dest.join(', '), `Bon de livraison des badges à signer — résidence ${c.nom}`,
     `Bonjour,\n\nHarmonie Électricité a livré ${k.livres ? '**' + k.livres + ' badges** d’accès' : 'les badges d’accès'} à votre agence pour la résidence **${c.nom}**.\n\n`
-    + `Merci de signer le bon de livraison dans votre espace syndic : cette signature ouvre votre accès au chantier (fichier des copropriétaires, information des copropriétaires, remises des badges).\n`
-    + `${PS.urlPage('syndic.html')}\n\nCordialement,`);
+    + `Merci de relire et signer le bon de livraison (sur votre téléphone ou votre ordinateur) : cette signature ouvre votre accès au chantier (fichier des copropriétaires, information des copropriétaires, remises des badges).\n`
+    + `${lien}\n\nCordialement,`);
   toast(err ? 'E-mail non envoyé : ' + err : 'Bon envoyé pour signature à ' + dest.join(', '), 6000);
 }
 async function debloquerAccesSyndic(c) {
