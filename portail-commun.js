@@ -415,7 +415,7 @@ const PS = (() => {
     }
     const photos = b.photos || [];
     if (photos.length) {
-      place(12); T('PHOTOS', M, y, { s: 8, b: true, c: OR }); y += 4;
+      place(12); T('PHOTOS', M, y, { s: 8, b: true, c: OR }); T('Cliquez sur une photo pour l’ouvrir en grand', M + 18, y, { s: 7.5, c: GRIS }); y += 4;
       const lw = (W - 2 * M - 6) / 2;
       let hLigne = 0;
       for (let n = 0; n < photos.length; n++) {
@@ -426,6 +426,7 @@ const PS = (() => {
           const h = Math.min(lw * im.height / im.width, 90), x = M + (n % 2) * (lw + 6);
           if (n % 2 === 0) { place(h + 8); hLigne = 0; }
           doc.addImage(data, 'JPEG', x, y, h * im.width / im.height, h);
+          doc.link(x, y, h * im.width / im.height, h, { url: photos[n].url });  // clic : photo en grand
           if (photos[n].legende) T(doc.splitTextToSize(photos[n].legende, lw)[0], x, y + h + 4, { s: 8, c: GRIS });
           hLigne = Math.max(hLigne, h);
         } catch {}
