@@ -748,7 +748,7 @@ function rendreSyndics() {
     <div data-regl-syndic="${s.id}" hidden></div>
     <ul class="liste" style="margin-top:8px">${s.users.map(u => `<li><div class="principal"><b>${esc(u.nom || u.email)}</b> ${pastilleUser(u)}
         <div class="sous">${esc(u.email)}${u.tel ? ' • ' + esc(u.tel) : ''}${u.derniere_connexion ? ' • dernière connexion ' + horodatage(u.derniere_connexion) : ''}</div>
-        <label class="aide" data-mail-user="${u.id}" hidden style="display:flex;gap:8px;align-items:center;margin-top:4px;text-transform:none;letter-spacing:0"><input type="checkbox" style="width:auto"> E-mails d’avancement (interventions et chantiers)</label>
+        <label class="aide" data-mail-user="${u.id}" hidden style="display:flex;gap:8px;align-items:center;margin-top:4px;text-transform:none;letter-spacing:0"><input type="checkbox" style="width:auto"> E-mails d’avancement (interventions et chantiers)${u.statut === 'actif' ? '' : ' — partiront dès l’activation de son compte'}</label>
         <button type="button" class="btn btn-petit btn-discret" data-etapes-user="${u.id}" hidden style="margin-top:4px"></button>
         <div class="aide" data-fmt-user="${u.id}" hidden style="margin-top:4px">Bon d’intervention visible dans son espace : <select style="width:auto;display:inline-block;padding:4px 8px"></select></div></div>
       <div class="droite">
