@@ -416,6 +416,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
+<script src="bon-pdf.js?v=1"></script>
 <script src="portail-commun.js?v=54"></script>
 <script>
 'use strict';
@@ -576,10 +577,10 @@ function ouvrirBonAdmin(bonId, i) {
   $('biTitre').textContent = 'Bon ' + bonId + (i ? ' • ' + (i.titre || i.client || '') : '');
   $('biFormat').value = s?.users.find(u => u.id === i?.gestionnaire_id)?.format_bon || s?.format_bon || 'sansprix';
   $('biModifier').href = 'https://laruiccim-droid.github.io/harmonie-electricite/bon.html?doc=' + encodeURIComponent(bonId);
-  const pdf = async () => { const b = await appel('ps_admin_bon', { p_bon: bonId, p_format: $('biFormat').value }); return { b, blob: await PS.pdfBonIntervention(b) }; };
+  const pdf = async () => { const r = await appel('ps_admin_bon', { p_bon: bonId, p_format: $('biFormat').value }), b = r.bon || r; return { b, blob: await BonPDF.generer(b, r.format) }; };
   $('biVoir').onclick = async () => {
     const fen = window.open('', '_blank');
-    try { const { b, blob } = await pdf(); if (fen) fen.location = URL.createObjectURL(blob); else PS.telecharger(blob, PS.nomFichierBon(b)); } catch { if (fen) fen.close(); }
+    try { const { b, blob } = await pdf(); if (fen) fen.location = URL.createObjectURL(blob); else PS.telecharger(blob, BonPDF.nomFichier(b)); } catch { if (fen) fen.close(); }
   };
   $('biMail').onclick = async () => {
     const g = s?.users.find(u => u.id === i?.gestionnaire_id);
@@ -589,8 +590,8 @@ function ouvrirBonAdmin(bonId, i) {
     try {
       const { b, blob } = await pdf();
       const err = await PS.envoiGmail(dest.trim(), `Bon d’intervention ${b.numero} — ${b.client || i?.titre || ''}`,
-        `Bonjour,\n\nVous trouverez ci-joint le bon d’intervention **${b.numero}** du ${b.date || ''}${b.adresse ? ' (' + b.adresse + ')' : ''}.${b.suite_requise ? '\n\nUne nouvelle intervention est nécessaire : nous revenons vers vous pour la planifier.' : ''}\n\nCordialement,`,
-        blob, PS.nomFichierBon(b));
+        `Bonjour,\n\nVous trouverez ci-joint le bon d’intervention **${b.numero}** du ${b.date || ''}${b.adresse ? ' (' + b.adresse + ')' : ''}.${b.suiviRequis ? '\n\nUne nouvelle intervention est nécessaire : nous revenons vers vous pour la planifier.' : ''}\n\nCordialement,`,
+        blob, BonPDF.nomFichier(b));
       toast(err ? 'E-mail non envoyé : ' + err : 'Bon envoyé à ' + dest.trim(), 6000);
     } catch {} finally { $('biMail').disabled = false; }
   };

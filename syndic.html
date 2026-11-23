@@ -535,6 +535,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
+<script src="bon-pdf.js?v=1"></script>
 <script src="portail-commun.js?v=54"></script>
 <script>
 'use strict';
@@ -771,9 +772,9 @@ async function ouvrirBonIntervention(id, bouton) {
   const fen = window.open('', '_blank');
   if (bouton) bouton.disabled = true;
   try {
-    const b = await rpc('ps_syndic_bon', { p_session: S.session, p_bon: id });
-    const blob = await PS.pdfBonIntervention(b);
-    if (fen) fen.location = URL.createObjectURL(blob); else PS.telecharger(blob, PS.nomFichierBon(b));
+    const r = await rpc('ps_syndic_bon', { p_session: S.session, p_bon: id }), b = r.bon || r;
+    const blob = await BonPDF.generer(b, r.format);
+    if (fen) fen.location = URL.createObjectURL(blob); else PS.telecharger(blob, BonPDF.nomFichier(b));
   } catch (e) { if (fen) fen.close(); toast(e.message); }
   finally { if (bouton) bouton.disabled = false; }
 }
