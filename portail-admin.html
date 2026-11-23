@@ -76,6 +76,7 @@
       <select id="inFiltre" style="width:auto"><option value="attribuer">À attribuer</option><option value="actives">En cours</option><option value="terminees">Terminées</option><option value="ignorees">Ignorées</option><option value="tout">Toutes</option></select>
       <select id="inSyndic" style="width:auto"></select>
       <input type="search" id="inRecherche" placeholder="Rechercher (client, adresse, référence, n° de bon)" style="flex:1;min-width:200px">
+      <button type="button" class="btn btn-petit" id="inReconnaitre" title="Après avoir créé des cabinets, des gestionnaires ou des mots de reconnaissance">Relancer la reconnaissance</button>
     </div>
     <div class="grille" id="listeInterventions" style="grid-template-columns:1fr;margin-top:10px"></div>
   </section>
@@ -516,6 +517,16 @@ async function chargerInterventions() {
   rendreInterventions();
 }
 ['inFiltre', 'inSyndic'].forEach(id => $(id).onchange = rendreInterventions);
+$('inReconnaitre').onclick = async () => {
+  $('inReconnaitre').disabled = true;
+  try {
+    const r = await appel('ps_admin_interventions_reconnaitre', {});
+    await chargerInterventions();
+    alert(`${r.reconnues} intervention(s) rattachée(s) à leur cabinet.`
+      + (r.gestionnaires ? `\n${r.gestionnaires} intervention(s) attribuée(s) au gestionnaire demandeur.` : '')
+      + (r.restantes ? `\n\n${r.restantes} reste(nt) à attribuer : créez le cabinet ou ses gestionnaires (page Syndics), ou ajoutez des mots de reconnaissance, puis relancez — ou attribuez-les à la main.` : '\n\nPlus rien à attribuer.'));
+  } catch {} finally { $('inReconnaitre').disabled = false; }
+};
 $('inRecherche').oninput = rendreInterventions;
 function rendreInterventions() {
   const f = $('inFiltre').value, sy = $('inSyndic').value, q = $('inRecherche').value.trim().toLowerCase();
