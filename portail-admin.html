@@ -564,7 +564,7 @@ function ouvrirBonAdmin(bonId, i) {
   const s = IN.d.syndics.find(x => x.id === i?.syndic_id);
   $('biTitre').textContent = 'Bon ' + bonId + (i ? ' • ' + (i.titre || i.client || '') : '');
   $('biFormat').value = s?.users.find(u => u.id === i?.gestionnaire_id)?.format_bon || s?.format_bon || 'sansprix';
-  $('biModifier').href = 'https://www.harmonie-electricite.com/app-metier/bon.html?doc=' + encodeURIComponent(bonId);
+  $('biModifier').href = 'https://laruiccim-droid.github.io/harmonie-electricite/bon.html?doc=' + encodeURIComponent(bonId);
   const pdf = async () => { const b = await appel('ps_admin_bon', { p_bon: bonId, p_format: $('biFormat').value }); return { b, blob: await PS.pdfBonIntervention(b) }; };
   $('biVoir').onclick = async () => {
     const fen = window.open('', '_blank');
