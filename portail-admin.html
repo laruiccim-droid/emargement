@@ -555,7 +555,7 @@ $('formInterv').onsubmit = async e => {
 function ouvrirBonAdmin(bonId, i) {
   const s = IN.d.syndics.find(x => x.id === i?.syndic_id);
   $('biTitre').textContent = 'Bon ' + bonId + (i ? ' • ' + (i.titre || i.client || '') : '');
-  $('biFormat').value = s?.format_bon || 'sansprix';
+  $('biFormat').value = s?.users.find(u => u.id === i?.gestionnaire_id)?.format_bon || s?.format_bon || 'sansprix';
   $('biModifier').href = 'https://www.harmonie-electricite.com/app-metier/bon.html?doc=' + encodeURIComponent(bonId);
   const pdf = async () => { const b = await appel('ps_admin_bon', { p_bon: bonId, p_format: $('biFormat').value }); return { b, blob: await PS.pdfBonIntervention(b) }; };
   $('biVoir').onclick = async () => {
@@ -577,6 +577,7 @@ function ouvrirBonAdmin(bonId, i) {
   };
   $('dlgBonI').showModal();
 }
+const FORMATS_BON = { sansprix: 'Sans prix', semi: 'Semi-détaillé (total)', detail: 'Détaillé (prix unitaires)' };
 // Réglages « interventions » dans la page Syndics : reconnaissance, format du bon, e-mails d'avancement.
 async function reglagesInterventionsSyndics() {
   let d; try { d = await rpc('ps_admin_interventions', { p_admin: A.mdp }); } catch { return; }
@@ -586,11 +587,26 @@ async function reglagesInterventionsSyndics() {
     if (z) {
       z.hidden = false;
       z.innerHTML = `<div class="grille-2" style="margin-top:8px"><div><label>Mots de reconnaissance des interventions</label><input type="text" data-rec="${s.id}" value="${esc(s.reconnaissance)}" placeholder="ex. savoieimmolac.fr, savoie immo lac"><div class="aide">Séparés par des virgules : domaine e-mail, nom écrit sur les bons (« S/C … »). Le nom du cabinet et l’e-mail de ses gestionnaires sont déjà reconnus.</div></div>
-        <div><label>Bon visible par le syndic</label><select data-fmt="${s.id}"><option value="sansprix">Sans prix</option><option value="semi">Semi-détaillé (total)</option><option value="detail">Détaillé (prix unitaires)</option></select></div></div>`;
+        <div><label>Bon visible par défaut (tout le cabinet)</label><select data-fmt="${s.id}"><option value="sansprix">Sans prix</option><option value="semi">Semi-détaillé (total)</option><option value="detail">Détaillé (prix unitaires)</option></select></div></div>`;
       z.querySelector('[data-fmt]').value = s.format_bon || 'sansprix';
-      const enr = async () => { try { await appel('ps_admin_syndic_interventions', { p_syndic: s.id, p_reconnaissance: z.querySelector('[data-rec]').value, p_format_bon: z.querySelector('[data-fmt]').value }); toast('Réglage enregistré.'); } catch {} };
+      const enr = async () => { try { await appel('ps_admin_syndic_interventions', { p_syndic: s.id, p_reconnaissance: z.querySelector('[data-rec]').value, p_format_bon: z.querySelector('[data-fmt]').value }); s.format_bon = z.querySelector('[data-fmt]').value; formatsUsers(); toast('Réglage enregistré.'); } catch {} };
       z.querySelector('[data-rec]').onchange = enr; z.querySelector('[data-fmt]').onchange = enr;
     }
+    // Format du bon propre à chaque gestionnaire (vide = format du cabinet)
+    const formatsUsers = () => s.users.forEach(u => {
+      const f = document.querySelector(`[data-fmt-user="${u.id}"]`);
+      if (!f) return;
+      f.hidden = false;
+      const sel = f.querySelector('select'), lib = FORMATS_BON;
+      sel.innerHTML = `<option value="">Format du cabinet (${lib[s.format_bon || 'sansprix']})</option>` + Object.entries(lib).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+      sel.value = u.format_bon || '';
+      sel.onchange = async () => {
+        try { await appel('ps_admin_user_format_bon', { p_user: u.id, p_format: sel.value }); u.format_bon = sel.value || null;
+          toast('Bon visible par ' + (u.nom || u.email) + ' : ' + (sel.value ? lib[sel.value] : 'format du cabinet') + '.'); }
+        catch { sel.value = u.format_bon || ''; }
+      };
+    });
+    if (s.users.some(u => 'format_bon' in u)) formatsUsers();
     s.users.forEach(u => {
       const c = document.querySelector(`[data-mail-user="${u.id}"]`);
       if (!c) return;
@@ -683,7 +699,8 @@ function rendreSyndics() {
     <div data-regl-syndic="${s.id}" hidden></div>
     <ul class="liste" style="margin-top:8px">${s.users.map(u => `<li><div class="principal"><b>${esc(u.nom || u.email)}</b> ${pastilleUser(u)}
         <div class="sous">${esc(u.email)}${u.tel ? ' • ' + esc(u.tel) : ''}${u.derniere_connexion ? ' • dernière connexion ' + horodatage(u.derniere_connexion) : ''}</div>
-        <label class="aide" data-mail-user="${u.id}" hidden style="display:flex;gap:8px;align-items:center;margin-top:4px;text-transform:none;letter-spacing:0"><input type="checkbox" style="width:auto"> E-mails d’avancement (interventions et chantiers)</label></div>
+        <label class="aide" data-mail-user="${u.id}" hidden style="display:flex;gap:8px;align-items:center;margin-top:4px;text-transform:none;letter-spacing:0"><input type="checkbox" style="width:auto"> E-mails d’avancement (interventions et chantiers)</label>
+        <div class="aide" data-fmt-user="${u.id}" hidden style="margin-top:4px">Bon d’intervention visible dans son espace : <select style="width:auto;display:inline-block;padding:4px 8px"></select></div></div>
       <div class="droite">
         <button type="button" class="btn btn-petit" data-inviter="${u.id}">${u.statut === 'actif' ? 'Nouveau lien' : u.invitation ? 'Voir le lien' : 'Créer l’accès'}</button>
         <button type="button" class="btn btn-petit btn-discret" data-modifier-user="${u.id}">Modifier</button>
