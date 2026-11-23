@@ -326,6 +326,118 @@ const PS = (() => {
       <div class="frise-legende"><span>${a.index < 0 ? '' : `Étape ${a.index + 1} / ${a.suite.length} · `}${esc(a.libelle)}</span></div>`;
   }
 
+  // ---------- Interventions (dépannages) : état, carte, bon d'intervention en PDF ----------
+  const INTERV = {
+    planifiee: { lib: 'Planifiée', pc: 25 },
+    en_cours: { lib: 'Intervention en cours', pc: 50 },
+    suite: { lib: 'Nouvelle intervention nécessaire', pc: 60 },
+    suite_planifiee: { lib: 'Nouvelle intervention planifiée', pc: 75 },
+    suite_en_cours: { lib: 'Nouvelle intervention en cours', pc: 85 },
+    terminee: { lib: 'Intervention terminée', pc: 100 } };
+  const dateHeure = t => { const d = new Date(t); return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + (d.getHours() || d.getMinutes() ? ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ' h ') : ''); };
+  // i = intervention ({ titre, adresse, statut, passages… }) ; o.droite = HTML à droite (boutons), o.meta = texte ajouté.
+  function interventionHtml(i, o = {}) {
+    const st = INTERV[i.statut] || { lib: i.statut || '—', pc: 0 };
+    const prochain = (i.passages || []).find(p => !p.bon_valide_le && p.prevu && !p.debut_le);
+    const lignes = (i.passages || []).map((p, n) => {
+      const quand = p.bon_valide_le ? `Le ${esc(p.date_bon || dateCourte(p.bon_valide_le))}${p.heure_debut && p.heure_fin ? ` de ${esc(p.heure_debut)} à ${esc(p.heure_fin)}` : ''}`
+        : p.debut_le ? 'En cours depuis le ' + esc(horodatage(p.debut_le)) : p.prevu ? 'Prévue le ' + esc(dateHeure(p.prevu)) + ' <span class="aide">(date provisoire)</span>' : '';
+      const bon = p.bon ? `<button type="button" class="btn btn-petit" data-bon="${esc(p.bon)}">Bon ${esc(p.numero || p.bon)} (PDF)</button>`
+        : p.bon_brouillon ? `<span class="aide">Bon ${esc(p.bon_brouillon)} en cours</span>` : '';
+      return `<li><div class="principal"><b>${n ? 'Intervention n° ' + (n + 1) : 'Intervention'}</b>${p.suite_requise ? ' <span class="pastille attente">suite nécessaire</span>' : ''}<div class="sous">${quand}${p.duree ? ' • durée ' + esc(p.duree) : ''}</div></div><div class="droite">${bon}</div></li>`;
+    }).join('');
+    return `<div class="carte carte-interv" data-interv="${esc(i.id)}"><div class="haut-carte"><div>
+      <div class="sourcil">${esc(st.lib)}${prochain && /planifiee$/.test(i.statut) ? ' · ' + esc(dateHeure(prochain.prevu)) : ''}</div>
+      <h3>${esc(i.titre || i.client || 'Intervention')}</h3>
+      <div class="meta">${esc([i.client && i.client !== i.titre ? i.client : '', i.adresse].filter(Boolean).join(' — '))}${i.reference ? ' • Réf. ' + esc(i.reference) : ''}${o.meta ? ' • ' + o.meta : ''}</div></div>
+      ${o.droite ? `<div class="droite" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">${o.droite}</div>` : ''}</div>
+      <div class="frise" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${st.pc}"><i style="width:${st.pc}%"></i><span>${st.pc} %</span></div>
+      <ul class="liste" style="margin-top:8px">${lignes}</ul></div>`;
+  }
+  // Bon d'intervention (données de ps_syndic_bon / ps_admin_bon ; prix selon b.format : detail, semi, sansprix).
+  async function pdfBonIntervention(b) {
+    const JsPDF = await jsPdf();
+    const doc = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = 210, H = 297, M = 15, ENC = [23, 24, 28], GRIS = [107, 102, 88], OR = [168, 132, 63], FILET = [217, 212, 200];
+    const T = (t, x, y, o = {}) => { doc.setFont('helvetica', o.b ? 'bold' : 'normal'); doc.setFontSize(o.s || 10); doc.setTextColor(...(o.c || ENC)); doc.text(t, x, y, o.al ? { align: o.al } : undefined); };
+    const eur = v => v == null || v === '' ? '' : Number(v).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    let y = 16;
+    const place = h => { if (y + h > H - 18) { doc.addPage(); y = 18; } };
+    if (typeof LOGO_NOIR_OR !== 'undefined') { try { doc.addImage(LOGO_NOIR_OR, 'PNG', M, y - 4, 42, 42 * LOGO_NOIR_OR_RATIO); } catch {} }
+    else T(ENTREPRISE.nom, M, y + 4, { s: 14, b: true });
+    T('BON D’INTERVENTION', W - M, y, { s: 8.5, c: OR, al: 'right' });
+    T('N° ' + (b.numero || ''), W - M, y + 7, { s: 14, b: true, al: 'right' });
+    T('Le ' + (b.date || '') + (b.show_heures !== false && b.heure_debut ? ` • ${b.heure_debut} – ${b.heure_fin || ''}` : '') + (b.duree ? ` • ${b.duree}` : ''), W - M, y + 12.5, { s: 8.5, c: GRIS, al: 'right' });
+    y += 24;
+    [ENTREPRISE.adresse, [ENTREPRISE.tel, ENTREPRISE.email].join(' • ')].forEach(l => { T(l, M, y, { s: 8, c: GRIS }); y += 4; });
+    y += 3;
+    doc.setDrawColor(...FILET); doc.setLineWidth(0.2); doc.line(M, y - 3, W - M, y - 3);
+    const bloc = (titre, texte) => {
+      if (!texte) return;
+      const l = doc.splitTextToSize(String(texte), W - 2 * M - 4);
+      place(10);
+      T(titre, M, y, { s: 8, b: true, c: OR }); y += 5;
+      for (const x of l) { place(5); T(x, M, y, { s: 10 }); y += 4.8; }
+      y += 3;
+    };
+    bloc('CLIENT', [b.client, b.adresse, b.adresse_facturation && b.adresse_facturation !== b.adresse ? 'Facturation : ' + b.adresse_facturation : '', b.reference ? 'Votre référence : ' + b.reference : ''].filter(Boolean).join('\n'));
+    bloc('MOTIF DE L’INTERVENTION', b.motif);
+    bloc('TRAVAUX RÉALISÉS', b.rapport);
+    if ((b.lignes || []).length) {
+      const prix = b.format === 'detail', tot = b.format !== 'sansprix', xQ = prix ? 140 : W - M - 2;
+      place(14); T('FOURNITURES ET MAIN D’ŒUVRE', M, y, { s: 8, b: true, c: OR }); y += 5;
+      doc.setFillColor(243, 235, 221); doc.rect(M, y - 4, W - 2 * M, 6.5, 'F');
+      T('Désignation', M + 2, y, { s: 8, b: true }); T('Qté', xQ, y, { s: 8, b: true, al: 'right' });
+      if (prix) { T('P.U. HT', 165, y, { s: 8, b: true, al: 'right' }); T('Total HT', W - M - 2, y, { s: 8, b: true, al: 'right' }); }
+      y += 6;
+      for (const l of b.lignes) {
+        const nom = doc.splitTextToSize(String(l.nom || ''), prix ? 105 : W - 2 * M - 30);
+        place(nom.length * 4.6 + 2);
+        T(nom, M + 2, y, { s: 9.5 }); T(String(l.qty ?? '') + (l.unite && l.unite !== 'U' ? ' ' + l.unite : ''), xQ, y, { s: 9.5, al: 'right' });
+        if (prix) { T(eur(l.pu), 165, y, { s: 9.5, al: 'right' }); T(eur((Number(l.pu) || 0) * (Number(l.qty) || 0)), W - M - 2, y, { s: 9.5, al: 'right' }); }
+        y += nom.length * 4.6 + 1.5; doc.setDrawColor(...FILET); doc.line(M, y - 3.2, W - M, y - 3.2);
+      }
+      if (tot && b.total_ht != null) {
+        place(18); y += 2;
+        [['Total HT', b.total_ht], [`TVA ${b.tva ?? ''} %`, b.total_tva], ['Total TTC', b.total_ttc]].forEach(([k, v], n) => {
+          T(k, 160, y, { s: 9.5, b: n === 2, al: 'right' }); T(eur(v), W - M - 2, y, { s: 9.5, b: n === 2, al: 'right' }); y += 5; });
+      }
+      y += 3;
+    }
+    if (b.suite_requise) { place(10); T('Une nouvelle intervention est nécessaire.', M, y, { s: 10, b: true, c: OR }); y += 8; }
+    if (b.sig_intervenant || b.sig_client) {
+      place(42);
+      [['Le technicien', b.sig_intervenant, M], ['Le client', b.sig_client, W / 2 + 5]].forEach(([k, img, x]) => {
+        T(k, x, y, { s: 8, b: true, c: OR });
+        if (img) { try { doc.addImage(img, 'PNG', x, y + 2, 60, 26); } catch {} }
+      });
+      y += 34;
+    }
+    const photos = b.photos || [];
+    if (photos.length) {
+      place(12); T('PHOTOS', M, y, { s: 8, b: true, c: OR }); y += 4;
+      const lw = (W - 2 * M - 6) / 2;
+      let hLigne = 0;
+      for (let n = 0; n < photos.length; n++) {
+        try {
+          const blob = await (await fetch(photos[n].url)).blob();
+          const data = await new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(blob); });
+          const im = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = data; });
+          const h = Math.min(lw * im.height / im.width, 90), x = M + (n % 2) * (lw + 6);
+          if (n % 2 === 0) { place(h + 8); hLigne = 0; }
+          doc.addImage(data, 'JPEG', x, y, h * im.width / im.height, h);
+          if (photos[n].legende) T(doc.splitTextToSize(photos[n].legende, lw)[0], x, y + h + 4, { s: 8, c: GRIS });
+          hLigne = Math.max(hLigne, h);
+        } catch {}
+        if (n % 2 === 1 || n === photos.length - 1) y += hLigne + 9;
+      }
+    }
+    const n = doc.getNumberOfPages();
+    for (let p = 1; p <= n; p++) { doc.setPage(p); T(`${ENTREPRISE.nom} • ${ENTREPRISE.web} • Bon ${b.numero || ''} • page ${p} / ${n}`, M, H - 8, { s: 7, c: GRIS }); }
+    return doc.output('blob');
+  }
+  const nomFichierBon = b => `Bon d'intervention ${b.numero || ''} - ${b.client || ''}.pdf`.replace(/[\\/:*?"<>|]+/g, ' ');
+
   const appt = l => l.numero ? 'Appt ' + l.numero : l.lot ? 'Lot ' + l.lot : 'Appartement';
   const STATUTS_BADGE = { stock: 'En stock', reserve: 'Réservé', remis: 'Remis', perdu: 'Perdu', desactive: 'Désactivé' };
 
@@ -997,5 +1109,5 @@ const PS = (() => {
   }
 
   return { rpc, $, repliable, esc, horodatage, dateCourte, estTel, lienSms, toast, copier, chargerScript, pad, photoCompressee, tamponDetoure, analyserNumeros, qrSvg,
-    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, datesIntervention, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, pdfFicheNouveauBadge, nomFicheNouveauBadge, emailsChantier, envoyerFicheNouveauBadge, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE };
+    urlPage, lienSignature, SUPA_URL, SUPA_KEY, QUALITES, ETATS, STATUTS_BADGE, pdfRemise, nomFichierRemise, pdfCommande, nomFichierCommande, euros, dureeTexte, datesIntervention, texteRdvMail, QUALITES_COMMANDE, pastilleQualite, avancement, friseHtml, icsBlob, pdfAffiche, appt, vueAppartements, messageErreur, pdfFicheNouveauSysteme, pdfFicheNouveauBadge, nomFicheNouveauBadge, emailsChantier, envoyerFicheNouveauBadge, texteRecensement, pdfLettresRecensement, envoiGmail, lienGoogleAgenda, pdfTableau, telecharger, imprimer, envoyerParEmail, ENTREPRISE, INTERV, interventionHtml, pdfBonIntervention, nomFichierBon };
 })();

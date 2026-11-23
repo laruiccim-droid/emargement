@@ -51,6 +51,7 @@
     <div class="grille" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <button type="button" class="carte" data-aller="chantiers"><div class="sourcil">Copropriétés</div><h3>Chantiers</h3><div class="meta" id="resumeChantiers"></div></button>
       <button type="button" class="carte" data-aller="syndics"><div class="sourcil">Cabinets et gestionnaires</div><h3>Syndics</h3><div class="meta" id="resumeSyndics"></div></button>
+      <button type="button" class="carte" data-aller="interventions"><div class="sourcil">Dépannages et bons</div><h3>Interventions</h3><div class="meta" id="resumeInterv">Suivi, attribution aux syndics, bons</div></button>
       <button type="button" class="carte" data-aller="catalogue"><div class="sourcil">Matériel proposé</div><h3>Catalogue</h3><div class="meta">Photos, descriptions, prix, brochures</div></button>
       <a class="carte" href="index.html" style="text-decoration:none"><div class="sourcil">Pose et signatures</div><h3>Émargement</h3><div class="meta">Retour à l’app du technicien</div></a>
     </div>
@@ -64,6 +65,19 @@
       <button type="button" class="btn btn-or" id="caNouvelArticle">+ Nouvel article</button></div>
     <div class="grille-2" style="margin-top:10px"><div><label for="caMarque">Marque</label><select id="caMarque"></select></div></div>
     <ul class="liste" id="caArticles" style="margin-top:10px"></ul>
+  </section>
+
+  <!-- Interventions -->
+  <section id="vInterventions" hidden>
+    <button type="button" class="btn btn-discret btn-petit" data-aller="accueil">‹ Accueil</button>
+    <div class="titre-ligne" style="margin-top:8px"><div><div class="sourcil">Dépannages de l’app métier</div><h1>Interventions et bons</h1></div></div>
+    <p class="aide">Alimenté automatiquement : rendez-vous de l’agenda (« planifiée »), timer lancé (« en cours »), bon validé (« terminée » ou « nouvelle intervention nécessaire »). Le cabinet est reconnu par l’e-mail du demandeur ou les mots de reconnaissance du syndic (page Syndics).</p>
+    <div class="actions" style="margin-top:6px;align-items:center">
+      <select id="inFiltre" style="width:auto"><option value="attribuer">À attribuer</option><option value="actives">En cours</option><option value="terminees">Terminées</option><option value="ignorees">Ignorées</option><option value="tout">Toutes</option></select>
+      <select id="inSyndic" style="width:auto"></select>
+      <input type="search" id="inRecherche" placeholder="Rechercher (client, adresse, référence, n° de bon)" style="flex:1;min-width:200px">
+    </div>
+    <div class="grille" id="listeInterventions" style="grid-template-columns:1fr;margin-top:10px"></div>
   </section>
 
   <!-- Syndics -->
@@ -233,6 +247,25 @@
   <p class="message" id="usMessage"></p>
 </form></dialog>
 
+<!-- Attribution d'une intervention -->
+<dialog id="dlgInterv"><form class="dlg" id="formInterv">
+  <div class="sourcil">Attribuer ou transférer</div><h3 id="itTitre"></h3>
+  <p class="aide" id="itDemandeur"></p>
+  <label for="itSyndic">Syndic</label><select id="itSyndic"></select>
+  <label for="itGest">Gestionnaire</label><select id="itGest"></select>
+  <p class="aide">Sans gestionnaire attitré, la demande apparaît dans « Toutes les demandes » de chaque gestionnaire du cabinet. Le domaine de l’e-mail du demandeur est retenu pour reconnaître automatiquement ses prochaines demandes.</p>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Annuler</button><button type="submit" class="btn btn-or">Enregistrer</button></div>
+</form></dialog>
+
+<!-- Bon d'intervention -->
+<dialog id="dlgBonI"><div class="dlg">
+  <div class="sourcil">Bon d’intervention</div><h3 id="biTitre"></h3>
+  <label for="biFormat">Format</label>
+  <select id="biFormat"><option value="detail">Détaillé (prix unitaires)</option><option value="semi">Semi-détaillé (quantités, total)</option><option value="sansprix">Sans prix</option></select>
+  <div class="actions"><button type="button" class="btn btn-or" id="biVoir">Voir le PDF</button><button type="button" class="btn" id="biMail">Envoyer par e-mail</button><a class="btn" id="biModifier" target="_blank" rel="noopener">Modifier dans l’app métier</a></div>
+  <div class="actions"><button type="button" class="btn btn-discret" data-fermer>Fermer</button></div>
+</div></dialog>
+
 <!-- Invitation -->
 <dialog id="dlgInvitation"><div class="dlg">
   <div class="sourcil">Accès syndic</div><h3 id="ivTitre"></h3>
@@ -374,7 +407,7 @@
 </form></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=52"></script>
+<script src="portail-commun.js?v=53"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -383,7 +416,7 @@ const { SUPA_URL, SUPA_KEY } = PS;
 const A = { mdp: '', etat: null, copro: null, detail: null, edition: null, syndicPourUser: null, apercu: [], fichierLignes: null };
 let lvPad = null;
 
-const vues = ['vChargement', 'vAdmin', 'vAccueil', 'vSyndics', 'vChantiers', 'vChantier', 'vCatalogue'];
+const vues = ['vChargement', 'vAdmin', 'vAccueil', 'vSyndics', 'vChantiers', 'vChantier', 'vCatalogue', 'vInterventions'];
 function montrer(v) { vues.forEach(x => { $(x).hidden = x !== v; }); $('btnVerrouiller').hidden = !A.mdp; window.scrollTo({ top: 0 }); }
 function msg(id, t, err = true) { $(id).textContent = t || ''; $(id).className = 'message' + (err ? ' erreur' : ''); }
 document.querySelectorAll('dialog [data-fermer]').forEach(b => b.onclick = () => b.closest('dialog').close());
@@ -459,7 +492,114 @@ document.querySelectorAll('[data-aller]').forEach(b => b.onclick = async () => {
   if (v === 'syndics') { await charger().catch(() => {}); rendreSyndics(); montrer('vSyndics'); }
   if (v === 'chantiers') { await charger().catch(() => {}); rendreChantiers(); montrer('vChantiers'); }
   if (v === 'catalogue') { await chargerCatalogue(); montrer('vCatalogue'); }
+  if (v === 'interventions') { await chargerInterventions(); montrer('vInterventions'); }
 });
+
+// ---------- Interventions (dépannages de l'app métier) ----------
+const IN = { d: null };
+async function chargerInterventions() {
+  try { IN.d = await appel('ps_admin_interventions', {}); } catch { IN.d = { interventions: [], syndics: [] }; }
+  const av = $('inSyndic').value;
+  $('inSyndic').innerHTML = '<option value="">Tous les syndics</option>' + IN.d.syndics.map(s => `<option value="${s.id}">${esc(s.nom)}</option>`).join('');
+  $('inSyndic').value = av;
+  const n = IN.d.interventions.filter(i => i.a_attribuer && !i.ignoree).length;
+  if (n && !IN.vu) { $('inFiltre').value = 'attribuer'; IN.vu = true; } else if (!IN.vu) { $('inFiltre').value = 'actives'; IN.vu = true; }
+  $('resumeInterv').textContent = (n ? `${n} à attribuer • ` : '') + `${IN.d.interventions.filter(i => !i.ignoree && i.statut !== 'terminee').length} en cours`;
+  rendreInterventions();
+}
+['inFiltre', 'inSyndic'].forEach(id => $(id).onchange = rendreInterventions);
+$('inRecherche').oninput = rendreInterventions;
+function rendreInterventions() {
+  const f = $('inFiltre').value, sy = $('inSyndic').value, q = $('inRecherche').value.trim().toLowerCase();
+  const nomS = id => IN.d.syndics.find(s => s.id === id)?.nom || '';
+  const nomG = (sid, gid) => { const u = IN.d.syndics.find(s => s.id === sid)?.users.find(u => u.id === gid); return u ? u.nom || u.email : ''; };
+  const l = IN.d.interventions.filter(i =>
+      (f === 'tout' || (f === 'ignorees' ? i.ignoree : !i.ignoree && (f === 'attribuer' ? i.a_attribuer : f === 'terminees' ? i.statut === 'terminee' : i.statut !== 'terminee')))
+      && (!sy || i.syndic_id === sy)
+      && (!q || [i.titre, i.client, i.adresse, i.reference, i.demandeur, nomS(i.syndic_id), ...(i.passages || []).map(p => p.numero || p.bon_brouillon)].join(' ').toLowerCase().includes(q)));
+  $('listeInterventions').innerHTML = l.length ? l.map(i => PS.interventionHtml(i, {
+      meta: i.syndic_id ? esc(nomS(i.syndic_id) + (i.gestionnaire_id ? ' • ' + nomG(i.syndic_id, i.gestionnaire_id) : ' • tous les gestionnaires')) : '<b>À attribuer</b>' + (i.demandeur ? ' • ' + esc(i.demandeur) : ''),
+      droite: `<button type="button" class="btn btn-petit ${i.a_attribuer ? 'btn-or' : ''}" data-it-attr="${i.id}">${i.syndic_id ? 'Transférer' : 'Attribuer'}</button>`
+        + `<button type="button" class="btn btn-petit btn-discret" data-it-ign="${i.id}" data-val="${!i.ignoree}">${i.ignoree ? 'Rétablir' : 'Ignorer'}</button>` })).join('')
+    : '<div class="vide">Aucune intervention dans cette liste.</div>';
+  const parId = id => IN.d.interventions.find(i => i.id === id);
+  $('listeInterventions').querySelectorAll('[data-it-attr]').forEach(b => b.onclick = () => ouvrirAttribution(parId(b.dataset.itAttr)));
+  $('listeInterventions').querySelectorAll('[data-it-ign]').forEach(b => b.onclick = async () => {
+    try { await appel('ps_admin_intervention_ignorer', { p_id: b.dataset.itIgn, p_ignorer: b.dataset.val === 'true' }); await chargerInterventions(); } catch {}
+  });
+  $('listeInterventions').querySelectorAll('[data-bon]').forEach(b => b.onclick = () => ouvrirBonAdmin(b.dataset.bon, parId(b.closest('[data-interv]').dataset.interv)));
+  // Bons en cours de rédaction : ouverture dans l'app métier
+}
+function ouvrirAttribution(i) {
+  IN.edition = i;
+  $('itTitre').textContent = i.titre || i.client || 'Intervention';
+  $('itDemandeur').textContent = i.demandeur ? 'Demandeur : ' + i.demandeur : '';
+  $('itSyndic').innerHTML = IN.d.syndics.map(s => `<option value="${s.id}">${esc(s.nom)}</option>`).join('');
+  $('itSyndic').value = i.syndic_id || IN.d.syndics[0]?.id || '';
+  const gests = () => {
+    const s = IN.d.syndics.find(x => x.id === $('itSyndic').value);
+    $('itGest').innerHTML = '<option value="">Tous les gestionnaires du cabinet</option>' + (s?.users || []).filter(u => u.actif).map(u => `<option value="${u.id}">${esc(u.nom || u.email)}</option>`).join('');
+    const auto = (s?.users || []).find(u => u.email.toLowerCase() === (i.demandeur || '').toLowerCase());
+    $('itGest').value = s && s.id === i.syndic_id && i.gestionnaire_id ? i.gestionnaire_id : auto?.id || '';
+  };
+  $('itSyndic').onchange = gests; gests();
+  $('dlgInterv').showModal();
+}
+$('formInterv').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    await appel('ps_admin_intervention_attribuer', { p_id: IN.edition.id, p_syndic: $('itSyndic').value, p_gestionnaire: $('itGest').value || null });
+    $('dlgInterv').close(); toast('Intervention attribuée.'); await chargerInterventions();
+  } catch {}
+};
+function ouvrirBonAdmin(bonId, i) {
+  const s = IN.d.syndics.find(x => x.id === i?.syndic_id);
+  $('biTitre').textContent = 'Bon ' + bonId + (i ? ' • ' + (i.titre || i.client || '') : '');
+  $('biFormat').value = s?.format_bon || 'sansprix';
+  $('biModifier').href = 'https://www.harmonie-electricite.com/app-metier/bon.html?doc=' + encodeURIComponent(bonId);
+  const pdf = async () => { const b = await appel('ps_admin_bon', { p_bon: bonId, p_format: $('biFormat').value }); return { b, blob: await PS.pdfBonIntervention(b) }; };
+  $('biVoir').onclick = async () => {
+    const fen = window.open('', '_blank');
+    try { const { b, blob } = await pdf(); if (fen) fen.location = URL.createObjectURL(blob); else PS.telecharger(blob, PS.nomFichierBon(b)); } catch { if (fen) fen.close(); }
+  };
+  $('biMail').onclick = async () => {
+    const g = s?.users.find(u => u.id === i?.gestionnaire_id);
+    const dest = prompt('Adresse e-mail du destinataire :', g?.email || i?.demandeur || '');
+    if (!dest) return;
+    $('biMail').disabled = true;
+    try {
+      const { b, blob } = await pdf();
+      const err = await PS.envoiGmail(dest.trim(), `Bon d’intervention ${b.numero} — ${b.client || i?.titre || ''}`,
+        `Bonjour,\n\nVous trouverez ci-joint le bon d’intervention **${b.numero}** du ${b.date || ''}${b.adresse ? ' (' + b.adresse + ')' : ''}.${b.suite_requise ? '\n\nUne nouvelle intervention est nécessaire : nous revenons vers vous pour la planifier.' : ''}\n\nCordialement,`,
+        blob, PS.nomFichierBon(b));
+      toast(err ? 'E-mail non envoyé : ' + err : 'Bon envoyé à ' + dest.trim(), 6000);
+    } catch {} finally { $('biMail').disabled = false; }
+  };
+  $('dlgBonI').showModal();
+}
+// Réglages « interventions » dans la page Syndics : reconnaissance, format du bon, e-mails d'avancement.
+async function reglagesInterventionsSyndics() {
+  let d; try { d = await rpc('ps_admin_interventions', { p_admin: A.mdp }); } catch { return; }
+  IN.d = d;
+  d.syndics.forEach(s => {
+    const z = document.querySelector(`[data-regl-syndic="${s.id}"]`);
+    if (z) {
+      z.hidden = false;
+      z.innerHTML = `<div class="grille-2" style="margin-top:8px"><div><label>Mots de reconnaissance des interventions</label><input type="text" data-rec="${s.id}" value="${esc(s.reconnaissance)}" placeholder="ex. savoieimmolac.fr, savoie immo lac"><div class="aide">Séparés par des virgules : domaine e-mail, nom écrit sur les bons (« S/C … »). Le nom du cabinet et l’e-mail de ses gestionnaires sont déjà reconnus.</div></div>
+        <div><label>Bon visible par le syndic</label><select data-fmt="${s.id}"><option value="sansprix">Sans prix</option><option value="semi">Semi-détaillé (total)</option><option value="detail">Détaillé (prix unitaires)</option></select></div></div>`;
+      z.querySelector('[data-fmt]').value = s.format_bon || 'sansprix';
+      const enr = async () => { try { await appel('ps_admin_syndic_interventions', { p_syndic: s.id, p_reconnaissance: z.querySelector('[data-rec]').value, p_format_bon: z.querySelector('[data-fmt]').value }); toast('Réglage enregistré.'); } catch {} };
+      z.querySelector('[data-rec]').onchange = enr; z.querySelector('[data-fmt]').onchange = enr;
+    }
+    s.users.forEach(u => {
+      const c = document.querySelector(`[data-mail-user="${u.id}"]`);
+      if (!c) return;
+      c.hidden = false;
+      const cb = c.querySelector('input'); cb.checked = u.mail_avancement !== false;
+      cb.onchange = async () => { try { await appel('ps_admin_user_mail_avancement', { p_user: u.id, p_actif: cb.checked }); toast(cb.checked ? 'E-mails d’avancement activés.' : 'E-mails d’avancement désactivés.'); } catch { cb.checked = !cb.checked; } };
+    });
+  });
+}
 
 // ---------- Catalogue : photos, descriptions, prix, brochures et notices ----------
 const CT = { articles: [], edition: null, fichiers: {} };
@@ -540,14 +680,17 @@ function rendreSyndics() {
     <div class="titre-ligne" style="margin:0"><div><h3>${esc(s.nom)}</h3><div class="aide">${esc([s.adresse, [s.cp, s.ville].filter(Boolean).join(' '), s.tel, s.email].filter(Boolean).join(' • ')) || 'Coordonnées à compléter'}</div>
       <div class="aide">${A.etat.copros.filter(c => c.syndic_id === s.id).map(c => esc(c.nom)).join(', ') || 'Aucun chantier lié'}</div></div>
       <div class="droite" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-petit" data-modifier-syndic="${s.id}">Modifier</button><button type="button" class="btn btn-petit btn-danger" data-suppr-syndic="${s.id}">Supprimer</button><button type="button" class="btn btn-petit btn-or" data-ajouter-user="${s.id}">+ Gestionnaire</button></div></div>
+    <div data-regl-syndic="${s.id}" hidden></div>
     <ul class="liste" style="margin-top:8px">${s.users.map(u => `<li><div class="principal"><b>${esc(u.nom || u.email)}</b> ${pastilleUser(u)}
-        <div class="sous">${esc(u.email)}${u.tel ? ' • ' + esc(u.tel) : ''}${u.derniere_connexion ? ' • dernière connexion ' + horodatage(u.derniere_connexion) : ''}</div></div>
+        <div class="sous">${esc(u.email)}${u.tel ? ' • ' + esc(u.tel) : ''}${u.derniere_connexion ? ' • dernière connexion ' + horodatage(u.derniere_connexion) : ''}</div>
+        <label class="aide" data-mail-user="${u.id}" hidden style="display:flex;gap:8px;align-items:center;margin-top:4px;text-transform:none;letter-spacing:0"><input type="checkbox" style="width:auto"> E-mails d’avancement (interventions et chantiers)</label></div>
       <div class="droite">
         <button type="button" class="btn btn-petit" data-inviter="${u.id}">${u.statut === 'actif' ? 'Nouveau lien' : u.invitation ? 'Voir le lien' : 'Créer l’accès'}</button>
         <button type="button" class="btn btn-petit btn-discret" data-modifier-user="${u.id}">Modifier</button>
         <button type="button" class="btn btn-petit btn-discret" data-actif="${u.id}" data-val="${!u.actif}">${u.actif ? 'Désactiver' : 'Réactiver'}</button>
         <button type="button" class="btn btn-petit btn-danger" data-suppr-user="${u.id}" data-nom="${esc(u.nom || u.email)}">Supprimer</button></div></li>`).join('') || '<li><span class="aide">Aucun gestionnaire : ajoutez-en un pour lui créer un accès.</span></li>'}</ul>
   </div>`).join('') : '<div class="vide">Aucun syndic. Créez le premier cabinet.</div>';
+  reglagesInterventionsSyndics();
   document.querySelectorAll('[data-modifier-syndic]').forEach(b => b.onclick = () => ouvrirSyndic(ss.find(s => s.id === b.dataset.modifierSyndic)));
   // Suppression d'un syndic : ses gestionnaires partent avec lui ; ses chantiers seulement si on le confirme en tapant son nom.
   document.querySelectorAll('[data-suppr-syndic]').forEach(b => b.onclick = async () => {

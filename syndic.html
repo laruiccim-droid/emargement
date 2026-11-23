@@ -153,6 +153,13 @@
       <p class="aide">Ou importez une photo de votre signature sur une feuille blanche : le fond blanc est retiré automatiquement, comme pour le tampon.</p>
     </div>
 
+    <div class="bloc" id="pMailBloc" hidden>
+      <h2>E-mails d’avancement</h2>
+      <label style="display:flex;gap:10px;align-items:center;margin-top:8px;text-transform:none;letter-spacing:0;font-size:14px"><input type="checkbox" id="pMail" style="width:auto">
+        Recevoir un e-mail à chaque étape de mes interventions (planifiée, terminée, nouvelle intervention nécessaire) et de mes chantiers</label>
+      <p class="aide">Le réglage est enregistré dès que vous cochez ou décochez la case.</p>
+    </div>
+
     <div class="bloc" id="pMdpBloc" hidden>
       <h2>Changer de mot de passe</h2>
       <div class="grille-2" style="margin-top:10px">
@@ -171,8 +178,25 @@
 
   <!-- Accueil : copropriétés -->
   <section id="vAccueil" hidden>
-    <div class="titre-ligne"><div><div class="sourcil">Vos copropriétés</div><h1>Chantiers</h1></div></div>
-    <div class="grille" id="listeCopros"></div>
+    <div class="onglets" role="tablist" style="margin-top:0">
+      <button type="button" role="tab" data-espace="chantiers" aria-selected="true">Chantiers</button>
+      <button type="button" role="tab" data-espace="interventions" aria-selected="false">Interventions <span id="nbIntervActives"></span></button>
+    </div>
+    <div id="espChantiers">
+      <div class="titre-ligne" style="margin-top:14px"><div><div class="sourcil">Vos copropriétés</div><h1>Chantiers</h1></div></div>
+      <div class="grille" id="listeCopros"></div>
+    </div>
+    <div id="espInterventions" hidden>
+      <div class="titre-ligne" style="margin-top:14px"><div><div class="sourcil">Dépannages et interventions d’Harmonie Électricité</div><h1>Interventions</h1></div></div>
+      <div class="actions" style="margin-top:0;align-items:center">
+        <button type="button" class="btn btn-petit" data-filtre-i="miennes">Mes demandes</button>
+        <button type="button" class="btn btn-petit" data-filtre-i="toutes">Toutes les demandes</button>
+        <select id="iEtat" style="width:auto"><option value="actives">En cours</option><option value="terminees">Terminées</option><option value="tout">Toutes</option></select>
+        <input type="search" id="iRecherche" placeholder="Rechercher (résidence, adresse, référence, n° de bon)" style="flex:1;min-width:200px">
+      </div>
+      <p class="aide" id="iAide"></p>
+      <div class="grille" id="listeInterv" style="grid-template-columns:1fr"></div>
+    </div>
   </section>
 
   <!-- Copropriété -->
@@ -511,7 +535,7 @@
 </div></dialog>
 
 <script src="logos.js?v=2"></script>
-<script src="portail-commun.js?v=52"></script>
+<script src="portail-commun.js?v=53"></script>
 <script>
 'use strict';
 const { rpc, $, esc, horodatage, dateCourte, toast } = PS;
@@ -617,6 +641,8 @@ function ouvrirProfil(premier) {
   $('pSourcil').textContent = premier ? 'Premier démarrage' : 'Paramètres';
   $('pTitre').textContent = premier ? 'Votre cabinet' : s.nom;
   $('pEtapes').hidden = !premier; $('pAnnuler').hidden = premier; $('pMdpBloc').hidden = premier;
+  $('pMailBloc').hidden = true;
+  if (!premier) rpc('ps_syndic_interventions', { p_session: S.session }).then(d => { $('pMail').checked = d.mail_avancement !== false; $('pMailBloc').hidden = false; }).catch(() => {});
   $('pEnregistrer').textContent = premier ? 'Enregistrer et commencer' : 'Enregistrer';
   [['pNom', s.nom], ['pSiret', s.siret], ['pAdresse', s.adresse], ['pCp', s.cp], ['pVille', s.ville], ['pTel', s.tel], ['pEmail', s.email],
     ['pUserNom', u.nom], ['pUserTel', u.tel], ['pSignataire', s.signataire || u.nom]].forEach(([id, v]) => { $(id).value = v || ''; });
@@ -650,6 +676,11 @@ $('pSignatureFichier').onchange = async e => {
   try { padProfil.poser(await PS.tamponDetoure(f)); majEtapes(); toast('Signature importée.'); } catch (err) { toast(err.message); }
 };
 $('pAnnuler').onclick = () => rendreAccueil();
+$('pMail').onchange = async () => {
+  try { await rpc('ps_syndic_mail_avancement', { p_session: S.session, p_actif: $('pMail').checked });
+    toast($('pMail').checked ? 'E-mails d’avancement activés.' : 'E-mails d’avancement désactivés.'); }
+  catch (e) { $('pMail').checked = !$('pMail').checked; toast(e.message); }
+};
 $('btnParametres').onclick = () => ouvrirProfil(false);
 $('pEnregistrer').onclick = async () => {
   if (!$('pNom').value.trim() || !$('pAdresse').value.trim()) return message('pMessage', 'Indiquez au moins la raison sociale et l’adresse du cabinet.');
@@ -692,6 +723,59 @@ function rendreAccueil() {
   document.querySelectorAll('#listeCopros [data-copro]').forEach(b => { b.onclick = () => ouvrirCopro(b.dataset.copro); b.onkeydown = e => { if (e.key === 'Enter') ouvrirCopro(b.dataset.copro); }; });
   brancherRaccourcis($('listeCopros'));
   montrer('vAccueil');
+  choisirEspace(S.espace);
+}
+
+// ---------- Espace « Interventions » ----------
+try { S.espace = localStorage.getItem('ps_espace') || 'chantiers'; } catch { S.espace = 'chantiers'; }
+S.etatI = 'actives';
+function choisirEspace(e) {
+  S.espace = e === 'interventions' ? 'interventions' : 'chantiers';
+  try { localStorage.setItem('ps_espace', S.espace); } catch {}
+  document.querySelectorAll('[data-espace]').forEach(b => b.setAttribute('aria-selected', b.dataset.espace === S.espace));
+  $('espChantiers').hidden = S.espace !== 'chantiers'; $('espInterventions').hidden = S.espace !== 'interventions';
+  chargerInterventions();
+}
+document.querySelectorAll('[data-espace]').forEach(b => b.onclick = () => choisirEspace(b.dataset.espace));
+document.querySelectorAll('[data-filtre-i]').forEach(b => b.onclick = () => { S.filtreI = b.dataset.filtreI; rendreInterventions(); });
+$('iEtat').onchange = () => { S.etatI = $('iEtat').value; rendreInterventions(); };
+$('iRecherche').oninput = () => rendreInterventions();
+async function chargerInterventions() {
+  try { S.interv = await rpc('ps_syndic_interventions', { p_session: S.session }); }
+  catch (e) { S.interv = null; $('nbIntervActives').textContent = ''; $('listeInterv').innerHTML = '<div class="vide">Le suivi des interventions sera bientôt disponible.</div>'; return; }
+  if (!S.filtreI) S.filtreI = S.interv.interventions.some(i => i.gestionnaire_id === S.interv.moi) ? 'miennes' : 'toutes';
+  const n = S.interv.interventions.filter(i => i.statut !== 'terminee').length;
+  $('nbIntervActives').textContent = n ? `(${n})` : '';
+  if (S.espace === 'interventions') rendreInterventions();
+}
+function rendreInterventions() {
+  const d = S.interv; if (!d) return;
+  const toutes = d.interventions, miennes = toutes.filter(i => i.gestionnaire_id === d.moi), sans = toutes.filter(i => !i.gestionnaire_id);
+  document.querySelectorAll('[data-filtre-i]').forEach(b => {
+    b.classList.toggle('btn-or', b.dataset.filtreI === S.filtreI);
+    b.textContent = (b.dataset.filtreI === 'miennes' ? 'Mes demandes' : 'Toutes les demandes') + ` (${(b.dataset.filtreI === 'miennes' ? miennes : toutes).length})`;
+  });
+  $('iEtat').value = S.etatI;
+  $('iAide').textContent = S.filtreI === 'toutes' && sans.length
+    ? `${sans.length} demande${sans.length > 1 ? 's' : ''} sans gestionnaire attitré : demandeur sans espace personnel. Elle${sans.length > 1 ? 's' : ''} lui reviendr${sans.length > 1 ? 'ont' : 'a'} quand il activera son espace.` : '';
+  const q = $('iRecherche').value.trim().toLowerCase();
+  const l = (S.filtreI === 'miennes' ? miennes : toutes)
+    .filter(i => S.etatI === 'tout' || (S.etatI === 'terminees') === (i.statut === 'terminee'))
+    .filter(i => !q || [i.titre, i.client, i.adresse, i.reference, ...(i.passages || []).map(p => p.numero)].join(' ').toLowerCase().includes(q));
+  $('listeInterv').innerHTML = l.length ? l.map(i => PS.interventionHtml(i, {
+      meta: S.filtreI === 'toutes' ? esc(i.gestionnaire_id ? 'Suivi par ' + (d.gestionnaires[i.gestionnaire_id] || '') : 'Sans gestionnaire attitré') : '' })).join('')
+    : `<div class="vide">${q ? 'Aucune intervention ne correspond à la recherche.' : S.etatI === 'terminees' ? 'Aucune intervention terminée.' : 'Aucune intervention en cours. Les interventions apparaissent ici dès qu’elles sont planifiées.'}</div>`;
+  $('listeInterv').querySelectorAll('[data-bon]').forEach(b => b.onclick = () => ouvrirBonIntervention(b.dataset.bon, b));
+}
+async function ouvrirBonIntervention(id, bouton) {
+  const fen = window.open('', '_blank');
+  if (bouton) bouton.disabled = true;
+  try {
+    const b = await rpc('ps_syndic_bon', { p_session: S.session, p_bon: id });
+    const blob = await PS.pdfBonIntervention(b);
+    if (fen) fen.location = URL.createObjectURL(blob); else PS.telecharger(blob, PS.nomFichierBon(b));
+  } catch (e) { if (fen) fen.close(); toast(e.message); }
+  finally { if (bouton) bouton.disabled = false; }
 }
 document.querySelectorAll('[data-retour]').forEach(b => b.onclick = () => {
   if (b.dataset.retour === 'accueil') chargerEtat(); else ouvrirCopro(S.copro);
